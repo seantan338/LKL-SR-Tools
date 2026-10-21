@@ -13,7 +13,7 @@ from services import (
      get_client,
      ensure_api_key,
  )
-from services.core_llm import client, OPENROUTER_API_KEY, AI_MODEL_NAME
+from services.core_llm import client, GEMINI_API_KEY, AI_MODEL_NAME
 
 __all__ = [
      "generate_jds",
@@ -24,7 +24,7 @@ __all__ = [
      "parse_sheet_data",
      "extract_json_block",
      "client",
-     "OPENROUTER_API_KEY",
+     "GEMINI_API_KEY",
      "AI_MODEL_NAME",
 ]
 

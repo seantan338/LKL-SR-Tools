@@ -95,13 +95,19 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     err_str = str(exc)
 
-    if "402" in err_str or "credits" in err_str.lower():
+    err_lower = err_str.lower()
 
-        msg = f"AI提供?(OpenRouter) 账户余额不足 (HTTP 402)，请前往 https://openrouter.ai/settings/credits 充? {err_str}"
+    if "429" in err_str or "resource_exhausted" in err_lower or "quota" in err_lower:
+
+        msg = f"AI 提供商 (Gemini API) 配额或频率超限 (HTTP 429)，请稍后重试，或前往 https://aistudio.google.com 检查用量与计费: {err_str}"
+
+    elif "api key" in err_lower or "api_key_invalid" in err_lower or "permission_denied" in err_lower:
+
+        msg = f"Gemini API 密钥无效或无权限，请检查 ai_backend/.env 中的 GEMINI_API_KEY: {err_str}"
 
     else:
 
-        msg = f"服务器内部处理异? {err_str}"
+        msg = f"服务器内部处理异常: {err_str}"
 
     return JSONResponse(
 

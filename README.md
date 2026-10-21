@@ -38,7 +38,7 @@ flowchart TB
 
     subgraph ServiceLayer ["服务层 (Service Layer)"]
         Firebase["🔥 Google Firebase<br/>- Cloud Firestore (实时数据流)<br/>- Firebase Authentication (身份鉴权)<br/>- Security Rules (RBAC 物理隔离)"]
-        AIBackend["⚡ Python FastAPI AI 微服务<br/>- 格式解析 (pypdf / python-docx)<br/>- LLM 引擎 (OpenRouter / Gemini)<br/>- 敏感信息脱敏 & 反歧视过滤"]
+        AIBackend["⚡ Python FastAPI AI 微服务<br/>- 格式解析 (pypdf / python-docx)<br/>- LLM 引擎 (Google Gemini API)<br/>- 敏感信息脱敏 & 反歧视过滤"]
     end
 
     subgraph SecurityVault ["安全与数据保障 (Security & Vault)"]
@@ -238,8 +238,9 @@ pip install -r requirements.txt
 
 # 4. 配置环境变量
 # 在 ai_backend 目录下创建 .env 文件，填入：
-# OPENROUTER_API_KEY=你的OpenRouter或Gemini密钥
-# AI_MODEL_NAME=google/gemini-flash-1.5
+# GEMINI_API_KEY=你的Gemini API密钥
+# GEMINI_MODEL_PRO=gemini-3.1-pro-preview
+# GEMINI_MODEL_FLASH=gemini-3.8-flash
 
 # 5. 启动开发服务器
 python main.py

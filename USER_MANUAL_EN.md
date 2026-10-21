@@ -653,7 +653,7 @@ Protects client commission rates, gross margins, and sensitive billing notes:
 * **Q7: AI Job Description generation or CV parsing reports "Connection Timeout" or "Parsing Failed"?**  
   * **Diagnostics**:
     1. Verify the Python AI microservice (port `8000`) is running. Test `http://localhost:8000/docs` in your browser;
-    2. Check that `OPENROUTER_API_KEY` in `ai_backend/.env` is valid and has sufficient credit;
+    2. Check that `GEMINI_API_KEY` in `ai_backend/.env` is valid and has sufficient quota;
     3. LLM providers experience occasional network jitter. The system has built-in retry and timeout fallbacks; re-click after 3–5 seconds.
 
 * **Q8: Why does the AI JD generator automatically replace the client company name with a generic industry title?**  
