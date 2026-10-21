@@ -218,6 +218,8 @@ export function AuthProvider({ children }) {
     isOwner: userProfile?.role === 'owner',
     isManager: userProfile?.role === 'manager' || userProfile?.role === 'owner',
     isRecruiter: userProfile?.role === 'recruiter',
+    // 考勤打卡仅适用于公司本部 (HQ)；分部 / 合作方团队无需打卡
+    isHqTeam: effectiveTeamId === 'default_team',
   };
 
   return (

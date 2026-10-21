@@ -23,7 +23,7 @@ export default function GlobalQuickFab() {
   const router = useRouter();
   const pathname = usePathname();
   const { openCandidateDrawer } = useNotifications();
-  const { teamId, user, isReadOnlyView } = useAuth();
+  const { teamId, user, isReadOnlyView, isHqTeam } = useAuth();
   const { showToast } = useFeedback();
   const { t } = useI18n();
   const fabRef = useRef(null);
@@ -247,7 +247,8 @@ export default function GlobalQuickFab() {
             </div>
           </button>
 
-          {/* Action 3: Attendance Check-in */}
+          {/* Action 3: Attendance Check-in (HQ only) */}
+          {isHqTeam && (
           <button
             onClick={handleOpenAttendance}
             className="fab-action-item"
@@ -293,6 +294,7 @@ export default function GlobalQuickFab() {
               </div>
             </div>
           </button>
+          )}
 
           {/* Action 4: Submit Feedback (写意见反馈) */}
           <button
