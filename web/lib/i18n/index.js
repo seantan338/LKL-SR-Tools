@@ -1215,6 +1215,8 @@ export const zh = {
   common: {
     all: '全部',
     confirm: '确认',
+    unassigned: '未分配顾问',
+    selectPic: '-- 请选择经办顾问 (PIC) --',
     cancel: '取消',
     prompt: '请输入',
     save: '保存',
@@ -2947,6 +2949,8 @@ export const en = {
   common: {
     all: 'All',
     confirm: 'Confirm',
+    unassigned: 'Unassigned',
+    selectPic: '-- Select PIC --',
     cancel: 'Cancel',
     prompt: 'Please enter',
     save: 'Save',
