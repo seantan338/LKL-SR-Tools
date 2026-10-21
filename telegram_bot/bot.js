@@ -32,8 +32,9 @@ if (fs.existsSync(serviceAccountPath)) {
                 credential: cert(require(serviceAccountPath))
             });
         }
-        db = getFirestore("default");
-        console.log("[Firebase Admin] Firestore 已成功连接 ('default')");
+        const databaseId = (process.env.FIREBASE_DATABASE_ID || '(default)').trim();
+        db = databaseId === '(default)' ? getFirestore() : getFirestore(databaseId);
+        console.log(`[Firebase Admin] Firestore 已成功连接 ('${databaseId}')`);
     } catch (e) {
         console.error("[Firebase Admin] 初始化失败:", e);
     }

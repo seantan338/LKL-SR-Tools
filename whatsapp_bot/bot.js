@@ -66,8 +66,9 @@ try {
         if (!getApps().length) {
             initializeApp({ credential: cred });
         }
-        db = getFirestore("default");
-        console.log(`✅ [Firebase Admin] Firestore 初始化成功 (来源: ${sourceDesc})`);
+        const databaseId = (process.env.FIREBASE_DATABASE_ID || '(default)').trim();
+        db = databaseId === '(default)' ? getFirestore() : getFirestore(databaseId);
+        console.log(`✅ [Firebase Admin] Firestore 初始化成功 (来源: ${sourceDesc}, 数据库: ${databaseId})`);
     } else {
         console.warn('⚠️ [Firebase Admin] 未找到服务账号凭据 (已检查环境变量与本地文件路径)，白名单同步与到期自动提醒将受限。');
     }
