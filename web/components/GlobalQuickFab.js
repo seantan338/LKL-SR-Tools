@@ -110,14 +110,14 @@ export default function GlobalQuickFab() {
     <>
       {/* Invisible backdrop to dismiss FAB menu when clicking outside */}
       {isOpen && (
-        <div 
+        <div
           onClick={() => setIsOpen(false)}
+          className="global-quick-fab-backdrop"
           style={{
             position: 'fixed',
             inset: 0,
             zIndex: 990,
             background: 'rgba(0, 0, 0, 0.25)',
-            backdropFilter: 'blur(2px)',
             transition: 'opacity 0.2s ease'
           }}
         />
