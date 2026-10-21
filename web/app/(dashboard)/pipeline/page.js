@@ -21,6 +21,7 @@ export default function PipelinePage() {
   const { t } = useI18n();
 const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [focusInterview, setFocusInterview] = useState(false);
   const [isBrowser, setIsBrowser] = useState(false);
 
   useEffect(() => {
@@ -69,6 +70,13 @@ const stages = [
           fromStage: candidate.stage || 'screening',
           toStage: targetStageKey
         });
+
+        // 拖入「面试考核」后直接打开档案，进入编辑并定位到面试日期 / 时间
+        if (targetStageKey === 'interview') {
+          setSelectedCandidate({ ...candidate, stage: targetStageKey, stageHistory: newHistory });
+          setFocusInterview(true);
+          setIsDrawerOpen(true);
+        }
       } catch (error) {
         console.error('Failed to update stage:', error);
         showToast(t('pipeline.stageUpdateFailed', '状态更新失败，请重试: ') + error.message, 'error');
@@ -78,6 +86,7 @@ const stages = [
 
   const openCandidate = (candidate) => {
     setSelectedCandidate(candidate);
+    setFocusInterview(false);
     setIsDrawerOpen(true);
   };
 
@@ -265,10 +274,11 @@ const stages = [
 
       </div>
 
-      <CandidateDrawer 
-        isOpen={isDrawerOpen} 
-        onClose={() => setIsDrawerOpen(false)} 
-        candidate={selectedCandidate} 
+      <CandidateDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => { setIsDrawerOpen(false); setFocusInterview(false); }}
+        candidate={selectedCandidate}
+        focusInterview={focusInterview}
       />
     </>
   );

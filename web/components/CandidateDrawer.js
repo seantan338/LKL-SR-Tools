@@ -12,6 +12,37 @@ import { SystemLogger } from '../lib/logger';
 import WhatsAppButton from './WhatsAppButton';
 import { useI18n } from '../lib/i18n-context';
 import { resolveCanonicalPic } from '../lib/identity.mjs';
+import {
+  buildInterviewReminder,
+  isIsoDate,
+  isHhMm,
+  DEFAULT_INTERVIEW_REMINDER_LEAD,
+  INTERVIEW_REMINDER_LEADS,
+} from '../lib/interview-reminder.mjs';
+
+// 旧数据的面试时间可能是 "10am"、"2:30pm" 这类文字：能解析的转成 HH:mm，解析不了的保留原文
+const normalizeInterviewTime = (time) => {
+  if (!time) return '';
+  if (isHhMm(time)) return time;
+  const parsed = Utils.parseInterviewDateTime(`01/01/2000 ${time}`);
+  return isHhMm(parsed.timeStr) ? parsed.timeStr : String(time);
+};
+
+// 旧数据的面试日期可能是 "18/8/2026 10am" 这类文字：能解析的转成日期 / 时间选择器格式，解析不了的保留原文
+const normalizeInterviewFields = (candidate) => {
+  const rawDate = candidate?.interviewDate || '';
+  const rawTime = normalizeInterviewTime(candidate?.interviewTime);
+  if (!rawDate) return { interviewDate: '', interviewTime: rawTime };
+  const parsed = Utils.parseInterviewDateTime(rawDate, rawTime);
+  if (!isIsoDate(parsed.dateStr)) return { interviewDate: rawDate, interviewTime: rawTime };
+  return { interviewDate: parsed.dateStr, interviewTime: rawTime || normalizeInterviewTime(parsed.timeStr) };
+};
+
+// 等抽屉滑入动画结束后，滚动到面试安排区块并聚焦日期选择器
+const scrollToInterviewSection = (sectionRef, inputRef) => setTimeout(() => {
+  sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  inputRef.current?.focus({ preventScroll: true });
+}, 350);
 
 const getAiBackendUrl = (path) => {
   const custom = process.env.NEXT_PUBLIC_PYTHON_API_URL;
@@ -32,7 +63,7 @@ const getInitialCandidateFormData = () => ({
   languages: [], workExperience: []
 });
 
-export default function CandidateDrawer({ isOpen, onClose, candidate }) {
+export default function CandidateDrawer({ isOpen, onClose, candidate, focusInterview = false }) {
   const { teamId, user, userProfile, isReadOnlyView } = useAuth();
   const { confirm, showToast: showGlobalToast } = useFeedback();
   const { t, lang } = useI18n();
@@ -72,6 +103,8 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
   const [isAiParsing, setIsAiParsing] = useState(false);
   const [aiParseError, setAiParseError] = useState('');
   const drawerFileInputRef = useRef(null);
+  const interviewSectionRef = useRef(null);
+  const interviewDateInputRef = useRef(null);
 
   const showToast = (msg, tone = 'info') => {
     if (showGlobalToast) {
@@ -130,13 +163,22 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
         expectedSalary: candidate.expectedSalary ?? personal.expected_salary ?? candidate.offered ?? candidate.salary ?? '',
         availability: candidate.availability ?? personal.availability ?? '',
         languages: (candidate.languages && candidate.languages.length > 0) ? candidate.languages : (cv.languages || []),
-        workExperience: (candidate.workExperience && candidate.workExperience.length > 0) ? candidate.workExperience : (cv.professional_history || [])
+        workExperience: (candidate.workExperience && candidate.workExperience.length > 0) ? candidate.workExperience : (cv.professional_history || []),
+        ...normalizeInterviewFields(candidate),
+        interviewReminderLead: candidate.interviewReminderLead || DEFAULT_INTERVIEW_REMINDER_LEAD
       });
       if (candidate.id !== lastCandidateIdRef.current) {
         lastCandidateIdRef.current = candidate.id;
         setIsEditing(false); // Reset to view mode when opening new candidate
         setActiveTab('profile');
         setShowDrawerAiParser(false);
+      }
+      // 看板拖入「面试考核」时：直接进入编辑模式并滚动到面试日期 / 时间
+      if (focusInterview && !isReadOnlyView) {
+        setIsEditing(true);
+        setActiveTab('profile');
+        const timer = scrollToInterviewSection(interviewSectionRef, interviewDateInputRef);
+        return () => clearTimeout(timer);
       }
     } else {
       lastCandidateIdRef.current = null;
@@ -156,7 +198,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
       setAiParseError('');
       setActiveTab('profile');
     }
-  }, [candidate, isOpen, isReadOnlyView, userProfile, user]);
+  }, [candidate, isOpen, isReadOnlyView, userProfile, user, focusInterview]);
 
   const handleDrawerAiParse = async () => {
     if (isReadOnlyView) return;
@@ -301,6 +343,10 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // 在抽屉里手动把阶段改成「面试考核」时，同样滚动到面试日期 / 时间
+    if (name === 'stage' && value === 'interview') {
+      scrollToInterviewSection(interviewSectionRef, interviewDateInputRef);
+    }
   };
 
   const handleLanguagesChange = (e) => {
@@ -341,6 +387,35 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
     });
   };
 
+  // 保存面试日期 / 时间后自动设定提醒：替换旧的自动提醒；清空日期或面试已过则移除
+  const syncInterviewReminder = async (candidateId, data) => {
+    const isEn = lang === 'en';
+    const timeLabel = isHhMm(data.interviewTime) ? ` ${data.interviewTime}` : '';
+    const target = [data.company, data.position].filter(Boolean).join(' / ');
+    const content = `${t('candidates.drawer.interviewReminderPrefix', '面试提醒')}: ${data.name || ''} · ${data.interviewDate}${timeLabel}${target ? ` · ${target}` : ''}`;
+    const reminder = buildInterviewReminder({
+      interviewDate: data.interviewDate,
+      interviewTime: data.interviewTime,
+      leadMinutes: data.interviewReminderLead || DEFAULT_INTERVIEW_REMINDER_LEAD,
+      content,
+    });
+    try {
+      const creatorName = userProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || (isEn ? 'Advisor' : '顾问');
+      const result = await FirestoreStore.setInterviewReminder(teamId, candidateId, reminder ? {
+        ...reminder,
+        creatorId: user?.uid || '',
+        creatorName,
+        creatorEmail: user?.email || '',
+      } : null);
+      if (result.changed && result.reminder) {
+        showToast(t('candidates.drawer.toastInterviewReminderSet', { when: `${result.reminder.date} ${result.reminder.time}` }, '已自动设定面试提醒：{when}'), 'success');
+      }
+    } catch (e) {
+      console.warn('Failed to set interview reminder:', e);
+      showToast(t('candidates.drawer.toastInterviewReminderFailed', '档案已保存，但面试提醒设定失败：') + e.message, 'warning');
+    }
+  };
+
   const handleSave = async () => {
     if (isReadOnlyView) {
       showToast(t('pipeline.readOnlyTip', '当前为只读视察模式，无法修改其他团队的候选人档案'), 'warning');
@@ -348,6 +423,8 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
     }
     try {
       const payload = { ...formData };
+      // 提醒由专门的方法读写；表单里的 reminders 是打开抽屉时的旧快照，写回会覆盖期间新增 / 自动设定的提醒
+      delete payload.reminders;
       if (payload.picName || payload.assignedTo) {
         const canonical = resolveCanonicalPic(payload.picName, payload.assignedTo, teamMembers);
         payload.picName = canonical.displayName !== '未分配顾问' ? canonical.displayName : (payload.picName || '');
@@ -386,6 +463,8 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
         } else {
           SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', formData.name);
         }
+
+        await syncInterviewReminder(currentCandidate.id, payload);
       } else {
         // Validate required fields for new candidate
         if (!formData.name || !formData.name.trim()) {
@@ -1335,7 +1414,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
 
                   {(formData.stage === 'interview' || formData.interviewDate) && (
                     <>
-                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }} ref={interviewSectionRef}>
                         <div className="form-grid-2" style={{ padding: 'var(--space-4)', background: 'rgba(59, 130, 246, 0.05)', borderRadius: 'var(--radius-md)', border: '1px dashed rgba(59, 130, 246, 0.3)' }}>
                           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h5 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1365,9 +1444,49 @@ export default function CandidateDrawer({ isOpen, onClose, candidate }) {
                           
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">{t('candidates.drawer.labelInterviewDate')}</label>
-                            <input type="text" className="form-input" name="interviewDate" value={formData.interviewDate || ''} onChange={handleChange} readOnly={!isEditing} placeholder={t('candidates.drawer.placeholderInterviewDate')} />
+                            <input
+                              ref={interviewDateInputRef}
+                              type="date"
+                              className="form-input"
+                              name="interviewDate"
+                              value={isIsoDate(formData.interviewDate) ? formData.interviewDate : ''}
+                              onChange={handleChange}
+                              disabled={!isEditing}
+                            />
+                            {formData.interviewDate && !isIsoDate(formData.interviewDate) && (
+                              <div style={{ fontSize: '11px', color: 'var(--accent-amber)', marginTop: '4px' }}>
+                                {t('candidates.drawer.legacyInterviewDateHint', { value: String(formData.interviewDate) }, '原始记录「{value}」无法识别为日期，请重新选择')}
+                              </div>
+                            )}
                           </div>
-                          
+
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{t('candidates.drawer.labelInterviewTime', '面试时间')}</label>
+                            <input
+                              type="time"
+                              className="form-input"
+                              name="interviewTime"
+                              value={isHhMm(formData.interviewTime) ? formData.interviewTime : ''}
+                              onChange={handleChange}
+                              disabled={!isEditing}
+                            />
+                          </div>
+
+                          <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">{t('candidates.drawer.labelReminderLead', '自动提醒')}</label>
+                            <select
+                              className="form-select"
+                              name="interviewReminderLead"
+                              value={formData.interviewReminderLead || DEFAULT_INTERVIEW_REMINDER_LEAD}
+                              onChange={handleChange}
+                              disabled={!isEditing}
+                            >
+                              {INTERVIEW_REMINDER_LEADS.map(lead => (
+                                <option key={lead} value={lead}>{t(`candidates.drawer.reminderLead_${lead}`)}</option>
+                              ))}
+                            </select>
+                          </div>
+
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">{t('candidates.drawer.labelStatus')}</label>
                             <select 

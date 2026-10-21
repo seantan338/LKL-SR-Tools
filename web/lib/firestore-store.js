@@ -4,6 +4,7 @@ import {
   query, where, orderBy, onSnapshot, serverTimestamp, writeBatch 
 } from 'firebase/firestore';
 import { Utils } from './utils';
+import { mergeInterviewReminder } from './interview-reminder.mjs';
 
 /**
  * Firestore Data Layer for TALENT FLOW
@@ -275,6 +276,30 @@ export const FirestoreStore = {
     reminders.push(newReminder);
     await updateDoc(candidateRef, { reminders, updatedAt: serverTimestamp() });
     return newReminder;
+  },
+
+  /**
+   * 设定 / 替换候选人的面试自动提醒（reminderData 为 null 时移除未触发的自动提醒）
+   * 返回 { changed, reminder }
+   */
+  async setInterviewReminder(teamId, candidateId, reminderData) {
+    const safeTeamId = teamId || 'default_team';
+    const candidateRef = doc(db, 'teams', safeTeamId, 'candidates', candidateId);
+    const snap = await getDoc(candidateRef);
+    if (!snap.exists()) return { changed: false, reminder: null };
+
+    const newReminder = reminderData ? {
+      id: Utils.generateId(),
+      ...sanitizeFirestoreData(reminderData),
+      fired: false,
+      createdAt: new Date().toISOString()
+    } : null;
+
+    const { reminders, changed } = mergeInterviewReminder(snap.data().reminders, newReminder);
+    if (changed) {
+      await updateDoc(candidateRef, { reminders, updatedAt: serverTimestamp() });
+    }
+    return { changed, reminder: changed ? newReminder : null };
   },
 
   async markReminderFired(teamId, candidateId, reminderId) {
