@@ -2339,7 +2339,7 @@ export default function StandaloneDocsPage() {
                 Q7: AI 职位生成或 CV 简历解析提示“连接超时”或“解析失败”？
               </div>
               <div style={{ color: 'var(--text-secondary)', lineHeight: '1.8' }}>
-                答：请依次排查：① 确认 Python AI 微服务（默认端口 8000）是否正常运行（可在浏览器访问 <code>http://localhost:8000/docs</code> 验证接口）；② 检查 <code>ai_backend/.env</code> 中的 <code>OPENROUTER_API_KEY</code> 余额是否充足；③ 大模型偶尔存在网络波动，系统内置了截断重试与超时降级机制，稍候 3~5 秒再次点击即可。
+                答：请依次排查：① 确认 Python AI 微服务（默认端口 8000）是否正常运行（可在浏览器访问 <code>http://localhost:8000/docs</code> 验证接口）；② 检查 <code>ai_backend/.env</code> 中的 <code>GEMINI_API_KEY</code> 是否有效、配额是否充足；③ 大模型偶尔存在网络波动，系统内置了截断重试与超时降级机制，稍候 3~5 秒再次点击即可。
               </div>
             </div>
 

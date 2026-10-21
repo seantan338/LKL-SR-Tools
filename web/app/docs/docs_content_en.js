@@ -669,7 +669,7 @@ export const sectionsEn = [
               Q7: AI Job Description generation or CV parsing reports "Connection Timeout" or "Parsing Failed"?
             </div>
             <div style={{ color: 'var(--text-secondary)', lineHeight: '1.8' }}>
-              Answer: Check sequentially: 1) Ensure the Python AI microservice (port 8000) is running (verify via <code>http://localhost:8000/docs</code>); 2) Check that <code>OPENROUTER_API_KEY</code> in <code>ai_backend/.env</code> has sufficient balance; 3) LLM services experience occasional network jitter. The system has built-in retry and timeout fallbacks; re-click after 3–5 seconds.
+              Answer: Check sequentially: 1) Ensure the Python AI microservice (port 8000) is running (verify via <code>http://localhost:8000/docs</code>); 2) Check that <code>GEMINI_API_KEY</code> in <code>ai_backend/.env</code> is valid and has sufficient quota; 3) LLM services experience occasional network jitter. The system has built-in retry and timeout fallbacks; re-click after 3–5 seconds.
             </div>
           </div>
 

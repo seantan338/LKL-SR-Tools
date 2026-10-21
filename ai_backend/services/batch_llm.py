@@ -4,7 +4,7 @@ import re
 from typing import List, Tuple, Optional, Dict, Any, Callable
 from .core_llm import get_client, extract_json_block, safe_json_parse, AI_MODEL_NAME, logger
 
-# Global concurrency limiter (max 3 concurrent requests to OpenRouter to respect rate limits)
+# Global concurrency limiter (max 3 concurrent requests to the Gemini API to respect rate limits)
 DEFAULT_SEMAPHORE_LIMIT = 3
 global_semaphore = asyncio.Semaphore(DEFAULT_SEMAPHORE_LIMIT)
 

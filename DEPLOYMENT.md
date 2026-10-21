@@ -59,7 +59,7 @@ TALENT FLOW 生产环境由以下核心服务构成：
 ┌────────────────────────────────────────────────────────────────────────┐
 │                      外部云与 BaaS 服务 (Cloud Services)                 │
 │                                                                        │
-│  🔥 Google Firebase                  🧠 大模型 (OpenRouter)             │
+│  🔥 Google Firebase                  🧠 大模型 (Gemini API)             │
 │  ├── Cloud Firestore (多租户数据库)   ├── Claude Sonnet / Gemini Flash │
 │  ├── Authentication (用户身份认证)   └── 简历多模态 OCR 结构化提取      │
 │  └── Storage (简历文件云存储)                                           │
@@ -92,7 +92,7 @@ flowchart TB
 
     subgraph CloudServices ["外部云与 BaaS 服务"]
         Firebase["Google Firebase (Firestore, Auth, Storage)"]
-        OpenRouter["OpenRouter / 大模型 API"]
+        Gemini["Google Gemini API"]
         GSheets["Google Sheets API"]
     end
 
@@ -105,7 +105,7 @@ flowchart TB
     WABot -->|Firestore Admin| Firebase
     WAPhone -->|Baileys Socket| WABot
     TGServer -->|Webhook / Polling| AIBackend
-    AIBackend -->|LLM Requests| OpenRouter
+    AIBackend -->|LLM Requests| Gemini
     AIBackend -->|Sheets Sync| GSheets
     AIBackend -->|Admin SDK| Firebase
 ```
@@ -134,8 +134,8 @@ flowchart TB
 1. **Google Firebase 项目**（必选）：
    - 创建 Firebase 项目，开启 Authentication、Cloud Firestore 与 Cloud Storage；
    - 导出 `firebase-service-account.json`（管理员权限私钥）。
-2. **OpenRouter API Key**（必选）：
-   - 注册并前往 [OpenRouter.ai](https://openrouter.ai/) 获取 API Key，确保账户具备可用余额。
+2. **Google Gemini API Key**（必选）：
+   - 前往 [Google AI Studio](https://aistudio.google.com/apikey) 创建 API Key，并确认项目已开通计费（免费额度有频率限制）。
 3. **Telegram Bot Token**（选配）：
    - 在 Telegram 向 `@BotFather` 发送 `/newbot` 获取机器人口令；
    - 发送 `/setprivacy` 将 Privacy Mode 设为 `Disable`（使机器人可在群组中接收简历附件）。
@@ -186,14 +186,12 @@ NEXT_PUBLIC_DOCS_URL=/docs
 # AI 后端微服务环境变量 (FastAPI)
 # ==============================================================================
 
-# OpenRouter 大模型 API 密钥 (必填)
-OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Google Gemini API 密钥 (必填)
+GEMINI_API_KEY=your_gemini_api_key_here
 
-# 模型路由分级标识 (支持灵活切换)
-MODEL_HEAVY=anthropic/claude-sonnet-4.5
-MODEL_LIGHT=google/gemini-2.5-flash
-MODEL_CV=google/gemini-3.8-flash
-AI_MODEL_NAME=anthropic/claude-sonnet-4.5
+# 模型分级 (Pro: 订单解析 / AI 助手 / 匹配；Flash: 表格、简历解析与 JD 生成)
+GEMINI_MODEL_PRO=gemini-3.1-pro-preview
+GEMINI_MODEL_FLASH=gemini-3.8-flash
 
 # 向量嵌入引擎 (选填)
 OPENAI_API_KEY=
@@ -415,8 +413,8 @@ pm2 start bot.js --name "talentflow-whatsapp"
 - **免二次扫码保障**：
   - 授权凭证会自动保存在 `whatsapp_bot/.wwebjs_auth/` 中。Docker 部署中已挂载了此卷，日常重启容器**无需重新扫码**。
 
-### Q3: 岗位生成或简历解析报错：`HTTP 402 / 账户余额不足`？
-- **排查**：前端收到类似提示说明 OpenRouter 账户欠费。请前往 [OpenRouter Credits](https://openrouter.ai/settings/credits) 充值，充值后无需重启服务即时恢复。
+### Q3: 岗位生成或简历解析报错：`HTTP 429 / 配额或频率超限`？
+- **排查**：说明 Gemini API 配额用尽或请求过快。请前往 [Google AI Studio](https://aistudio.google.com) 检查用量与计费设置；免费额度频率较低，建议开通计费。调整后无需重启服务。
 
 ### Q4: 网页提示 `Firebase: Error (auth/unauthorized-domain)`？
 - **排查**：Firebase 控制台未放行该域名。请进入 Firebase Console -> Authentication -> Settings -> Authorized domains，将当前访问的域名（如 `recruit.yourcompany.com`）添加到列表中。
