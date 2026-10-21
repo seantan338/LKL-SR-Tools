@@ -12,7 +12,7 @@ const getApiUrl = (path) => {
 };
 
 export default function AttendanceModal() {
-  const { user, userProfile, teamId, isOwner } = useAuth();
+  const { user, userProfile, teamId, isOwner, isHqTeam } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -130,7 +130,8 @@ export default function AttendanceModal() {
 
   // 4. Auto-popup on login / page load if employee has not clocked in today
   useEffect(() => {
-    if (!user || !userProfile || userProfile.role === 'pending' || autoPopupCheckedRef.current) return;
+    // 分部 / 合作方团队无需打卡，不自动弹出
+    if (!isHqTeam || !user || !userProfile || userProfile.role === 'pending' || autoPopupCheckedRef.current) return;
 
     // Check if dismissed in this session
     const dismissKey = `omni_clockin_dismissed_${user.uid}_${todayDateStr}`;
@@ -144,7 +145,7 @@ export default function AttendanceModal() {
       }, 900);
       return () => clearTimeout(t);
     }
-  }, [user, userProfile, todayClockIn, todayDateStr]);
+  }, [isHqTeam, user, userProfile, todayClockIn, todayDateStr]);
 
   // 5. Global Event Listener: Can be opened from Header or anywhere via custom event
   useEffect(() => {
@@ -349,7 +350,7 @@ export default function AttendanceModal() {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !isHqTeam) return null;
 
   const hoursStr = String(currentTime.getHours()).padStart(2, '0');
   const minutesStr = String(currentTime.getMinutes()).padStart(2, '0');

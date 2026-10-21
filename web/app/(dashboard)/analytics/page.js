@@ -19,12 +19,14 @@ const getApiUrl = (path) => {
 
 export default function AnalyticsPage() {
   const router = useRouter();
-  const { teamId, role, isOwner, user, userProfile } = useAuth();
+  const { teamId, role, isOwner, user, userProfile, isHqTeam } = useAuth();
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
 
   // Active Tab: 'performance' (业绩看板) or 'attendance' (打卡记录)
-  const [activeTab, setActiveTab] = useState('performance');
+  const [selectedTab, setActiveTab] = useState('performance');
+  // 分部 / 合作方团队无需打卡：非本部团队固定显示业绩看板
+  const activeTab = isHqTeam ? selectedTab : 'performance';
 
   // Orders and Logs State
   const [orders, setOrders] = useState([]);
@@ -816,7 +818,7 @@ export default function AnalyticsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
           
           {/* Owner Rule Settings Button */}
-          {isOwner && (
+          {isOwner && isHqTeam && (
             <button
               className="btn btn-sm btn-outline"
               style={{ border: '1px solid var(--border-interactive)', gap: '6px', background: 'rgba(255,255,255,0.03)' }}
@@ -840,6 +842,7 @@ export default function AnalyticsPage() {
               <i className="ph-bold ph-trophy"></i>
               {t('analytics.tabPerformance', 'PIC 业绩看板')}
             </button>
+            {isHqTeam && (
             <button
               className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : ''}`}
               style={{ background: activeTab === 'attendance' ? 'var(--accent-blue)' : 'transparent', border: 'none', gap: '6px' }}
@@ -848,9 +851,11 @@ export default function AnalyticsPage() {
               <i className="ph-bold ph-clock-user"></i>
               {t('analytics.tabAttendance', 'PIC 打卡记录')}
             </button>
+            )}
           </div>
 
-          {/* Quick Clock-in Buttons */}
+          {/* Quick Clock-in Buttons (HQ only) */}
+          {isHqTeam && (
           <div style={{ display: 'flex', gap: '6px' }}>
             <button
               className="btn btn-sm"
@@ -873,6 +878,7 @@ export default function AnalyticsPage() {
               {t('analytics.clockOutBtn', '下班签退')}
             </button>
           </div>
+          )}
 
         </div>
       </div>

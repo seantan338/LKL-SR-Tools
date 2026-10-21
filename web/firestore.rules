@@ -35,6 +35,11 @@ service cloud.firestore {
       return role == 'owner' || role == 'manager';
     }
 
+    // 考勤打卡仅适用于公司本部 (HQ)；分部 / 合作方团队无需打卡
+    function isHqTeam(teamId) {
+      return teamId == 'default_team';
+    }
+
     // Check if current user belongs to a parent team linked to childTeamId
     function isLinkedParentTeamMember(childTeamId) {
       return isAuthenticated()
@@ -108,7 +113,9 @@ service cloud.firestore {
 
       match /logs/{logId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
-        allow create: if isApprovedOnTeam(teamId) || isTeamMember(teamId);
+        // 考勤打卡日志 (targetType == 'ATTENDANCE') 仅限本部写入
+        allow create: if (isApprovedOnTeam(teamId) || isTeamMember(teamId))
+          && (isHqTeam(teamId) || request.resource.data.get('targetType', '') != 'ATTENDANCE');
         // 不可变审计日志(Immutable Audit Log):
         // - Owner 仅可修改软删除/恢复标记字段
         // - 日志原始内容 (level, action, targetName, details, timestamp, user, module, message)
@@ -127,12 +134,14 @@ service cloud.firestore {
       }
 
       match /attendance/{attendanceId} {
-        allow read, write: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow write: if isHqTeam(teamId)
+          && (isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId));
       }
 
       match /attendance_rules/{ruleId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
-        allow write: if isOwnerOrManagerOnTeam(teamId);
+        allow write: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
       }
     }
   }
