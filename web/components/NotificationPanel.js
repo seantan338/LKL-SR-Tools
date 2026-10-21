@@ -6,6 +6,7 @@ import { useFeedback } from '../lib/feedback-context';
 import { Utils } from '../lib/utils';
 import { FirestoreStore } from '../lib/firestore-store';
 import { useAuth } from '../lib/auth-context';
+import { useI18n } from '../lib/i18n-context';
 
 export default function NotificationPanel({ onOpenCandidate }) {
   const { 
@@ -23,6 +24,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
   } = useNotifications();
   const { showToast, confirm } = useFeedback();
   const { teamId } = useAuth();
+  const { t } = useI18n();
   
   const [activeTab, setActiveTab] = useState('all'); // all, stale, interview, reminder, activity
   
@@ -47,7 +49,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
 
   const handleSnooze = async (notif) => {
     if (!snoozeReason.trim()) {
-      showToast("请输入延期原因", "warning");
+      showToast(t('components.notification.snoozeReasonRequired', '请输入延期原因'), "warning");
       return;
     }
     
@@ -67,28 +69,28 @@ export default function NotificationPanel({ onOpenCandidate }) {
       setSnoozingId(null);
       setSnoozeReason('');
       dismissNotification(notif.id);
-      showToast("延期备注已保存", "success");
+      showToast(t('components.notification.snoozeSaved', '延期备注已保存'), "success");
     } catch (e) {
       console.error(e);
-      showToast("延期保存失败: " + e.message, "error");
+      showToast(t('components.notification.snoozeFailed', { msg: e.message }, '延期保存失败: {msg}'), "error");
     }
   };
 
   const handleReject = async (notif) => {
-    const ok = await confirm(`确认要将 ${notif.candidateName} 标记为淘汰吗？`, {
-      title: '候选人淘汰确认',
+    const ok = await confirm(t('components.notification.confirmDropMsg', { name: notif.candidateName }, '确认要将 {name} 标记为淘汰吗？'), {
+      title: t('components.notification.confirmDropTitle', '候选人淘汰确认'),
       danger: true,
-      confirmLabel: '确认淘汰'
+      confirmLabel: t('components.notification.confirmDropBtn', '确认淘汰')
     });
     if (!ok) return;
 
     try {
       await FirestoreStore.updateCandidate(teamId, notif.candidateId, { status: 'rejected' });
       dismissNotification(notif.id);
-      showToast("候选人已标记为淘汰", "info");
+      showToast(t('components.notification.dropSuccess', '候选人已标记为淘汰'), "info");
     } catch (e) {
       console.error(e);
-      showToast("淘汰操作失败: " + e.message, "error");
+      showToast(t('components.notification.dropFailed', { msg: e.message }, '淘汰操作失败: {msg}'), "error");
     }
   };
 
@@ -109,20 +111,20 @@ export default function NotificationPanel({ onOpenCandidate }) {
         {/* Header */}
         <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--border-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: 'var(--text-md)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            通知中心
+            {t('components.notification.title', '通知中心')}
             {unreadCount > 0 && <span className="badge" style={{ background: 'var(--accent-rose)', color: '#fff', border: 'none' }}>{unreadCount}</span>}
           </h3>
           <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
             <button 
               className="btn btn-secondary btn-xs" 
-              title="全部标为已读" 
+              title={t('components.notification.markAllReadTitle', '全部标为已读')} 
               onClick={markAllRead}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', padding: '3px 8px' }}
             >
               <i className="ph-bold ph-checks"></i>
-              <span>全部已读</span>
+              <span>{t('components.notification.markAllRead', '全部已读')}</span>
             </button>
-            <button className="btn-icon" onClick={onClose} title="关闭面板">
+            <button className="btn-icon" onClick={onClose} title={t('components.notification.closePanel', '关闭面板')}>
               <i className="ph-light ph-x"></i>
             </button>
           </div>
@@ -141,14 +143,14 @@ export default function NotificationPanel({ onOpenCandidate }) {
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <i className="ph-fill ph-bell" style={{ color: 'var(--accent-amber)', fontSize: '0.9rem' }}></i>
-              <span>开启桌面通知，切换窗口也不会错过提醒</span>
+              <span>{t('components.notification.desktopHint', '开启桌面通知，切换窗口也不会错过提醒')}</span>
             </div>
             <button 
               className="btn btn-primary btn-xs" 
               style={{ fontSize: '0.72rem', padding: '3px 8px', flexShrink: 0, background: 'var(--accent-amber)', borderColor: 'var(--accent-amber)', color: '#000', fontWeight: '600' }}
               onClick={requestDesktopNotification}
             >
-              开启通知
+              {t('components.notification.enableDesktop', '开启通知')}
             </button>
           </div>
         )}
@@ -164,18 +166,18 @@ export default function NotificationPanel({ onOpenCandidate }) {
             color: 'var(--accent-emerald)'
           }}>
             <i className="ph-bold ph-check-circle"></i>
-            <span>系统级桌面弹窗与声音提醒已生效</span>
+            <span>{t('components.notification.desktopEnabled', '系统级桌面弹窗与声音提醒已生效')}</span>
           </div>
         )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-hairline)', padding: '0 var(--space-4)', overflowX: 'auto', gap: 'var(--space-4)' }}>
           {[
-            { id: 'all', label: '全部' },
-            { id: 'stale', label: '预警' },
-            { id: 'interview', label: '面试' },
-            { id: 'reminder', label: '提醒' },
-            { id: 'activity', label: '动态' }
+            { id: 'all', label: t('components.notification.tabs.all', '全部') },
+            { id: 'stale', label: t('components.notification.tabs.stale', '预警') },
+            { id: 'interview', label: t('components.notification.tabs.interview', '面试') },
+            { id: 'reminder', label: t('components.notification.tabs.reminder', '提醒') },
+            { id: 'activity', label: t('components.notification.tabs.activity', '动态') }
           ].map(tab => (
             <button
               key={tab.id}
@@ -200,7 +202,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
               <div style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', opacity: 0.4 }}>
                 <i className="ph-light ph-tray"></i>
               </div>
-              <div>没有需要关注的事项</div>
+              <div>{t('components.notification.empty', '没有需要关注的事项')}</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -243,7 +245,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
                       >
                         {notif.body}
                         <div style={{ marginTop: '4px', fontSize: '0.72rem', color: 'var(--accent-blue)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                          点击查看候选人资料 <i className="ph-bold ph-arrow-right"></i>
+                          {t('components.notification.viewProfile', '点击查看候选人资料')} <i className="ph-bold ph-arrow-right"></i>
                         </div>
                       </div>
 
@@ -255,31 +257,31 @@ export default function NotificationPanel({ onOpenCandidate }) {
                               <input 
                                 type="text" 
                                 className="form-input" 
-                                placeholder="输入未推进原因..." 
+                                placeholder={t('components.notification.snoozePlaceholder', '输入未推进原因...')} 
                                 value={snoozeReason}
                                 onChange={e => setSnoozeReason(e.target.value)}
                                 style={{ marginBottom: 'var(--space-2)', fontSize: '0.75rem', padding: '4px 8px', minHeight: '30px' }}
                               />
                               <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                                 <select className="form-select" value={snoozeDays} onChange={e => setSnoozeDays(e.target.value)} style={{ fontSize: '0.75rem', padding: '2px 24px 2px 8px', minHeight: '26px' }}>
-                                  <option value={3}>延期 3 天</option>
-                                  <option value={5}>延期 5 天</option>
-                                  <option value={7}>延期 7 天</option>
+                                  <option value={3}>{t('components.notification.snooze3', '延期 3 天')}</option>
+                                  <option value={5}>{t('components.notification.snooze5', '延期 5 天')}</option>
+                                  <option value={7}>{t('components.notification.snooze7', '延期 7 天')}</option>
                                 </select>
-                                <button className="btn btn-primary btn-sm" style={{ padding: '2px 8px', minHeight: '26px' }} onClick={() => handleSnooze(notif)}>保存</button>
-                                <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', minHeight: '26px' }} onClick={() => setSnoozingId(null)}>取消</button>
+                                <button className="btn btn-primary btn-sm" style={{ padding: '2px 8px', minHeight: '26px' }} onClick={() => handleSnooze(notif)}>{t('components.notification.save', '保存')}</button>
+                                <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', minHeight: '26px' }} onClick={() => setSnoozingId(null)}>{t('components.notification.cancel', '取消')}</button>
                               </div>
                             </div>
                           ) : (
                             <>
                               <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handlePushNextStage(notif); }}>
-                                <i className="ph-light ph-arrow-right"></i> 推进阶段
+                                <i className="ph-light ph-arrow-right"></i> {t('components.notification.actionAdvance', '推进阶段')}
                               </button>
                               <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); setSnoozingId(notif.id); }}>
-                                <i className="ph-light ph-note-pencil"></i> 备注延期
+                                <i className="ph-light ph-note-pencil"></i> {t('components.notification.actionSnooze', '备注延期')}
                               </button>
                               <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); handleReject(notif); }} style={{ color: 'var(--accent-rose)' }}>
-                                <i className="ph-light ph-x-circle"></i> 释放
+                                <i className="ph-light ph-x-circle"></i> {t('components.notification.actionRelease', '释放')}
                               </button>
                             </>
                           )}
@@ -295,10 +297,10 @@ export default function NotificationPanel({ onOpenCandidate }) {
                             onClick={(e) => {
                               e.stopPropagation();
                               completeReminder(notif.candidateId, notif.reminderId);
-                              showToast("提醒已标记为已完成", "success");
+                              showToast(t('components.notification.reminderCompleted', '提醒已标记为已完成'), "success");
                             }}
                           >
-                            <i className="ph-bold ph-check"></i> 标记已完成
+                            <i className="ph-bold ph-check"></i> {t('components.notification.actionComplete', '标记已完成')}
                           </button>
                           <button 
                             className="btn btn-secondary btn-xs" 
@@ -307,7 +309,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
                               dismissNotification(notif.id);
                             }}
                           >
-                            移除通知
+                            {t('components.notification.actionRemove', '移除通知')}
                           </button>
                         </div>
                       )}

@@ -149,7 +149,16 @@ export const zh = {
       actionSnooze: '备注延期',
       actionRelease: '释放',
       actionComplete: '标记已完成',
-      actionRemove: '移除通知'
+      actionRemove: '移除通知',
+      markAllReadTitle: '全部标为已读',
+      closePanel: '关闭面板',
+      confirmDropMsg: '确认要将 {name} 标记为淘汰吗？',
+      dropSuccess: '候选人已标记为淘汰',
+      dropFailed: '淘汰操作失败: {msg}',
+      snoozeReasonRequired: '请输入延期原因',
+      snoozeSaved: '延期备注已保存',
+      snoozeFailed: '延期保存失败: {msg}',
+      reminderCompleted: '提醒已标记为已完成'
     },
     orderDrawer: {
       unnamedPos: '未命名职位',
@@ -1401,7 +1410,8 @@ export const zh = {
     detectIpFailed: '无法检测公网出口 IP: ',
     detectIpNetFailed: '获取当前 IP 失败，请确认后端已运行: ',
     detectGpsFailed: '获取当前 GPS 失败: ',
-    errNoGeoBrowser: '当前浏览器不支持地理定位'
+    errNoGeoBrowser: '当前浏览器不支持地理定位',
+    geoErrDefault: '定位授权或信号异常'
   },
   cvAutofill: {
     pageTitle: 'CV 简历解析与入库 (Sunrise 模板版)',
@@ -1655,6 +1665,60 @@ export const zh = {
     labelAdminReply: '管理员批注 / 处理回复',
     placeholderAdminReply: '例如: 该功能已纳入下周迭代计划，预计周五上线...',
     btnSaveReply: '保存回复'
+  },
+  notifications: {
+    stale: {
+      screening: '请及时推进',
+      phone: '等待初筛电话',
+      interview: '面试结果待定，候选人可能流失',
+      offer: 'Offer 待确认，请尽快跟进',
+      pre_onboarding: '入职准备未更新'
+    },
+    staleTitle: '候选人阶段停滞',
+    staleBody: '{name} 在「{stage}」已停留 {days} 天。{hint}',
+    interviewTodayTitle: '今日面试提醒',
+    interviewTodayBody: '{name} 的面试安排在今天 {time}，请提前准备。',
+    interviewTomorrowTitle: '明日面试提醒',
+    interviewTomorrowBody: '{name} 的面试安排在明天 {time}。',
+    reminderTitle: '跟进提醒',
+    reminderBody: '请跟进 {name} 的情况',
+    followUpCandidate: '请跟进候选人 {name}',
+    desktopReminderTitle: '跟进提醒: {name}',
+    activityNewTitle: '新候选人录入',
+    activityNewBody: '录入了新候选人: {name}',
+    activityAdvanceTitle: '阶段推进',
+    activityAdvanceBody: '将 {name} 推进至「{stage}」',
+    alertTitle: '跟进提醒 · {name}',
+    alertClose: '关闭提示',
+    alertClickHint: '点击卡片直接查看候选人资料',
+    alertLater: '稍后提醒',
+    alertViewCandidate: '查看候选人',
+    alertComplete: '标记已完成'
+  },
+  attendanceModal: {
+    title: '日常考勤签到',
+    later: '稍后打卡',
+    greeting: '您好，{name}',
+    defaultUserName: '员工',
+    statusClockedIn: '今日已签到 ({time})',
+    statusPending: '今日待签到 · 上班考勤',
+    clockInLabel: '上班打卡',
+    clockOutLabel: '下班打卡',
+    notClockedIn: '未签到',
+    pendingClockOut: '待签退',
+    quickBindIp: '【管理员快捷设定】将此网络 IP ({ip}) 设为公司 Wi-Fi 并打卡',
+    verifying: '正在安全核验...',
+    clockInNow: '立即上班打卡',
+    clockOutNow: '下班签退打卡',
+    securityNote: '企业级安全风控：支持公司 Wi-Fi 自动秒验 或 100 米地理围栏',
+    statusBindingIp: '正在将当前网络公网出口 IP ({ip}) 登记为公司 Wi-Fi...',
+    toastIpBound: '已成功将 IP ({ip}) 设为公司 Wi-Fi！正在立即打卡...',
+    bindFailed: '绑定失败: {msg}',
+    statusDetecting: '正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...',
+    errServiceUnreachable: '无法连接考勤核验服务，请检查网络连接',
+    toastWifiSuccess: '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})',
+    statusCheckingGps: '未连接公司 Wi-Fi，正在调用高精度 GPS 校验 100 米考勤围栏...',
+    statusGpsCaptured: '已捕获 GPS (精度 ±{acc}m)，正在提交后端核验...'
   }
 };
 
@@ -1810,7 +1874,16 @@ export const en = {
       actionSnooze: 'Snooze',
       actionRelease: 'Release',
       actionComplete: 'Mark Done',
-      actionRemove: 'Remove'
+      actionRemove: 'Remove',
+      markAllReadTitle: 'Mark all as read',
+      closePanel: 'Close panel',
+      confirmDropMsg: 'Mark {name} as dropped?',
+      dropSuccess: 'Candidate marked as dropped',
+      dropFailed: 'Failed to drop candidate: {msg}',
+      snoozeReasonRequired: 'Please enter a reason for the delay',
+      snoozeSaved: 'Snooze note saved',
+      snoozeFailed: 'Failed to save snooze: {msg}',
+      reminderCompleted: 'Reminder marked as done'
     },
     orderDrawer: {
       unnamedPos: 'Unnamed Position',
@@ -3067,7 +3140,8 @@ export const en = {
     detectIpFailed: 'Failed to detect egress IP: ',
     detectIpNetFailed: 'Failed to detect current IP. Please ensure backend is running: ',
     detectGpsFailed: 'Failed to obtain GPS: ',
-    errNoGeoBrowser: 'Geolocation is not supported by your browser'
+    errNoGeoBrowser: 'Geolocation is not supported by your browser',
+    geoErrDefault: 'Location permission or signal error'
   },
   cvAutofill: {
     pageTitle: 'CV Auto Fill & Ingestion (Sunrise Template)',
@@ -3321,5 +3395,59 @@ export const en = {
     labelAdminReply: 'Admin Note / Management Reply',
     placeholderAdminReply: 'e.g. This feature is scheduled for next week release...',
     btnSaveReply: 'Save Reply'
+  },
+  notifications: {
+    stale: {
+      screening: 'Please follow up promptly',
+      phone: 'Awaiting screening call',
+      interview: 'Interview result pending — candidate may drop off',
+      offer: 'Offer awaiting confirmation — please follow up soon',
+      pre_onboarding: 'Onboarding prep not updated'
+    },
+    staleTitle: 'Candidate Stalled',
+    staleBody: '{name} has been in "{stage}" for {days} days. {hint}',
+    interviewTodayTitle: 'Interview Today',
+    interviewTodayBody: '{name} has an interview today {time}. Please prepare in advance.',
+    interviewTomorrowTitle: 'Interview Tomorrow',
+    interviewTomorrowBody: '{name} has an interview tomorrow {time}.',
+    reminderTitle: 'Follow-up Reminder',
+    reminderBody: 'Please follow up on {name}',
+    followUpCandidate: 'Please follow up with candidate {name}',
+    desktopReminderTitle: 'Follow-up Reminder: {name}',
+    activityNewTitle: 'New Candidate Added',
+    activityNewBody: 'Added new candidate: {name}',
+    activityAdvanceTitle: 'Stage Advanced',
+    activityAdvanceBody: 'Moved {name} to "{stage}"',
+    alertTitle: 'Follow-up · {name}',
+    alertClose: 'Dismiss',
+    alertClickHint: 'Click the card to view candidate profile',
+    alertLater: 'Remind Later',
+    alertViewCandidate: 'View Candidate',
+    alertComplete: 'Mark Done'
+  },
+  attendanceModal: {
+    title: 'Daily Attendance',
+    later: 'Clock In Later',
+    greeting: 'Hello, {name}',
+    defaultUserName: 'Staff',
+    statusClockedIn: 'Clocked in today ({time})',
+    statusPending: 'Not clocked in yet · Daily attendance',
+    clockInLabel: 'Clock In',
+    clockOutLabel: 'Clock Out',
+    notClockedIn: 'Not clocked in',
+    pendingClockOut: 'Pending',
+    quickBindIp: '[Admin Shortcut] Set this network IP ({ip}) as office Wi-Fi and clock in',
+    verifying: 'Verifying securely...',
+    clockInNow: 'Clock In Now',
+    clockOutNow: 'Clock Out Now',
+    securityNote: 'Enterprise security: instant office Wi-Fi verification or 100m geofence',
+    statusBindingIp: 'Registering current public egress IP ({ip}) as office Wi-Fi...',
+    toastIpBound: 'IP ({ip}) set as office Wi-Fi! Clocking in now...',
+    bindFailed: 'Binding failed: {msg}',
+    statusDetecting: 'Checking your network and verifying office Wi-Fi egress IP...',
+    errServiceUnreachable: 'Cannot reach the attendance verification service. Please check your network connection.',
+    toastWifiSuccess: 'Office Wi-Fi verified — clocked in! (IP: {ip})',
+    statusCheckingGps: 'Not on office Wi-Fi — checking high-accuracy GPS against the 100m geofence...',
+    statusGpsCaptured: 'GPS captured (±{acc}m accuracy), verifying with server...'
   }
 };
