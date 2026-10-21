@@ -75,7 +75,8 @@ export default function TeamPage() {
   }, []);
 
   const handleApprove = async (userId) => {
-    const targetTeam = isOwner 
+    // 只有本部 owner 可以选择分配团队；分部 owner / manager 只能批准进自己的团队
+    const targetTeam = (isOwner && myTeamId === 'default_team')
       ? (pendingTargetTeams[userId] || 'default_team')
       : (myTeamId || 'default_team');
 
