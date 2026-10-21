@@ -120,9 +120,11 @@ async def parse_batch_with_retry_and_halving(
     lines = [l for l in batch_text.strip().split("\n") if l.strip()]
     active_model = model_name or AI_MODEL_NAME
 
-    async with semaphore:
-        for attempt in range(max_retries + 1):
-            try:
+    for attempt in range(max_retries + 1):
+        try:
+            # 只在实际调用 LLM 时占用并发名额：下面的对半切分递归必须在释放名额之后进行，
+            # 否则子任务等待父任务持有的名额、父任务等待子任务完成，形成死锁
+            async with semaphore:
                 response = await client.chat.completions.create(
                     model=active_model,
                     messages=[
@@ -132,63 +134,61 @@ async def parse_batch_with_retry_and_halving(
                     temperature=0.1,
                     max_tokens=6000
                 )
+        except Exception as e:
+            logger.error(f"批次请求失败 (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
+            if attempt < max_retries:
+                await asyncio.sleep(1.5 * (attempt + 1))
+                continue
+            raise
 
-                choice = response.choices[0]
-                finish_reason = choice.finish_reason
-                content = choice.message.content or ""
+        choice = response.choices[0]
+        finish_reason = choice.finish_reason
+        content = choice.message.content or ""
 
-                # 关键：检测是否因达到 max_tokens 发生截断
-                if finish_reason == "length":
-                    logger.warning(
-                        f"批次输出触发 token 上限截断 (finish_reason='length', attempt {attempt + 1}), 模型: {active_model}, 行数: {len(lines)}"
-                    )
-                    # 如果发生截断且还有重试次数，执行自愈式“对半切”，绝不原样盲目重试
-                    if attempt < max_retries and len(lines) > 2:
-                        header_line = lines[0]
-                        data_lines = lines[1:]
-                        mid = len(data_lines) // 2
-                        
-                        first_half_text = f"{header_line}\n" + "\n".join(data_lines[:mid])
-                        second_half_text = f"{header_line}\n" + "\n".join(data_lines[mid:])
-                        
-                        logger.info(f"将超长批次自动对半切分重试: 前半段({mid}行) + 后半段({len(data_lines) - mid}行)")
-                        
-                        first_task = parse_batch_with_retry_and_halving(
-                            first_half_text, system_prompt, user_prompt_prefix, semaphore, max_retries - attempt - 1, extract_start, extract_end, active_model
-                        )
-                        second_task = parse_batch_with_retry_and_halving(
-                            second_half_text, system_prompt, user_prompt_prefix, semaphore, max_retries - attempt - 1, extract_start, extract_end, active_model
-                        )
-                        half_results = await asyncio.gather(first_task, second_task)
-                        return half_results[0] + half_results[1]
-                    else:
-                        raise ValueError(f"批次数据过于庞大，多次切分重试后仍超出模型最大输出长度")
+        # 关键：检测是否因达到 max_tokens 发生截断
+        if finish_reason == "length":
+            logger.warning(
+                f"批次输出触发 token 上限截断 (finish_reason='length', attempt {attempt + 1}), 模型: {active_model}, 行数: {len(lines)}"
+            )
+            # 如果发生截断且还有重试次数，执行自愈式“对半切”，绝不原样盲目重试
+            if attempt < max_retries and len(lines) > 2:
+                header_line = lines[0]
+                data_lines = lines[1:]
+                mid = len(data_lines) // 2
 
-                # 提取并解析 JSON 块
-                try:
-                    parsed = safe_json_parse(content, extract_start, extract_end)
-                    
-                    if isinstance(parsed, dict) and len(parsed.keys()) == 1:
-                        first_key = list(parsed.keys())[0]
-                        if isinstance(parsed[first_key], list):
-                            parsed = parsed[first_key]
-                            
-                    if not isinstance(parsed, list):
-                        parsed = [parsed]
-                    return parsed
+                first_half_text = f"{header_line}\n" + "\n".join(data_lines[:mid])
+                second_half_text = f"{header_line}\n" + "\n".join(data_lines[mid:])
 
-                except (ValueError, json.JSONDecodeError) as parse_err:
-                    if attempt < max_retries:
-                        logger.warning(f"JSON 解析失败，尝试修复/重试 (attempt {attempt + 1}): {parse_err}")
-                        continue
-                    raise
+                logger.info(f"将超长批次自动对半切分重试: 前半段({mid}行) + 后半段({len(data_lines) - mid}行)")
 
-            except Exception as e:
-                logger.error(f"批次请求失败 (attempt {attempt + 1}/{max_retries + 1}): {str(e)}")
-                if attempt < max_retries:
-                    await asyncio.sleep(1.5 * (attempt + 1))
-                    continue
-                raise
+                first_task = parse_batch_with_retry_and_halving(
+                    first_half_text, system_prompt, user_prompt_prefix, semaphore, max_retries - attempt - 1, extract_start, extract_end, active_model
+                )
+                second_task = parse_batch_with_retry_and_halving(
+                    second_half_text, system_prompt, user_prompt_prefix, semaphore, max_retries - attempt - 1, extract_start, extract_end, active_model
+                )
+                half_results = await asyncio.gather(first_task, second_task)
+                return half_results[0] + half_results[1]
+            raise ValueError(f"批次数据过于庞大，多次切分重试后仍超出模型最大输出长度")
+
+        # 提取并解析 JSON 块
+        try:
+            parsed = safe_json_parse(content, extract_start, extract_end)
+
+            if isinstance(parsed, dict) and len(parsed.keys()) == 1:
+                first_key = list(parsed.keys())[0]
+                if isinstance(parsed[first_key], list):
+                    parsed = parsed[first_key]
+
+            if not isinstance(parsed, list):
+                parsed = [parsed]
+            return parsed
+
+        except (ValueError, json.JSONDecodeError) as parse_err:
+            if attempt < max_retries:
+                logger.warning(f"JSON 解析失败，尝试修复/重试 (attempt {attempt + 1}): {parse_err}")
+                continue
+            raise
 
 async def execute_parallel_batches(
     batch_texts: List[str],
