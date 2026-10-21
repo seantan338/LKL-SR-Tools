@@ -20,5 +20,5 @@ RUN mkdir -p uploads chroma_data
 
 EXPOSE 8000
 
-# 生产环境使用 uvicorn 启动，监听 0.0.0.0:8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 生产环境使用 uvicorn 启动：优先使用平台注入的 $PORT（如 Railway），本地 / docker-compose 默认 8000
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
