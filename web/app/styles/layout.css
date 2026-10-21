@@ -434,7 +434,9 @@
 /* Page Section Fade Transition */
 .page-view {
   display: none;
-  animation: viewFadeIn var(--duration-normal) var(--ease-spring) forwards;
+  /* 不要加 forwards：动画停在最后一帧时，Chrome 会把 .page-view 当作 position: fixed 的定位基准，
+     页面内的全屏弹窗 / 遮罩会被困在内容区并超出屏幕。最后一帧本来就等于默认样式，去掉不影响视觉 */
+  animation: viewFadeIn var(--duration-normal) var(--ease-spring);
 }
 
 .page-view.active {
