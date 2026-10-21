@@ -43,6 +43,14 @@ const stages = [
     const { destination, source, draggableId } = result;
 
     if (!destination) return;
+
+    // 已在「面试考核」栏内再拖一次（看板不保存排序）：直接打开档案调整面试日期 / 时间
+    if (destination.droppableId === 'interview' && source.droppableId === 'interview') {
+      const candidate = candidates.find(c => c.id === draggableId);
+      if (candidate) openInterviewScheduling(candidate);
+      return;
+    }
+
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
     if (destination.droppableId !== source.droppableId) {
@@ -73,9 +81,7 @@ const stages = [
 
         // 拖入「面试考核」后直接打开档案，进入编辑并定位到面试日期 / 时间
         if (targetStageKey === 'interview') {
-          setSelectedCandidate({ ...candidate, stage: targetStageKey, stageHistory: newHistory });
-          setFocusInterview(true);
-          setIsDrawerOpen(true);
+          openInterviewScheduling({ ...candidate, stage: targetStageKey, stageHistory: newHistory });
         }
       } catch (error) {
         console.error('Failed to update stage:', error);
@@ -89,6 +95,13 @@ const stages = [
     setFocusInterview(false);
     setIsDrawerOpen(true);
   };
+
+  // 打开档案并直接进入编辑、定位到面试日期 / 时间
+  function openInterviewScheduling(candidate) {
+    setSelectedCandidate(candidate);
+    setFocusInterview(true);
+    setIsDrawerOpen(true);
+  }
 
   return (
     <>
@@ -235,6 +248,43 @@ const stages = [
                                         </>
                                       )}
                                     </div>
+
+                                    {stage.key === 'interview' && (() => {
+                                      const parsed = Utils.parseInterviewDateTime(c.interviewDate, c.interviewTime);
+                                      const scheduled = /^\d{4}-\d{2}-\d{2}$/.test(parsed.dateStr);
+                                      const label = scheduled
+                                        ? `${parsed.dateStr}${(c.interviewTime || parsed.timeStr) ? ` ${c.interviewTime || parsed.timeStr}` : ''}`
+                                        : t('pipeline.interviewNotScheduled', '未安排面试时间');
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isReadOnlyView) openCandidate(c);
+                                            else openInterviewScheduling(c);
+                                          }}
+                                          title={t('pipeline.editInterviewTime', '点击调整面试日期 / 时间')}
+                                          style={{
+                                            marginTop: '8px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            padding: '3px 8px',
+                                            fontSize: 'var(--text-xs)',
+                                            fontWeight: 600,
+                                            borderRadius: 'var(--radius-pill)',
+                                            border: `1px solid ${scheduled ? 'rgba(59, 130, 246, 0.35)' : 'rgba(245, 158, 11, 0.4)'}`,
+                                            background: scheduled ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                            color: scheduled ? 'var(--accent-blue)' : 'var(--accent-amber)',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <i className={scheduled ? 'ph-bold ph-calendar-check' : 'ph-bold ph-calendar-plus'}></i>
+                                          <span>{label}</span>
+                                          {!isReadOnlyView && <i className="ph ph-pencil-simple" style={{ opacity: 0.7 }}></i>}
+                                        </button>
+                                      );
+                                    })()}
 
                                     {(c.school || c.department) && (
                                       <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginTop: '6px' }}>
