@@ -603,6 +603,11 @@
     bottom: calc(72px + env(safe-area-inset-bottom, 12px)) !important;
     z-index: 90 !important;
   }
+
+  /* FAB dismiss backdrop must stay below the FAB menu (90) but above the Bottom Tab Bar (80) */
+  .global-quick-fab-backdrop {
+    z-index: 89 !important;
+  }
 }
 
 @media (max-width: 540px) {
