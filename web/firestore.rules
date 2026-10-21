@@ -26,53 +26,91 @@ service cloud.firestore {
       return isAuthenticated() && exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
     }
 
-    function getUserRole(teamId) {
-      return get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role;
-    }
-
-    function isTeamOwnerOrManager(teamId) {
-      let role = getUserRole(teamId);
-      return role == 'owner' || role == 'manager';
-    }
-
     // 考勤打卡仅适用于公司本部 (HQ)；分部 / 合作方团队无需打卡
     function isHqTeam(teamId) {
       return teamId == 'default_team';
     }
 
+    function hasUserDoc() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // 本部 owner / manager：可管理所有用户
+    function isHqAdmin() {
+      return hasUserDoc() && userDoc().teamId == 'default_team' && userDoc().role in ['owner', 'manager'];
+    }
+
+    // 任一团队已批准的 owner / manager
+    function isTeamAdmin() {
+      return hasUserDoc() && userDoc().teamId != null && userDoc().role in ['owner', 'manager'];
+    }
+
     // Check if current user belongs to a parent team linked to childTeamId
+    // (link 文档内容也要核对，避免 "_" 拼接 ID 碰撞)
     function isLinkedParentTeamMember(childTeamId) {
-      return isAuthenticated()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && exists(/databases/$(database)/documents/team_links/$(userDoc().teamId + '_' + childTeamId))
-        && userDoc().role in ['owner', 'manager', 'recruiter'];
+      let linkPath = /databases/$(database)/documents/team_links/$(userDoc().teamId + '_' + childTeamId);
+      return hasUserDoc()
+        && userDoc().role in ['owner', 'manager', 'recruiter']
+        && exists(linkPath)
+        && get(linkPath).data.parentTeamId == userDoc().teamId
+        && get(linkPath).data.childTeamId == childTeamId;
+    }
+
+    // 本人只能修改个人资料字段；role / teamId 只允许重置为待审批 (pending / null)
+    function isSelfProfileUpdate(userId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let profileKeys = ['displayName', 'photoURL', 'whatsappNumber', 'waReminderTemplate', 'assignedPic'];
+      return isAuthenticated() && request.auth.uid == userId
+        && (changed.hasOnly(profileKeys)
+          || (changed.hasOnly(profileKeys.concat(['role', 'teamId', 'email', 'uid']))
+            && request.resource.data.get('role', 'pending') == 'pending'
+            && request.resource.data.get('teamId', null) == null));
+    }
+
+    // 分部 owner / manager：只能把待审批或本团队成员设为本团队的 recruiter / manager
+    function isSameTeamAdminUpdate() {
+      return isTeamAdmin()
+        && (resource.data.get('teamId', null) == null || resource.data.get('teamId', null) == userDoc().teamId)
+        && resource.data.get('role', 'pending') != 'owner'
+        && request.resource.data.get('teamId', null) == userDoc().teamId
+        && request.resource.data.get('role', 'pending') in ['recruiter', 'manager'];
+    }
+
+    function isSameTeamAdminDelete() {
+      return isTeamAdmin()
+        && (resource.data.get('teamId', null) == null || resource.data.get('teamId', null) == userDoc().teamId)
+        && resource.data.get('role', 'pending') != 'owner';
     }
 
     match /users/{userId} {
-      allow create: if request.auth.uid == userId;
+      // 新用户只能以待审批身份建档；初始管理员由人工在 Console 设置
+      allow create: if isAuthenticated() && request.auth.uid == userId
+        && request.resource.data.get('role', 'pending') == 'pending'
+        && request.resource.data.get('teamId', null) == null;
       // Team-wide profile read: PIC names, mutual reminders, approval queue.
       allow read: if isAuthenticated();
-      allow update: if request.auth.uid == userId
-        || isOwnerOrManagerOnTeam('default_team')
-        || isTeamOwnerOrManager('default_team')
-        || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && userDoc().role == 'owner');
-      allow delete: if isOwnerOrManagerOnTeam('default_team')
-        || isTeamOwnerOrManager('default_team')
-        || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && userDoc().role == 'owner');
+      allow update: if isSelfProfileUpdate(userId) || isHqAdmin() || isSameTeamAdminUpdate();
+      allow delete: if isHqAdmin() || isSameTeamAdminDelete();
     }
 
     match /team_links/{linkId} {
       // Members of either parent team or child team can view the link
-      allow read: if isAuthenticated()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      allow read: if hasUserDoc()
         && (resource.data.parentTeamId == userDoc().teamId || resource.data.childTeamId == userDoc().teamId);
-      // Only owner of the parent team can create, update, or remove the link
-      allow create: if isAuthenticated()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      // 只有父团队 owner 能为「自己创建的子团队」建立关联；不能关联本部，link ID 必须是 parent_child
+      allow create: if hasUserDoc()
         && userDoc().role == 'owner'
-        && request.resource.data.parentTeamId == userDoc().teamId;
-      allow update, delete: if isAuthenticated()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && request.resource.data.parentTeamId == userDoc().teamId
+        && linkId == request.resource.data.parentTeamId + '_' + request.resource.data.childTeamId
+        && request.resource.data.childTeamId != 'default_team'
+        && request.resource.data.childTeamId != request.resource.data.parentTeamId
+        && get(/databases/$(database)/documents/teams/$(request.resource.data.childTeamId)).data.parentTeamId == userDoc().teamId;
+      allow update: if hasUserDoc()
+        && userDoc().role == 'owner'
+        && resource.data.parentTeamId == userDoc().teamId
+        && request.resource.data.parentTeamId == resource.data.parentTeamId
+        && request.resource.data.childTeamId == resource.data.childTeamId;
+      allow delete: if hasUserDoc()
         && userDoc().role == 'owner'
         && resource.data.parentTeamId == userDoc().teamId;
     }
@@ -80,12 +118,17 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
       allow update: if isOwnerOrManagerOnTeam(teamId);
-      allow create: if isAuthenticated();
+      // 只有 owner 能创建以自己团队为父团队的新子团队
+      allow create: if hasUserDoc()
+        && userDoc().role == 'owner'
+        && teamId != 'default_team'
+        && teamId != userDoc().teamId
+        && request.resource.data.parentTeamId == userDoc().teamId;
 
       match /members/{userId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
-        allow write: if isOwnerOrManagerOnTeam(teamId)
-          || (isAuthenticated() && request.auth.uid == userId);
+        // 禁止本人自写 members 文档（否则任何人都能加入任意团队）
+        allow write: if isOwnerOrManagerOnTeam(teamId);
       }
 
       // All approved teammates can see and edit the shared pool (mutual follow-up).
@@ -107,6 +150,8 @@ service cloud.firestore {
 
       match /feedback/{feedbackId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow create: if (isApprovedOnTeam(teamId) || isTeamMember(teamId))
+          && request.resource.data.createdBy == request.auth.uid;
         allow update, delete: if isOwnerOrManagerOnTeam(teamId)
           || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
       }
