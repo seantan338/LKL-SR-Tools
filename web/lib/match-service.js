@@ -11,7 +11,7 @@ export const MatchService = {
     return '/api';
   },
 
-  async matchCandidates(order, filters = {}, topK = 5, preFilterK = 20) {
+  async matchCandidates(order, filters = {}, topK = 5, preFilterK = 20, teamId = null) {
     try {
       const response = await fetch(`${this.getApiBaseUrl()}/match/candidates`, {
         method: 'POST',
@@ -22,7 +22,8 @@ export const MatchService = {
           order,
           filters,
           topK,
-          preFilterK
+          preFilterK,
+          teamId
         }),
       });
 

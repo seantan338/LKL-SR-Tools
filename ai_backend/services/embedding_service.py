@@ -136,28 +136,40 @@ def extract_order_metadata(order: dict) -> dict:
     
     return {k: v for k, v in meta.items() if isinstance(v, (str, int, float, bool))}
 
-async def sync_candidates(candidates: list):
+def _prune_team_entries(collection, team_id: str, keep_ids: list):
+    """删除该团队在向量库中、但 Firestore 里已不存在的旧条目"""
+    existing = collection.get(where={"teamId": team_id}, include=[]).get("ids") or []
+    stale = list(set(existing) - set(keep_ids))
+    if stale:
+        collection.delete(ids=stale)
+    return len(stale)
+
+async def sync_candidates(candidates: list, team_id: str = None):
     """
     Batch upsert candidates to ChromaDB
     candidates: list of dicts directly from Firestore
+    team_id: 写入 teamId 元数据，供匹配时按团队隔离；同时清理该团队已删除的候选人
     """
-    if not candidates:
-        return 0
-
     collection = get_candidate_collection()
-    
+
     ids = []
     documents = []
     metadatas = []
-    
-    for c in candidates:
+
+    for c in candidates or []:
         cid = c.get('id')
         if not cid: continue
-        
+
+        meta = extract_candidate_metadata(c)
+        if team_id:
+            meta['teamId'] = team_id
         ids.append(cid)
         documents.append(build_candidate_text(c))
-        metadatas.append(extract_candidate_metadata(c))
-        
+        metadatas.append(meta)
+
+    if team_id:
+        _prune_team_entries(collection, team_id, ids)
+
     if ids:
         # ChromaDB handles chunking or we might need to batch it. 
         # For simplicity, do it in chunks of 100
@@ -171,27 +183,30 @@ async def sync_candidates(candidates: list):
             
     return len(ids)
 
-async def sync_orders(orders: list):
+async def sync_orders(orders: list, team_id: str = None):
     """
     Batch upsert orders to ChromaDB
     """
-    if not orders:
-        return 0
-
     collection = get_order_collection()
-    
+
     ids = []
     documents = []
     metadatas = []
-    
-    for o in orders:
+
+    for o in orders or []:
         oid = o.get('id')
         if not oid: continue
-        
+
+        meta = extract_order_metadata(o)
+        if team_id:
+            meta['teamId'] = team_id
         ids.append(oid)
         documents.append(build_order_text(o))
-        metadatas.append(extract_order_metadata(o))
-        
+        metadatas.append(meta)
+
+    if team_id:
+        _prune_team_entries(collection, team_id, ids)
+
     if ids:
         batch_size = 100
         for i in range(0, len(ids), batch_size):

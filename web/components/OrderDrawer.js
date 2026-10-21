@@ -7,6 +7,7 @@ import { Utils } from '../lib/utils';
 import { MatchService } from '../lib/match-service';
 import { useI18n } from '../lib/i18n-context';
 import { useFeedback } from '../lib/feedback-context';
+import { useAuth } from '../lib/auth-context';
 import MatchParameterModal from './MatchParameterModal';
 import MatchResultPanel from './MatchResultPanel';
 
@@ -18,6 +19,7 @@ export default function OrderDrawer({ order, isOpen, onClose, onEdit, onQuickSta
   const router = useRouter();
   const { t } = useI18n();
   const { showToast } = useFeedback();
+  const { teamId } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -213,7 +215,7 @@ export default function OrderDrawer({ order, isOpen, onClose, onEdit, onQuickSta
           setIsParamModalOpen(false);
           setIsMatching(true);
           try {
-            const results = await MatchService.matchCandidates(order, params);
+            const results = await MatchService.matchCandidates(order, params, 5, 20, teamId);
             setMatchResults(results);
           } catch (e) {
             console.error("Match error:", e);

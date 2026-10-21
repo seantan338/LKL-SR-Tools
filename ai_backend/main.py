@@ -179,6 +179,8 @@ class MatchCandidatesRequest(BaseModel):
 
     filters: Optional[dict] = None
 
+    teamId: Optional[str] = None
+
 @app.get("/")
 
 def health_check():
@@ -550,7 +552,9 @@ async def match_candidates_endpoint(req: MatchCandidatesRequest):
 
             top_k=req.topK,
 
-            pre_filter_k=req.preFilterK
+            pre_filter_k=req.preFilterK,
+
+            team_id=req.teamId
 
         )
 
@@ -594,11 +598,11 @@ async def sync_embeddings_endpoint(req: SyncRequest):
 
             candidates_list.append(data)
 
-        c_count = await sync_candidates(candidates_list)
+        c_count = await sync_candidates(candidates_list, team_id=req.teamId)
 
         # Fetch orders
 
-        orders_ref = db.collection(f"teams/{req.teamId}/jobOrders")
+        orders_ref = db.collection(f"teams/{req.teamId}/job_orders")
 
         orders_docs = orders_ref.stream()
 
@@ -612,7 +616,7 @@ async def sync_embeddings_endpoint(req: SyncRequest):
 
             orders_list.append(data)
 
-        o_count = await sync_orders(orders_list)
+        o_count = await sync_orders(orders_list, team_id=req.teamId)
 
         return {
 
