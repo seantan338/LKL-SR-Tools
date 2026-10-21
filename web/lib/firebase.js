@@ -16,9 +16,8 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 
 export const auth = getAuth(app);
 
-// 兼容自定义数据库名 "default"（原项目 omnirecruitmanagement）与 Firebase 标准默认数据库 "(default)"
-const defaultDbId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'omnirecruitmanagement' ? 'default' : '(default)';
-const databaseId = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || defaultDbId).trim();
+// 默认使用 Firebase 标准数据库 "(default)"；如需命名数据库，设置 NEXT_PUBLIC_FIREBASE_DATABASE_ID
+const databaseId = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || '(default)').trim();
 export const db = databaseId === '(default)' ? getFirestore(app) : getFirestore(app, databaseId);
 
 // 开启多标签页离线持久化 (极致降低读取成本)
