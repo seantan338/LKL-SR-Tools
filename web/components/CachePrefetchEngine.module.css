@@ -1,0 +1,187 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #0a0a0d;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  pointer-events: all;
+  user-select: none;
+}
+
+.overlay.exit {
+  opacity: 0;
+}
+
+.stripes {
+  position: absolute;
+  inset: 0;
+  /* 115deg confirmed correct by pixel measurement: it runs the same "/"
+     diagonal as the comet trails (bottom-left to top-right). The earlier
+     65deg edit was based on a bad eyeball read of a screenshot and
+     actually mirrored it to "\", creating a real mismatch. Don't change
+     this angle again without measuring actual pixels — this diagonal is
+     very easy to misjudge by eye. */
+  background: repeating-linear-gradient(115deg,
+      #c8102e 0px,
+      #c8102e 46px,
+      #f5f2e9 46px,
+      #f5f2e9 92px);
+  opacity: 0;
+  transform: scale(1.1);
+  transition: opacity 0.2s ease-in, transform 0.5s ease-out;
+  will-change: opacity, transform;
+}
+
+.stripesOn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.halftone {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(10, 10, 13, 0.55) 1px, transparent 1.4px);
+  background-size: 5px 5px;
+  mix-blend-mode: multiply;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: #f5f2e9;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease-out;
+  will-change: opacity;
+}
+
+.flashOn {
+  opacity: 1;
+  transition: opacity 0.08s ease-in;
+}
+
+.star {
+  position: relative;
+  width: 22vmin;
+  height: 22vmin;
+  max-width: 170px;
+  max-height: 170px;
+  fill: #c8102e;
+  filter: drop-shadow(0 0 2.4vmin rgba(200, 16, 46, 0.6));
+  opacity: 0;
+  transform: scale(0.4) rotate(-16deg);
+  animation: ignite 0.35s ease forwards;
+  will-change: opacity, transform;
+  z-index: 2;
+}
+
+.starGone {
+  animation: none;
+  opacity: 0;
+  transform: scale(1.6) rotate(0deg);
+  transition: opacity 0.15s ease, transform 0.2s ease;
+}
+
+@keyframes ignite {
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.streamStage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1;
+}
+
+.streamStageOn {
+  opacity: 1;
+}
+
+.streamSvg {
+  width: 100%;
+  height: 100%;
+}
+
+/* No animation on the base class on purpose: it must not start counting
+   until .streamGroupPlay is applied, which happens the same instant the
+   parent .streamStageOn makes this layer visible. That's the whole fix
+   for "the comet trail is already mid-flight when you first see it." */
+.streamGroup {
+  will-change: transform, opacity;
+}
+
+.streamGroupPlay {
+  animation: streamRocket 0.55s cubic-bezier(0.22, 0.9, 0.32, 1) forwards;
+}
+
+@keyframes streamRocket {
+  0% {
+    transform: translate(-30vw, 35vh);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(25vw, -30vh);
+    opacity: 1;
+  }
+}
+
+.badge {
+  position: absolute;
+  bottom: 3.5rem;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 1.35rem;
+  border-radius: 9999px;
+  background: #f5f2e9;
+  border: 1px solid rgba(200, 16, 46, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: #1a1a1e;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.badgeVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.badgeDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c8102e;
+  box-shadow: 0 0 8px #c8102e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .star,
+  .flash,
+  .stripes,
+  .streamGroupPlay {
+    animation: none !important;
+    transition: none !important;
+  }
+}

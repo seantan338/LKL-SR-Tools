@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net;
+    style-src 'self' https://fonts.googleapis.com https://unpkg.com;
+    font-src 'self' https://fonts.gstatic.com https://unpkg.com;
+    img-src 'self' data: https:;
+    connect-src 'none';
+  " />
+  <title>TALENT FLOW · Internship 招聘与候选人跟进管理系统</title>
+  
+  <!-- Typography: Geist & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Phosphor Icons (Light, Regular, Bold, Fill) -->
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/light/style.css" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/bold/style.css" />
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/fill/style.css" />
+
+  <!-- Chart.js for Data Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Application Stylesheets -->
+  <link rel="stylesheet" href="css/variables.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/pages.css" />
+</head>
+<body>
+  <!-- Mobile Navigation Backdrop Overlay -->
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+
+  <div class="app-wrapper">
+    <!-- Modern Detached Sidebar (Double-Bezel Architecture) -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-bezel-outer">
+        <div class="sidebar-bezel-inner">
+          <div>
+            <!-- Brand Mark & Identity -->
+            <div class="sidebar-brand">
+              <div class="brand-symbol">
+                <i class="ph-bold ph-intersect-three"></i>
+              </div>
+              <div class="brand-text">
+                <span class="brand-title">TALENT FLOW</span>
+                <span class="brand-subtitle">Internship Recruit</span>
+              </div>
+            </div>
+
+            <!-- Main Navigation Links -->
+            <nav class="sidebar-nav">
+              <span class="nav-section-label">管理视图</span>
+              
+              <a href="#overview" class="nav-item active" data-route="overview">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-squares-four"></i>
+                  <span>工作台概览</span>
+                </div>
+              </a>
+
+              <a href="#orders" class="nav-item" data-route="orders">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-briefcase"></i>
+                  <span>招聘订单</span>
+                </div>
+                <span class="nav-badge" id="sidebarOrdersBadge">0</span>
+              </a>
+
+              <a href="#candidates" class="nav-item" data-route="candidates">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-users"></i>
+                  <span>候选人管理</span>
+                </div>
+                <span class="nav-badge" id="sidebarCandidatesBadge">0</span>
+              </a>
+
+              <a href="#pipeline" class="nav-item" data-route="pipeline">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-kanban"></i>
+                  <span>招聘看板</span>
+                </div>
+              </a>
+
+              <a href="#calendar" class="nav-item" data-route="calendar">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-calendar-blank"></i>
+                  <span>面试日程</span>
+                </div>
+              </a>
+
+              <a href="#analytics" class="nav-item" data-route="analytics">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-chart-donut"></i>
+                  <span>数据洞察</span>
+                </div>
+              </a>
+
+              <a href="#whatsapp" class="nav-item" data-route="whatsapp">
+                <div class="nav-item-content">
+                  <i class="ph-light ph-whatsapp-logo"></i>
+                  <span>消息触达</span>
+                </div>
+              </a>
+            </nav>
+          </div>
+
+          <!-- Sidebar Footer: Storage & Backup -->
+          <div class="sidebar-footer">
+            <div class="sidebar-data-status">
+              <span class="status-indicator">
+                <span class="status-dot"></span>
+                <span>本地存储</span>
+              </span>
+              <span id="storageCandidateCount" style="font-family: var(--font-mono); font-size: 0.6875rem;">0 条数据</span>
+            </div>
+
+            <button class="sidebar-action-btn" id="sidebarExportBtn" title="导出完整数据备份为 JSON 文件">
+              <i class="ph-light ph-download-simple"></i>
+              <span>导出数据备份 (JSON)</span>
+            </button>
+
+            <button class="sidebar-action-btn" id="sidebarImportBtn" title="导入已有的 JSON 备份">
+              <i class="ph-light ph-upload-simple"></i>
+              <span>导入数据备份</span>
+            </button>
+            <input type="file" id="hiddenBackupFileInput" accept=".json" style="display: none;" />
+
+            <div style="height: 1px; background: rgba(0,0,0,0.05); margin: 8px 0;"></div>
+
+            <button class="sidebar-action-btn" id="sidebarEncryptBtn" title="设置或更改数据存储的加密密码">
+              <i class="ph-light ph-lock-key"></i>
+              <span>设置加密密码</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Shell -->
+    <main class="app-main">
+      <!-- Modern Topbar Navigation Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="展开导航菜单">
+            <i class="ph-light ph-list"></i>
+          </button>
+          <div class="view-heading-box">
+            <h1 class="view-heading" id="headerTitle">工作台概览</h1>
+            <span class="view-subheading" id="headerSubtitle">Internship 招聘看板与核心数据指标</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Notification Bell with Counter -->
+          <button class="header-bell-btn" id="headerBellBtn" title="面试与跟进提醒通知">
+            <i class="ph-light ph-bell"></i>
+            <span class="bell-badge hidden" id="headerBellBadge">0</span>
+          </button>
+
+          <!-- Primary CTA Button with Trailing Nested Icon -->
+          <button class="btn btn-primary" id="globalAddCandidateBtn">
+            <span>新增候选人</span>
+            <span class="btn-icon-circle">
+              <i class="ph-bold ph-plus"></i>
+            </span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dynamic Views Container -->
+      <section class="app-content">
+
+        <!-- ================================================================
+             VIEW 1: OVERVIEW / BENTO DASHBOARD
+             ================================================================ -->
+        <div class="page-view active" id="view-overview">
+          <!-- Top Row: 4 Bento Stat Cards -->
+          <div class="bento-grid">
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">总候选人量</span>
+                    <div class="metric-icon-box"><i class="ph-light ph-users"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="bentoMetricTotal">0</span>
+                    <span class="metric-subtext">全量入库人才</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">活跃流程中</span>
+                    <div class="metric-icon-box" style="color: var(--accent-blue);"><i class="ph-light ph-git-commit"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="bentoMetricActive" style="color: var(--accent-blue);">0</span>
+                    <span class="metric-subtext">筛选与面试环节</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">待进行面试</span>
+                    <div class="metric-icon-box" style="color: var(--accent-amber);"><i class="ph-light ph-clock-countdown"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="bentoMetricUpcoming" style="color: var(--accent-amber);">0</span>
+                    <span class="metric-subtext">已排期日程</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">录取率 (Offer/入职)</span>
+                    <div class="metric-icon-box" style="color: var(--accent-emerald);"><i class="ph-light ph-seal-check"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="bentoMetricRate" style="color: var(--accent-emerald);">0.0%</span>
+                    <span class="metric-subtext">全流程发录比</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Middle Row: Recruitment Pipeline Funnel & Sourcing Channels -->
+            <div class="bento-col-7">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-funnel" style="color: var(--accent-blue);"></i>
+                      阶段分布概览
+                    </span>
+                    <span class="eyebrow">阶段人员存量</span>
+                  </div>
+                  <div class="chart-container-box">
+                    <canvas id="bentoFunnelCanvas"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-5">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-pie-slice" style="color: var(--accent-violet);"></i>
+                      简历渠道构成
+                    </span>
+                    <span class="eyebrow">来源分布占比</span>
+                  </div>
+                  <div class="chart-container-box">
+                    <canvas id="bentoSourcesCanvas"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Row: Upcoming Agenda & Recent Candidates -->
+            <div class="bento-col-5">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-calendar-star" style="color: var(--accent-amber);"></i>
+                      近期面试排期
+                    </span>
+                    <a href="#calendar" class="eyebrow eyebrow-accent" style="cursor: pointer;">查看全部日程</a>
+                  </div>
+                  <div class="agenda-list" id="bentoUpcomingList">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-7">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-clock-counter-clockwise"></i>
+                      最新候选人动态
+                    </span>
+                    <a href="#candidates" class="eyebrow eyebrow-accent" style="cursor: pointer;">全部档案列表</a>
+                  </div>
+                  <div class="agenda-list" id="bentoRecentCandidatesList">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 2: CANDIDATES MANAGEMENT (TABLE, FILTERS, DRAWER)
+             ================================================================ -->
+        <div class="page-view" id="view-candidates">
+          <!-- Toolbar & Filters -->
+          <div class="candidates-toolbar">
+            <div class="toolbar-left">
+              <div class="search-input-box">
+                <i class="ph-light ph-magnifying-glass"></i>
+                <input type="text" id="candidateSearchInput" class="form-input" placeholder="按姓名、学校、岗位、渠道检索..." />
+              </div>
+
+              <select id="candidateStageFilter" class="form-select filter-select">
+                <option value="all">所有流程阶段</option>
+                <option value="screening">简历筛选</option>
+                <option value="phone">初筛电话</option>
+                <option value="interview">面试考核</option>
+                <option value="offer">Offer 发放</option>
+                <option value="pre_onboarding">待入职跟进</option>
+                <option value="onboarding">正式入职</option>
+                <option value="post_onboarding">入职后关怀</option>
+              </select>
+
+              <select id="candidateCompanyFilter" class="form-select filter-select">
+                <option value="all">所有目标公司</option>
+              </select>
+
+              <select id="candidatePositionFilter" class="form-select filter-select">
+                <option value="all">所有应聘岗位</option>
+              </select>
+
+              <select id="candidateSourceFilter" class="form-select filter-select">
+                <option value="all">所有来源渠道</option>
+              </select>
+
+              <select id="candidateSortFilter" class="form-select filter-select">
+                <option value="created_desc">创建时间 (由新到旧)</option>
+                <option value="created_asc">创建时间 (由旧到新)</option>
+                <option value="interview_asc">面试日期 (临近优先)</option>
+                <option value="name_asc">姓名首字母 (A-Z)</option>
+              </select>
+            </div>
+
+            <div class="toolbar-right">
+              <span class="badge" id="candidateTotalCountBadge">0 人</span>
+              <button class="btn btn-secondary btn-sm" id="addCandidateViewBtn">
+                <i class="ph-bold ph-plus"></i>
+                <span>新增候选人</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Batch Operations Action Bar -->
+          <div class="batch-bar" id="candidatesBatchBar">
+            <span class="batch-info" id="batchSelectedCount">已选择 0 位候选人</span>
+            <div class="batch-actions">
+              <select id="batchStageSelect" class="form-select" style="width: 140px; padding: 0.35rem 0.75rem; font-size: var(--text-xs);">
+                <option value="screening">移动至 简历筛选</option>
+                <option value="phone">移动至 初筛电话</option>
+                <option value="interview">移动至 面试考核</option>
+                <option value="offer">移动至 Offer 发放</option>
+                <option value="pre_onboarding">移动至 待入职跟进</option>
+                <option value="onboarding">移动至 正式入职</option>
+                <option value="post_onboarding">移动至 入职后关怀</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="batchMoveStageBtn">确认移动</button>
+              <button class="btn btn-sm" style="background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.3);" onclick="CandidatesModule.bulkRejectCandidates()">批量淘汰</button>
+              <button class="btn btn-danger btn-sm" id="batchDeleteBtn">批量删除</button>
+            </div>
+          </div>
+
+          <!-- Data Table Wrapper -->
+          <div class="table-wrapper" id="candidatesTableWrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 42px;">
+                    <input type="checkbox" class="custom-checkbox" id="selectAllCandidates" />
+                  </th>
+                  <th>候选人姓名 / 院校</th>
+                  <th>应聘公司 / 岗位 / 渠道</th>
+                  <th>当前流转阶段</th>
+                  <th>排期面试时间</th>
+                  <th>添加时间</th>
+                  <th style="width: 110px; text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="candidatesTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State when no candidates match -->
+          <div class="empty-state" id="candidatesEmptyState" style="display: none;">
+            <div class="empty-state-icon">
+              <i class="ph-light ph-user-plus"></i>
+            </div>
+            <h3 class="empty-state-title">暂无候选人记录</h3>
+            <p class="empty-state-desc">当前还没有添加任何实习候选人。点击下方按钮开始录入候选人档案，系统将为您自动收录岗位与渠道标签。</p>
+            <button class="btn btn-primary" onclick="CandidatesModule.openAddModal();">
+              <span>添加第一位候选人</span>
+              <span class="btn-icon-circle"><i class="ph-bold ph-plus"></i></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 3: KANBAN PIPELINE BOARD
+             ================================================================ -->
+        <div class="page-view" id="view-pipeline">
+          <div style="display: flex; justify-content: flex-end; margin-bottom: var(--space-3); padding-right: var(--space-6);">
+            <button class="toggle-rejected-btn" id="toggleRejectedBtn" onclick="PipelineModule.toggleRejected()">
+              <i class="ph-light ph-eye-slash"></i> 隐藏已淘汰
+            </button>
+          </div>
+          <div class="kanban-board" id="kanbanBoard">
+            <!-- 7 stage columns populated dynamically -->
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 4: CALENDAR INTERVIEW SCHEDULE
+             ================================================================ -->
+        <div class="page-view" id="view-calendar">
+          <div class="calendar-layout">
+            <!-- Left: Month Grid -->
+            <div class="bezel-shell">
+              <div class="bezel-core">
+                <div class="calendar-header-bar">
+                  <span class="calendar-month-title" id="calMonthTitle">2026年 9月</span>
+                  <div class="calendar-nav-group">
+                    <button class="btn-icon btn-sm" id="calPrevMonthBtn" title="上个月">
+                      <i class="ph-bold ph-caret-left"></i>
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="calTodayBtn">今天</button>
+                    <button class="btn-icon btn-sm" id="calNextMonthBtn" title="下个月">
+                      <i class="ph-bold ph-caret-right"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 7 Day Weekday Headers -->
+                <div class="calendar-grid-box" style="margin-bottom: 1px;">
+                  <div class="calendar-day-header">周一</div>
+                  <div class="calendar-day-header">周二</div>
+                  <div class="calendar-day-header">周三</div>
+                  <div class="calendar-day-header">周四</div>
+                  <div class="calendar-day-header">周五</div>
+                  <div class="calendar-day-header">周六</div>
+                  <div class="calendar-day-header">周日</div>
+                </div>
+
+                <!-- Days Cells Grid -->
+                <div class="calendar-grid-box" id="calendarDaysGrid">
+                  <!-- Generated dynamically -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Upcoming Interview Agenda Panel -->
+            <div class="bezel-shell">
+              <div class="bezel-core agenda-panel">
+                <div class="card-header-row" style="margin-bottom: 0;">
+                  <span class="card-heading" style="font-size: var(--text-sm);">
+                    <i class="ph-light ph-clock-afternoon" style="color: var(--accent-amber);"></i>
+                    即将进行的面试
+                  </span>
+                </div>
+                <div id="upcomingAgendaList" style="display: flex; flex-direction: column; gap: var(--space-3); overflow-y: auto; max-height: calc(100dvh - 300px);">
+                  <!-- Generated dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 5: ANALYTICS & INSIGHTS
+             ================================================================ -->
+        <div class="page-view" id="view-analytics">
+          <div class="analytics-grid">
+            <!-- 4 Metrics Row -->
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">累计入库</span>
+                    <div class="metric-icon-box"><i class="ph-light ph-database"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="analyticsMetricTotal">0</span>
+                    <span class="metric-subtext">总简历量</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">流程活跃量</span>
+                    <div class="metric-icon-box" style="color: var(--accent-blue);"><i class="ph-light ph-user-circle-gear"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="analyticsMetricActive" style="color: var(--accent-blue);">0</span>
+                    <span class="metric-subtext">在审在面人数</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">总录取率</span>
+                    <div class="metric-icon-box" style="color: var(--accent-violet);"><i class="ph-light ph-medal"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="analyticsMetricOfferRate" style="color: var(--accent-violet);">0.0%</span>
+                    <span class="metric-subtext">发录率 (Offer/入职)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-3">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">入职转化率</span>
+                    <div class="metric-icon-box" style="color: var(--accent-emerald);"><i class="ph-light ph-check-fat"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value" id="analyticsMetricOnboardRate" style="color: var(--accent-emerald);">0.0%</span>
+                    <span class="metric-subtext">Offer 实际接单入职率</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recruitment Funnel Chart -->
+            <div class="bento-col-7">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-chart-bar" style="color: var(--accent-blue);"></i>
+                      招聘全流程漏斗统计
+                    </span>
+                    <span class="eyebrow">阶段留存与存量</span>
+                  </div>
+                  <div class="chart-container-box" style="height: 320px;">
+                    <canvas id="funnelChartCanvas"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Funnel Conversion Progress Breakdown -->
+            <div class="bento-col-5">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-arrows-merge" style="color: var(--accent-emerald);"></i>
+                      各环节推进转化率
+                    </span>
+                    <span class="eyebrow">阶段流转效能</span>
+                  </div>
+                  <div class="funnel-stage-bars" id="funnelConversionRows">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rejection Distribution Chart -->
+            <div class="bento-col-6">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-prohibit" style="color: #ef4444;"></i>
+                      各阶段淘汰分布
+                    </span>
+                    <span class="eyebrow">淘汰热点分析</span>
+                  </div>
+                  <div id="rejectionDistContainer">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sourcing Channel Pie Chart -->
+            <div class="bento-col-6">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-chart-pie-slice" style="color: var(--accent-violet);"></i>
+                      招聘来源渠道有效性
+                    </span>
+                  </div>
+                  <div class="chart-container-box" style="height: 280px;">
+                    <canvas id="sourcesChartCanvas"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Position Breakdown Chart -->
+            <div class="bento-col-6">
+              <div class="bezel-shell">
+                <div class="bezel-core">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-briefcase" style="color: var(--accent-amber);"></i>
+                      各应聘岗位申请分布
+                    </span>
+                  </div>
+                  <div class="chart-container-box" style="height: 280px;">
+                    <canvas id="positionsChartCanvas"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 6: JOB ORDERS / RECRUITMENT REQUISITIONS
+             ================================================================ -->
+        <div class="page-view" id="view-orders">
+          <!-- Top Row: 3 Bento Metrics -->
+          <div class="bento-grid agy-style-4fceb0">
+            <div class="bento-col-4">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">在招职位需求</span>
+                    <div class="metric-icon-box color-accent-blue"><i class="ph-light ph-briefcase"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value color-accent-blue" id="ordersMetricActive">0</span>
+                    <span class="metric-subtext">开放中职位订单</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-4">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">急聘优先订单</span>
+                    <div class="metric-icon-box color-accent-rose"><i class="ph-light ph-flame"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value color-accent-rose" id="ordersMetricUrgent">0</span>
+                    <span class="metric-subtext">需优先寻访推人</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-col-4">
+              <div class="bezel-shell">
+                <div class="bezel-core metric-card-inner">
+                  <div class="metric-header">
+                    <span class="metric-title">覆盖招聘企业</span>
+                    <div class="metric-icon-box color-accent-emerald"><i class="ph-light ph-buildings"></i></div>
+                  </div>
+                  <div class="metric-value-row">
+                    <span class="metric-value color-accent-emerald" id="ordersMetricCompanies">0</span>
+                    <span class="metric-subtext">客户企业总数</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Multi-Keyword Search & Filter Bar -->
+          <div class="job-orders-toolbar">
+            <div class="job-search-row">
+              <div class="job-search-input-wrapper">
+                <i class="ph-light ph-magnifying-glass job-search-icon"></i>
+                <input type="text" id="jobSearchInput" class="job-search-input" placeholder="输入任意关键字智能搜索（支持空格多词联搜，如：腾讯 算法 远程）..." autocomplete="off" />
+                <button type="button" id="jobSearchClearBtn" class="job-search-clear-btn" title="清空搜索">
+                  <i class="ph-light ph-x"></i>
+                </button>
+              </div>
+
+              <div class="job-filter-controls">
+                <select id="jobStatusFilter" class="form-select job-status-select-width">
+                  <option value="all">全部状态</option>
+                  <option value="open">招聘中 (Open)</option>
+                  <option value="urgent">🔥 急聘 (Urgent)</option>
+                  <option value="filled">已招满 (Filled)</option>
+                  <option value="paused">已暂停 (Paused)</option>
+                </select>
+
+                <button type="button" class="btn btn-primary" id="openAddJobOrderBtn">
+                  <span>发布新需求</span>
+                  <span class="btn-icon-circle"><i class="ph-bold ph-plus"></i></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Preset Quick Filter Chips -->
+            <div class="job-chips-row">
+              <span class="filter-chip-label">快捷检索：</span>
+              <button type="button" class="filter-chip" data-chip="急聘"><i class="ph-fill ph-flame color-fire-red"></i> 急聘</button>
+              <button type="button" class="filter-chip" data-chip="远程"><i class="ph-light ph-globe"></i> 远程/在家</button>
+              <button type="button" class="filter-chip" data-chip="房补"><i class="ph-light ph-house"></i> 房补福利</button>
+              <button type="button" class="filter-chip" data-chip="三餐"><i class="ph-light ph-fork-knife"></i> 包三餐</button>
+              <button type="button" class="filter-chip" data-chip="双休"><i class="ph-light ph-calendar-check"></i> 周末双休</button>
+              <button type="button" class="filter-chip" data-chip="转正"><i class="ph-light ph-seal-check"></i> 可转正</button>
+              <button type="button" class="filter-chip" data-chip="400"><i class="ph-light ph-currency-cny"></i> 400+高薪</button>
+            </div>
+          </div>
+
+          <!-- Cards Grid Container -->
+          <div class="job-orders-grid" id="jobOrdersGrid">
+            <!-- Dynamically populated by JobOrdersModule -->
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW: WHATSAPP NOTIFICATION MODULE
+             ================================================================ -->
+        <div class="page-view" id="view-whatsapp">
+          <div class="bento-grid">
+            <!-- Left Panel: Template Management -->
+            <div class="bento-col-4">
+              <div class="bezel-shell" style="height: 100%;">
+                <div class="bezel-core" style="height: 100%; display: flex; flex-direction: column;">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-file-text" style="color: var(--accent-blue);"></i>
+                      消息模板
+                    </span>
+                    <button class="btn-icon btn-sm" id="waAddTemplateBtn" title="新增模板">
+                      <i class="ph-light ph-plus"></i>
+                    </button>
+                  </div>
+                  <div class="template-list" id="waTemplateList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-4);">
+                    <!-- Templates will be injected here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Panel: Message Sending -->
+            <div class="bento-col-8">
+              <div class="bezel-shell" style="height: 100%;">
+                <div class="bezel-core" style="height: 100%; display: flex; flex-direction: column;">
+                  <div class="card-header-row">
+                    <span class="card-heading">
+                      <i class="ph-light ph-paper-plane-tilt" style="color: var(--accent-emerald);"></i>
+                      发送消息
+                    </span>
+                  </div>
+                  
+                  <div class="form-group" style="margin-top: var(--space-4);">
+                    <label class="form-label">选择候选人</label>
+                    <select id="waCandidateSelect" class="form-input">
+                      <option value="">-- 请选择候选人 --</option>
+                      <!-- Options will be injected here -->
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">候选人手机号 (带有国家区号，如 60123456789)</label>
+                    <input type="text" id="waPhoneInput" class="form-input" placeholder="输入接收号码..." />
+                  </div>
+
+                  <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                    <label class="form-label">消息内容 (支持变量：{Name}, {JobTitle}, {Company})</label>
+                    <textarea id="waMessageContent" class="form-input" style="flex: 1; min-height: 200px; resize: none;" placeholder="在此编写消息内容..."></textarea>
+                  </div>
+
+                  <div class="modal-footer" style="margin-top: var(--space-4); border-top: 1px solid var(--border-color); padding-top: var(--space-4);">
+                    <div id="waStatusMessage" style="font-size: var(--text-sm); margin-right: auto; color: var(--text-secondary);"></div>
+                    <button type="button" class="btn btn-secondary" id="waClearBtn">清空内容</button>
+                    <button type="button" class="btn btn-primary" id="waSendBtn">
+                      <span>发送 WhatsApp</span>
+                      <span class="btn-icon-circle"><i class="ph-bold ph-paper-plane-right"></i></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: ADD / EDIT CANDIDATE (DOUBLE-BEZEL)
+       ======================================================================== -->
+  <div class="modal-overlay" id="candidateModalOverlay">
+    <div class="bezel-shell modal-bezel">
+      <div class="bezel-core modal-core">
+        <div class="modal-header">
+          <h3 class="modal-title" id="candidateModalTitle">新增候选人记录</h3>
+          <button class="btn-icon btn-sm" id="closeCandidateModalBtn" title="关闭窗口">
+            <i class="ph-light ph-x"></i>
+          </button>
+        </div>
+
+        <form id="candidateForm">
+          <input type="hidden" id="candidateEditId" value="" />
+
+          <!-- Row 1: Name & Phone -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+            <div class="form-group">
+              <label class="form-label">姓名 <span class="required">*</span></label>
+              <input type="text" id="candidateNameInput" class="form-input" placeholder="输入候选人姓名" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">联系手机</label>
+              <input type="tel" id="candidatePhoneInput" class="form-input" placeholder="例如：13800000000" />
+            </div>
+          </div>
+
+          <!-- Row 2: Email & School -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+            <div class="form-group">
+              <label class="form-label">电子邮箱</label>
+              <input type="email" id="candidateEmailInput" class="form-input" placeholder="例如：candidate@university.edu" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">毕业/在读院校</label>
+              <input type="text" id="candidateSchoolInput" class="form-input" placeholder="例如：浙江大学 / 悉尼大学" />
+            </div>
+          </div>
+
+          <!-- Row 3: Major & Stage -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+            <div class="form-group">
+              <label class="form-label">所学专业</label>
+              <input type="text" id="candidateMajorInput" class="form-input" placeholder="例如：计算机科学 / 工业设计" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">初始流程阶段</label>
+              <select id="candidateStageSelect" class="form-select">
+                <option value="screening">简历筛选</option>
+                <option value="phone">初筛电话</option>
+                <option value="interview">面试考核</option>
+                <option value="offer">Offer 发放</option>
+                <option value="pre_onboarding">待入职跟进</option>
+                <option value="onboarding">正式入职</option>
+                <option value="post_onboarding">入职后关怀</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 4: Company (Combo Tag Input) -->
+          <div class="form-group combo-tag-container">
+            <label class="form-label">应聘公司 (自由输入或套用历史标签)</label>
+            <div class="combo-input-wrapper">
+              <input type="text" id="candidateCompanyInput" class="form-input" placeholder="输入或选择目标公司（如：字节跳动、腾讯、阿里巴巴、微软）" autocomplete="off" />
+              <i class="ph-light ph-caret-down"></i>
+            </div>
+            <div class="combo-dropdown" id="companyComboDropdown">
+              <!-- Auto-suggest tags -->
+            </div>
+          </div>
+
+          <!-- Row 5: Position (Combo Tag Input) -->
+          <div class="form-group combo-tag-container">
+            <label class="form-label">应聘岗位 (自由输入或套用历史标签)</label>
+            <div class="combo-input-wrapper">
+              <input type="text" id="candidatePositionInput" class="form-input" placeholder="输入或选择岗位（如：前端开发实习生、产品实习生）" autocomplete="off" />
+              <i class="ph-light ph-caret-down"></i>
+            </div>
+            <div class="combo-dropdown" id="positionComboDropdown">
+              <!-- Auto-suggest tags -->
+            </div>
+          </div>
+
+          <!-- Row 5: Source (Combo Tag Input) -->
+          <div class="form-group combo-tag-container">
+            <label class="form-label">简历来源渠道 (自由输入或套用历史标签)</label>
+            <div class="combo-input-wrapper">
+              <input type="text" id="candidateSourceInput" class="form-input" placeholder="输入或选择渠道（如：Boss直聘、实习僧、校园宣讲、内推）" autocomplete="off" />
+              <i class="ph-light ph-caret-down"></i>
+            </div>
+            <div class="combo-dropdown" id="sourceComboDropdown">
+              <!-- Auto-suggest tags -->
+            </div>
+          </div>
+
+          <!-- Row 6: Custom Tags -->
+          <div style="display: grid; grid-template-columns: 1fr; gap: var(--space-4);">
+            <div class="form-group">
+              <label class="form-label">自定义能力/特点标签 (逗号分隔)</label>
+              <input type="text" id="candidateTagsInput" class="form-input" placeholder="例如：英语六级, ACM奖项, 暑期可全职" />
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="cancelCandidateModalBtn">取消</button>
+            <button type="submit" class="btn btn-primary">
+              <span>保存档案</span>
+              <span class="btn-icon-circle"><i class="ph-bold ph-check"></i></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: ADD / EDIT JOB ORDER (DOUBLE-BEZEL)
+       ======================================================================== -->
+  <div class="modal-overlay" id="jobOrderModalOverlay">
+    <div class="bezel-shell modal-bezel job-modal-shell">
+      <div class="bezel-core modal-core">
+        <div class="modal-header">
+          <h3 class="modal-title" id="jobOrderModalTitle">发布招聘订单 / 岗位需求</h3>
+          <button class="btn-icon btn-sm" id="closeJobOrderModalBtn" title="关闭窗口">
+            <i class="ph-light ph-x"></i>
+          </button>
+        </div>
+
+        <!-- AI Import Controls -->
+        <div class="ai-import-controls" style="display: flex; gap: var(--space-2); margin-bottom: var(--space-4); align-items: center;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnAiImportPdf" style="display: flex; align-items: center; gap: var(--space-2);">
+            <i class="ph-bold ph-file-pdf"></i>
+            导入文档智能识别 (PDF/DOCX/TXT)
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnAiImportText" style="display: flex; align-items: center; gap: var(--space-2);">
+            <i class="ph-bold ph-text-aa"></i>
+            粘贴文本智能识别
+          </button>
+          <input type="file" id="jobOrderAiFileInput" accept=".pdf,.docx,.txt" style="display: none;" />
+        </div>
+        
+        <!-- Text Import Textarea (hidden by default) -->
+        <div id="jobOrderAiTextContainer" style="display: none; margin-bottom: var(--space-4); padding: var(--space-3); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+          <label class="form-label" style="margin-bottom: var(--space-2);">请粘贴岗位JD文本：</label>
+          <textarea id="jobOrderAiTextInput" class="form-input" rows="5" placeholder="在此粘贴招聘需求/JD全文..."></textarea>
+          <div style="display: flex; justify-content: flex-end; margin-top: var(--space-3); gap: var(--space-2);">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCancelAiText">取消</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnSubmitAiText" style="display: flex; align-items: center; gap: var(--space-1);">
+              <i class="ph-bold ph-magic-wand"></i> 开始解析
+            </button>
+          </div>
+        </div>
+
+        <form id="jobOrderForm">
+          <input type="hidden" id="jobOrderEditId" value="" />
+
+          <!-- Row 1: Company & Position -->
+          <div class="job-form-grid-2">
+            <div class="form-group">
+              <label class="form-label">公司名字 <span class="required">*</span></label>
+              <input type="text" id="jobOrderCompanyInput" class="form-input" placeholder="例如：字节跳动 / 腾讯 / 某AI独角兽" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">职位名称 <span class="required">*</span></label>
+              <input type="text" id="jobOrderPositionInput" class="form-input" placeholder="例如：前端开发实习生 / 算法研究员" required />
+            </div>
+          </div>
+
+          <!-- Row 2: Salary & Location -->
+          <div class="job-form-grid-2">
+            <div class="form-group">
+              <label class="form-label">职位薪水</label>
+              <input type="text" id="jobOrderSalaryInput" class="form-input" placeholder="例如：350-450元/天，或 15k-25k" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">工作地点</label>
+              <input type="text" id="jobOrderLocationInput" class="form-input" placeholder="例如：北京·海淀 / 远程办公" />
+            </div>
+          </div>
+
+          <!-- Row 3: Work Hours & Status -->
+          <div class="job-form-grid-2">
+            <div class="form-group">
+              <label class="form-label">职位工作时间</label>
+              <input type="text" id="jobOrderHoursInput" class="form-input" placeholder="例如：10:00-19:00，周末双休，弹性打卡" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">需求状态</label>
+              <select id="jobOrderStatusSelect" class="form-select">
+                <option value="open">招聘中 (正常推进)</option>
+                <option value="urgent">🔥 急聘 (优先寻访)</option>
+                <option value="filled">已招满 (暂停推人)</option>
+                <option value="paused">已搁置 (客户暂停)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 4: Benefits -->
+          <div class="form-group">
+            <label class="form-label">职位福利亮点 (支持换行、逗号或斜杠分隔)</label>
+            <textarea id="jobOrderBenefitsInput" class="form-input" rows="3" placeholder="支持每行一条福利，或用逗号 / 斜杠分隔，例如：
+• Shift allowance RM15/noon, RM30/evening
+• Quarterly bonus / Birthday reward
+• Flexi benefit / 商业医疗险"></textarea>
+          </div>
+
+          <!-- Row 5: Requirements -->
+          <div class="form-group">
+            <label class="form-label">职位要求 (JD)</label>
+            <textarea id="jobOrderRequirementsInput" class="form-input" rows="4" placeholder="例如：
+1. 计算机/软件相关专业，每周至少到岗4天，连续实习3个月以上；
+2. 熟练掌握 Vue3/React 与 TypeScript；
+3. 具备良好的沟通表达与自驱力，有项目上线经验者优先。"></textarea>
+          </div>
+
+          <!-- Row 6: Recruiter Notes -->
+          <div class="form-group">
+            <label class="form-label">内部顾问备注 (仅自己可见)</label>
+            <input type="text" id="jobOrderNotesInput" class="form-input" placeholder="例如：业务负责人看重基础算法，面试一般有2轮技术面，周三反馈快" />
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="cancelJobOrderModalBtn">取消</button>
+            <button type="submit" class="btn btn-primary">
+              <span>保存职位需求</span>
+              <span class="btn-icon-circle"><i class="ph-bold ph-check"></i></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       SLIDE-OVER DRAWER: CANDIDATE DETAIL & FOLLOW-UP
+       ======================================================================== -->
+  <div class="drawer-overlay" id="detailDrawerOverlay"></div>
+  <aside class="drawer-container" id="detailDrawer">
+    <div class="drawer-header">
+      <span class="eyebrow">跟进档案详情</span>
+      <button class="btn-icon btn-sm" id="closeDetailDrawerBtn" title="关闭详情面板">
+        <i class="ph-light ph-x"></i>
+      </button>
+    </div>
+    <div class="drawer-body" id="detailDrawerContent">
+      <!-- Injected dynamically by CandidatesModule.renderDrawerContent -->
+    </div>
+  </aside>
+
+  <!-- ========================================================================
+       TOAST NOTIFICATIONS STACK CONTAINER
+       ======================================================================== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Core JavaScript Modules -->
+  <!-- Confirm Dialog Modal -->
+  <div class="modal-overlay" id="confirmModalOverlay" style="z-index: 300;">
+    <div class="bezel-shell modal-bezel" style="max-width: 480px;">
+      <div class="bezel-core modal-core">
+        <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+          <h3 class="modal-title" id="confirmModalTitle">确认操作</h3>
+        </div>
+        <div class="modal-body" style="padding-top: var(--space-4);">
+          <p id="confirmModalMessage" style="font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap;"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="confirmModalCancelBtn">取消</button>
+          <button type="button" class="btn btn-primary" id="confirmModalConfirmBtn">
+            确认
+            <span class="btn-icon-circle"><i class="ph-bold ph-check"></i></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt Dialog Modal -->
+  <div class="modal-overlay" id="promptModalOverlay" style="z-index: 305;">
+    <div class="bezel-shell modal-bezel" style="max-width: 480px;">
+      <div class="bezel-core modal-core">
+        <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+          <h3 class="modal-title" id="promptModalTitle">输入信息</h3>
+        </div>
+        <div class="modal-body" style="padding-top: var(--space-4);">
+          <p id="promptModalMessage" style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-3);"></p>
+          <input type="password" id="promptModalInput" class="form-input" placeholder="请输入密码" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="promptModalCancelBtn">取消</button>
+          <button type="button" class="btn btn-primary" id="promptModalConfirmBtn">
+            确认
+            <span class="btn-icon-circle"><i class="ph-bold ph-arrow-right"></i></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/job_orders.js"></script>
+  <script src="js/candidates.js"></script>
+  <script src="js/pipeline.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/whatsapp.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

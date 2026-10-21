@@ -1,0 +1,596 @@
+/**
+ * Candidate Follow-up Management System
+ * Core UI Components: Double-Bezel Cards, Pill Buttons, Combo Inputs, Modals, Drawer, Toasts
+ */
+
+/* ==========================================================================
+   Double-Bezel Architecture
+   ========================================================================== */
+.bezel-shell {
+  padding: var(--bezel-shell-padding);
+  background: var(--bezel-shell-bg);
+  border: 1px solid var(--bezel-shell-border);
+  border-radius: var(--bezel-shell-radius);
+  position: relative;
+  transition: border-color var(--duration-fast) var(--ease-spring),
+              box-shadow var(--duration-fast) var(--ease-spring);
+}
+
+.bezel-shell:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bezel-core {
+  background: var(--bezel-core-bg);
+  border-radius: var(--bezel-core-radius);
+  box-shadow: var(--bezel-core-shadow);
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
+
+.bezel-core-tight {
+  padding: var(--space-4);
+}
+
+/* ==========================================================================
+   Pill Buttons & Button-in-Button Trailing Icon Architecture
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-pill);
+  transition: all var(--duration-fast) var(--ease-spring);
+  position: relative;
+  white-space: nowrap;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+/* Primary Button with Trailing Nested Icon Circle */
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px -2px var(--accent-blue-glow), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  padding-right: 0.5rem; /* Room for nested circle */
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #4b8df8 0%, #3071f2 100%);
+  box-shadow: 0 6px 28px 0 var(--accent-blue-glow), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+
+.btn-icon-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+
+.btn-primary:hover .btn-icon-circle {
+  transform: translateX(2px) scale(1.06);
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border: 1px solid var(--border-interactive);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Ghost Button */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+/* Danger Button */
+.btn-danger {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--accent-rose);
+  border: 1px solid rgba(244, 63, 94, 0.28);
+}
+
+.btn-danger:hover {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.45);
+}
+
+/* Small / Compact Button */
+.btn-sm {
+  padding: 0.375rem 0.875rem;
+  font-size: var(--text-xs);
+}
+
+.btn-sm .btn-icon-circle {
+  width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+}
+
+/* Icon-Only Pill Button */
+.btn-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-hairline);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.btn-icon:hover {
+  color: var(--text-primary);
+  border-color: var(--border-interactive);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ==========================================================================
+   Form Controls & Combo Tag Input
+   ========================================================================== */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  position: relative;
+}
+
+.form-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-label .required {
+  color: var(--accent-rose);
+  margin-left: var(--space-1);
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  background: #090a10;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.875rem;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  background: #0d0f17;
+}
+
+.form-input::placeholder, .form-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%239497ab' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  padding-right: 2.25rem;
+}
+
+/* Combo Tag Input Component with Suggestions Dropdown */
+.combo-tag-container {
+  position: relative;
+}
+
+.combo-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.combo-input-wrapper i {
+  position: absolute;
+  right: 0.875rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+
+.combo-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #0f111c;
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popup);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 50;
+  display: none;
+  padding: var(--space-2);
+}
+
+.combo-dropdown.open {
+  display: block;
+}
+
+.combo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.combo-item:hover, .combo-item.highlighted {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+}
+
+.combo-item-count {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-pill);
+}
+
+.combo-new-notice {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent-blue);
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border-hairline);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ==========================================================================
+   Pills, Badges & Stage Indicators
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-hairline);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Stage Badges */
+.badge-stage-screening {
+  color: var(--stage-screening);
+  background: var(--stage-screening-bg);
+  border-color: var(--stage-screening-border);
+}
+
+.badge-stage-phone {
+  color: var(--stage-phone);
+  background: var(--stage-phone-bg);
+  border-color: var(--stage-phone-border);
+}
+
+.badge-stage-interview {
+  color: var(--stage-interview);
+  background: var(--stage-interview-bg);
+  border-color: var(--stage-interview-border);
+}
+
+.badge-stage-offer {
+  color: var(--stage-offer);
+  background: var(--stage-offer-bg);
+  border-color: var(--stage-offer-border);
+}
+
+.badge-stage-onboarding {
+  background: var(--accent-emerald-glow);
+  color: var(--accent-emerald);
+}
+
+.badge-stage-pre-onboarding {
+  background: rgba(14, 165, 233, 0.15); /* Sky Blue Glow */
+  color: #0ea5e9;
+}
+
+.badge-stage-post-onboarding {
+  background: rgba(236, 72, 153, 0.15); /* Pink Glow */
+  color: #ec4899;
+}
+
+/* Tag Pills */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
+}
+
+
+
+/* ==========================================================================
+   Modals & Slide-over Drawer (Detail Panel)
+   ========================================================================== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 4, 7, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-bezel {
+  max-width: 640px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalEnter var(--duration-normal) var(--ease-spring) forwards;
+}
+
+@keyframes modalEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-core {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-hairline);
+  margin-bottom: var(--space-5);
+}
+
+.modal-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-hairline);
+  margin-top: var(--space-4);
+}
+
+/* Slide-over Detail Drawer */
+.drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 4, 7, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 90;
+}
+
+.drawer-overlay.active {
+  display: block;
+}
+
+.drawer-container {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 580px;
+  max-width: 95vw;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-hairline);
+  z-index: 95;
+  box-shadow: var(--shadow-popup);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+
+.drawer-container.open {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface-elevated);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ==========================================================================
+   Toasts Notification System
+   ========================================================================== */
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-pill);
+  background: #11131f;
+  border: 1px solid var(--border-interactive);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-popup);
+  animation: toastSlideIn var(--duration-normal) var(--ease-spring) forwards;
+  transition: transform var(--duration-fast) var(--ease-spring), opacity var(--duration-fast) var(--ease-spring);
+}
+
+.toast-item.removing {
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+}
+
+.toast-icon {
+  font-size: 1.15rem;
+}
+
+.toast-info .toast-icon { color: var(--accent-blue); }
+.toast-success .toast-icon { color: var(--accent-emerald); }
+.toast-warning .toast-icon { color: var(--accent-amber); }
+.toast-danger .toast-icon { color: var(--accent-rose); }
+
+@keyframes toastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ==========================================================================
+   Empty States (Zero Emoji, Architectural & Clean)
+   ========================================================================== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+
+.empty-state-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state-desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-6);
+  line-height: 1.6;
+}

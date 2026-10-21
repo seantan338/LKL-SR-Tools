@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Membership is stored on users/{uid}.teamId (approval flow), not only teams/*/members.
+    function isApprovedOnTeam(teamId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().teamId == teamId
+        && userDoc().role in ['owner', 'manager', 'recruiter'];
+    }
+
+    function isOwnerOrManagerOnTeam(teamId) {
+      return isApprovedOnTeam(teamId) && userDoc().role in ['owner', 'manager'];
+    }
+
+    function isTeamMember(teamId) {
+      return isAuthenticated() && exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+    }
+
+    function getUserRole(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function isTeamOwnerOrManager(teamId) {
+      let role = getUserRole(teamId);
+      return role == 'owner' || role == 'manager';
+    }
+
+    // Check if current user belongs to a parent team linked to childTeamId
+    function isLinkedParentTeamMember(childTeamId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/team_links/$(userDoc().teamId + '_' + childTeamId))
+        && userDoc().role in ['owner', 'manager', 'recruiter'];
+    }
+
+    match /users/{userId} {
+      allow create: if request.auth.uid == userId;
+      // Team-wide profile read: PIC names, mutual reminders, approval queue.
+      allow read: if isAuthenticated();
+      allow update: if request.auth.uid == userId
+        || isOwnerOrManagerOnTeam('default_team')
+        || isTeamOwnerOrManager('default_team')
+        || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && userDoc().role == 'owner');
+      allow delete: if isOwnerOrManagerOnTeam('default_team')
+        || isTeamOwnerOrManager('default_team')
+        || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && userDoc().role == 'owner');
+    }
+
+    match /team_links/{linkId} {
+      // Members of either parent team or child team can view the link
+      allow read: if isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (resource.data.parentTeamId == userDoc().teamId || resource.data.childTeamId == userDoc().teamId);
+      // Only owner of the parent team can create, update, or remove the link
+      allow create: if isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'owner'
+        && request.resource.data.parentTeamId == userDoc().teamId;
+      allow update, delete: if isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == 'owner'
+        && resource.data.parentTeamId == userDoc().teamId;
+    }
+
+    match /teams/{teamId} {
+      allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+      allow update: if isOwnerOrManagerOnTeam(teamId);
+      allow create: if isAuthenticated();
+
+      match /members/{userId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow write: if isOwnerOrManagerOnTeam(teamId)
+          || (isAuthenticated() && request.auth.uid == userId);
+      }
+
+      // All approved teammates can see and edit the shared pool (mutual follow-up).
+      // Linked parent team members (e.g. HQ) have read-only visibility.
+      match /candidates/{candidateId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow write: if isApprovedOnTeam(teamId) || isTeamMember(teamId);
+      }
+
+      match /job_orders/{orderId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow write: if isApprovedOnTeam(teamId) || isTeamMember(teamId);
+      }
+
+      match /tags/{tagDoc} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow write: if isApprovedOnTeam(teamId) || isTeamMember(teamId);
+      }
+
+      match /feedback/{feedbackId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow update, delete: if isOwnerOrManagerOnTeam(teamId)
+          || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+      }
+
+      match /logs/{logId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow create: if isApprovedOnTeam(teamId) || isTeamMember(teamId);
+        // 不可变审计日志(Immutable Audit Log):
+        // - Owner 仅可修改软删除/恢复标记字段
+        // - 日志原始内容 (level, action, targetName, details, timestamp, user, module, message)
+        //   一经写入即永久不可篡改，杜绝事后掩盖操作痕迹
+        // - 绝对禁止物理硬删除
+        allow update: if isApprovedOnTeam(teamId)
+          && userDoc().role == 'owner'
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['isDeleted', 'deletedAt', 'deletedBy', 'deletedByName',
+                        'restoredAt', 'restoredBy', 'restoredByName']);
+        allow delete: if false;
+      }
+
+      match /ad_versions/{versionId} {
+        allow read, write: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read, write: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+      }
+
+      match /attendance_rules/{ruleId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow write: if isOwnerOrManagerOnTeam(teamId);
+      }
+    }
+  }
+}

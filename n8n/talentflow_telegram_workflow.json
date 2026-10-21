@@ -1,0 +1,130 @@
+{
+  "name": "Talent Flow - Telegram CV Automated Ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "1a2b3c4d-0001-4000-8000-000000000001",
+      "name": "Telegram Trigger (Listen Message Flow)",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "talentflow-telegram-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [],
+          "number": [],
+          "custom": [
+            {
+              "value": "={{ Boolean($json.message && ($json.message.document || $json.message.photo || ($json.message.text && $json.message.text.length >= 80))) }}"
+            }
+          ]
+        }
+      },
+      "id": "1a2b3c4d-0002-4000-8000-000000000002",
+      "name": "Is Resume Document / Photo / Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/telegram/webhook?sync=true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "1a2b3c4d-0003-4000-8000-000000000003",
+      "name": "Talent Flow AI Engine (Parse & Firestore Upsert)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Talent Flow - Telegram Candidate Ingest Workflow\n\n### Work Distribution Architecture:\n1. **n8n (Visual Orchestrator)**: Listens to incoming group messages / files, filters non-resume traffic, and manages notifications.\n2. **FastAPI :8000 (AI & Database Core)**: Extracts text from DOCX/PDF/Images, runs Gemini 3.8 Flash analysis, deduplicates by phone number, and saves to Firestore.\n\n### Network Host Configuration:\n- If n8n runs inside **Docker (Windows/Mac)**: use `http://host.docker.internal:8000`\n- If n8n runs directly on **Host Node.js**: use `http://localhost:8000`\n\n### Telegram Privacy Mode Requirement:\nIn Telegram `@BotFather`, run `/setprivacy` -> Select Bot -> **Disable**.",
+        "height": 380,
+        "width": 560
+      },
+      "id": "1a2b3c4d-0004-4000-8000-000000000004",
+      "name": "Workflow Architecture Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        -120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger (Listen Message Flow)": {
+      "main": [
+        [
+          {
+            "node": "Is Resume Document / Photo / Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Resume Document / Photo / Text?": {
+      "main": [
+        [
+          {
+            "node": "Talent Flow AI Engine (Parse & Firestore Upsert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "talentflow_orchestrator"
+  },
+  "tags": [
+    {
+      "createdAt": "2026-10-06T00:00:00.000Z",
+      "updatedAt": "2026-10-06T00:00:00.000Z",
+      "id": "talentflow",
+      "name": "Talent Flow"
+    }
+  ]
+}

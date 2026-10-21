@@ -1,0 +1,96 @@
+# Dependencies (All folders)
+node_modules/
+**/node_modules/
+
+# Build & Bundler outputs
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
+**/out/
+
+# OS & Temp files
+.DS_Store
+Thumbs.db
+*.log
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+candidate_data.json
+
+# Markdown documents (ignore all markdown files except README)
+*.md
+**/*.md
+!README.md
+!README*.md
+!**/README.md
+!**/README*.md
+!readme.md
+!**/readme*.md
+!USER_MANUAL.md
+!**/USER_MANUAL.md
+!USER_MANUAL_EN.md
+!**/USER_MANUAL_EN.md
+
+# Internal Documentation & Deployment Guides
+CHANGELOG.md
+**/CHANGELOG.md
+!DEPLOYMENT.md
+ARCHITECTURE_NOTES.md
+**/ARCHITECTURE_NOTES.md
+MEMORY.md
+**/MEMORY.md
+AGENTS.md
+**/AGENTS.md
+CLAUDE.md
+**/CLAUDE.md
+
+# AI Agents & Project Memory Bank
+.agents/
+memory/
+**/memory/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+venv/
+**/venv/
+.venv/
+**/.venv/
+env/
+**/env/
+*.egg-info/
+**/*.egg-info/
+.pytest_cache/
+**/.pytest_cache/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# AI Matching Engine & Service Credentials
+ai_backend/chroma_data/
+ai_backend/firebase-service-account.json
+*credentials*.json
+*service-account*.json
+
+# WhatsApp Bot Session & Cache
+whatsapp_bot/.wwebjs_auth/
+whatsapp_bot/.wwebjs_cache/
+
+# Candidate Resumes & Exports (Prevent PII leakage)
+Sunrise CV - *.docx
+!Sunrise CV - Job Title - Full Name (1).docx
+ai_backend/uploads/resumes/
+# Local UAT Test Spreadsheets & Excel Locks
+*UAT*.xlsx
+*UAT*.md
+~$*.xlsx
+# Archived One-off Scripts
+scripts/archive/

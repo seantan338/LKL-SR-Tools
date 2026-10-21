@@ -1,0 +1,1661 @@
+'use client';
+
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../../lib/auth-context';
+import { useNotifications } from '../../../lib/notification-context';
+import { FirestoreStore } from '../../../lib/firestore-store';
+import { SystemLogger } from '../../../lib/logger';
+import { Utils } from '../../../lib/utils';
+import { db } from '../../../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import Chart from 'chart.js/auto';
+import { resolveCanonicalPic } from '../../../lib/identity.mjs';
+import { useI18n } from '../../../lib/i18n-context';
+
+const getApiUrl = (path) => {
+  return path;
+};
+
+export default function AnalyticsPage() {
+  const router = useRouter();
+  const { teamId, role, isOwner, user, userProfile } = useAuth();
+  const { candidates, candidatesLoading } = useNotifications();
+  const { t, lang } = useI18n();
+
+  // Active Tab: 'performance' (业绩看板) or 'attendance' (打卡记录)
+  const [activeTab, setActiveTab] = useState('performance');
+
+  // Orders and Logs State
+  const [orders, setOrders] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [manualCheckins, setManualCheckins] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
+
+  // Search & Filter State
+  const [selectedPic, setSelectedPic] = useState('all');
+  const [dateFilter, setDateFilter] = useState('today'); // 'today' | '7days' | '30days' | 'all'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isClockingIn, setIsClockingIn] = useState(false);
+  const [clockInStatusMsg, setClockInStatusMsg] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Attendance Rules & Settings Modal State
+  const [attendanceRules, setAttendanceRules] = useState({
+    enabled: true,
+    maxDistanceMeters: 100,
+    maxDriftCompensation: 40,
+    officeLocations: [
+      { name: t('analytics.defaultOfficeName', '公司总部'), latitude: 3.1390, longitude: 101.6869, radiusMeters: 100 }
+    ],
+    officeWifi: { allowedIps: ['127.0.0.1'], ddnsDomain: '' }
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editingRules, setEditingRules] = useState(null);
+  const [newIpInput, setNewIpInput] = useState('');
+  const [isDetectingIp, setIsDetectingIp] = useState(false);
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
+  const [isSavingRules, setIsSavingRules] = useState(false);
+
+  const chartRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  // 1. Subscribe to Job Orders
+  useEffect(() => {
+    if (!teamId || !user?.uid) return;
+    const unsubscribe = FirestoreStore.subscribeToJobOrders(teamId, role, user.uid, (data) => {
+      setOrders(data || []);
+    });
+    return () => unsubscribe();
+  }, [teamId, role, user]);
+
+  // 2. Subscribe to System Audit Logs (Used to synthesize daily PIC activity clock-in times)
+  useEffect(() => {
+    if (!teamId) return;
+
+    const q = query(
+      collection(db, 'teams', teamId, 'logs'),
+      orderBy('timestamp', 'desc'),
+      limit(500)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setLogs(logsData);
+      setLoadingLogs(false);
+    }, (err) => {
+      console.warn('Error loading logs for attendance:', err);
+      setLoadingLogs(false);
+    });
+
+    return () => unsubscribe();
+  }, [teamId]);
+
+  // 3. Subscribe to dedicated Attendance / Checkin collection
+  useEffect(() => {
+    if (!teamId) return;
+
+    const q = query(
+      collection(db, 'teams', teamId, 'attendance'),
+      orderBy('timestamp', 'desc'),
+      limit(300)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }));
+      setManualCheckins(data);
+    }, () => {});
+
+    return () => unsubscribe();
+  }, [teamId]);
+
+  // 4. Subscribe to Attendance Rules & Geofence config
+  useEffect(() => {
+    if (!teamId) return;
+    const unsubscribe = FirestoreStore.subscribeToAttendanceRules(teamId, (rules) => {
+      if (rules && typeof rules === 'object') {
+        setAttendanceRules({
+          enabled: rules.enabled ?? true,
+          maxDistanceMeters: rules.maxDistanceMeters || 100,
+          maxDriftCompensation: rules.maxDriftCompensation || 40,
+          officeLocations: rules.officeLocations && rules.officeLocations.length > 0
+            ? rules.officeLocations
+            : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 3.1390, longitude: 101.6869, radiusMeters: 100 }],
+          officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' }
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, [teamId]);
+
+  // 5. Subscribe to Team Members for Canonical PIC Master Resolution
+  useEffect(() => {
+    if (!teamId) return;
+    const usersRef = collection(db, 'users');
+    const unsub = onSnapshot(usersRef, (snapshot) => {
+      const mems = snapshot.docs.map(doc => ({
+        id: doc.id,
+        uid: doc.id,
+        ...doc.data(),
+        name: doc.data().displayName || doc.data().name || (doc.data().email ? doc.data().email.split('@')[0] : '')
+      }));
+      setTeamMembers(mems);
+    }, (err) => console.warn('Error loading team members in analytics:', err));
+    return () => unsub();
+  }, [teamId]);
+
+  // -------------------------------------------------------------
+  // Data Aggregation: PIC Performance (业绩指标统计 - 智能归一化合并)
+  // -------------------------------------------------------------
+  const picPerformanceData = useMemo(() => {
+    const map = {};
+
+    // Helper to initialize PIC record with Canonical resolution
+    const getOrCreatePic = (name, uid = '') => {
+      const canonical = resolveCanonicalPic(name, uid, teamMembers);
+      const key = canonical.key;
+
+      if (!map[key]) {
+        map[key] = {
+          key: key,
+          name: canonical.displayName,
+          uid: canonical.uid,
+          photoURL: canonical.photoURL,
+          isExternal: canonical.isExternal || !canonical.uid,
+          totalSourced: 0,
+          screening: 0,
+          phone: 0,
+          interview: 0,
+          offer: 0,
+          preOnboarding: 0,
+          onboarded: 0, // 核心业绩：成功入职
+          rejected: 0,
+          activeOrders: 0,
+        };
+      }
+      if (canonical.uid && !map[key].uid) {
+        map[key].uid = canonical.uid;
+      }
+      if (canonical.photoURL && !map[key].photoURL) {
+        map[key].photoURL = canonical.photoURL;
+      }
+      return map[key];
+    };
+
+    // Aggregate from Candidates
+    candidates.forEach(c => {
+      const pic = getOrCreatePic(c.picName, c.assignedTo);
+      pic.totalSourced += 1;
+
+      if (c.status === 'rejected') {
+        pic.rejected += 1;
+      } else {
+        const stage = c.stage || 'screening';
+        if (stage === 'screening') pic.screening += 1;
+        else if (stage === 'phone') pic.phone += 1;
+        else if (stage === 'interview') pic.interview += 1;
+        else if (stage === 'offer') pic.offer += 1;
+        else if (stage === 'pre_onboarding') pic.preOnboarding += 1;
+        else if (stage === 'onboarding' || stage === 'post_onboarding') pic.onboarded += 1;
+      }
+    });
+
+    // Aggregate from Job Orders
+    orders.forEach(o => {
+      const pic = getOrCreatePic(o.picName, o.assignedTo);
+      if (o.status !== 'filled' && o.status !== 'paused') {
+        pic.activeOrders += 1;
+      }
+    });
+
+    // Calculate rates and convert to array
+    const result = Object.values(map).map(p => {
+      // Conversion rate = (onboarded + offer) / totalSourced
+      const effectivePlaced = p.onboarded + p.preOnboarding;
+      const rate = p.totalSourced > 0 ? ((effectivePlaced / p.totalSourced) * 100).toFixed(1) : 0;
+      
+      // Performance score: (onboarded * 100) + (offer * 40) + (interview * 15) + (totalSourced * 2)
+      const score = (p.onboarded * 100) + (p.offer * 40) + (p.interview * 15) + (p.totalSourced * 2);
+
+      return {
+        ...p,
+        rate: Number(rate),
+        score
+      };
+    });
+
+    // Sort by Placed Descending, then TotalSourced Descending
+    return result.sort((a, b) => b.onboarded - a.onboarded || b.score - a.score || b.totalSourced - a.totalSourced);
+  }, [candidates, orders, teamMembers]);
+
+  // All distinct PIC names for filter dropdown
+  const allPicNames = useMemo(() => {
+    return picPerformanceData.map(p => p.name);
+  }, [picPerformanceData]);
+
+  // -------------------------------------------------------------
+  // Data Aggregation: PIC Attendance & Clock-In (打卡与考勤记录)
+  // -------------------------------------------------------------
+  const picAttendanceRecords = useMemo(() => {
+    // Group events by: `${date}_${picName}`
+    const recordMap = {};
+
+    const addEvent = (picName, userEmail, timestamp, actionType = 'ACTIVITY', note = '', meta = {}) => {
+      if (!timestamp) return;
+      const dateObj = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      if (isNaN(dateObj.getTime())) return;
+
+      const dateStr = dateObj.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+      const canonical = resolveCanonicalPic(picName, meta.uid || '', teamMembers);
+      const cleanPic = canonical.displayName || (userEmail ? userEmail.split('@')[0] : t('analytics.defaultPicName', '顾问'));
+      const key = `${dateStr}__${cleanPic}`;
+
+      if (!recordMap[key]) {
+        recordMap[key] = {
+          date: dateStr,
+          dateObj: dateObj,
+          picName: cleanPic,
+          userEmail: userEmail || '',
+          firstActionTime: dateObj,
+          lastActionTime: dateObj,
+          actionCount: 0,
+          manualClockIn: null,
+          manualClockOut: null,
+          verifyMethod: meta.verifyMethod || null,
+          verifySnapshot: meta.verifySnapshot || null,
+          actions: []
+        };
+      }
+
+      const rec = recordMap[key];
+      rec.actionCount += 1;
+      if (dateObj < rec.firstActionTime) rec.firstActionTime = dateObj;
+      if (dateObj > rec.lastActionTime) rec.lastActionTime = dateObj;
+
+      if (actionType === 'CLOCK_IN' && !rec.manualClockIn) {
+        rec.manualClockIn = dateObj;
+        if (meta.verifyMethod) {
+          rec.verifyMethod = meta.verifyMethod;
+          rec.verifySnapshot = meta.verifySnapshot;
+        }
+      } else if (actionType === 'CLOCK_OUT') {
+        rec.manualClockOut = dateObj;
+        if (meta.verifyMethod && !rec.verifyMethod) {
+          rec.verifyMethod = meta.verifyMethod;
+          rec.verifySnapshot = meta.verifySnapshot;
+        }
+      }
+
+      if (rec.actions.length < 5) {
+        rec.actions.push({ actionType, note, time: dateObj });
+      }
+    };
+
+    // 1. Process explicit manual check-ins
+    manualCheckins.forEach(chk => {
+      addEvent(
+        chk.picName || chk.userName,
+        chk.userEmail,
+        chk.timestamp,
+        chk.type || 'CLOCK_IN',
+        chk.note || t('analytics.defaultProgressNote', '员工考勤打卡'),
+        {
+          verifyMethod: chk.verifyMethod,
+          verifySnapshot: chk.verifySnapshot
+        }
+      );
+    });
+
+    // 2. Synthesize daily clock-in traces from system operation logs
+    logs.forEach(l => {
+      if (l.isDeleted) return;
+      const name = l.user?.displayName || (l.user?.email ? l.user.email.split('@')[0] : t('analytics.defaultEmployeeName', '内部员工'));
+      addEvent(name, l.user?.email, l.timestamp, l.action || 'SYSTEM_LOG', l.targetName || l.details, {
+        verifyMethod: l.verifyMethod,
+        verifySnapshot: l.verifySnapshot
+      });
+    });
+
+    // Format & finalize records
+    const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+    const nowTime = new Date().getTime();
+
+    const result = Object.values(recordMap).map(r => {
+      const isToday = r.date === todayStr;
+      
+      // Calculate work duration
+      const diffMs = r.lastActionTime.getTime() - r.firstActionTime.getTime();
+      const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(1);
+
+      // Determine status
+      let status = 'completed'; // 已打卡/全天完成
+      let statusLabel = t('analytics.statusFullShift', '正常完成');
+      let statusColor = 'var(--accent-emerald)';
+
+      if (isToday) {
+        // If last action was within 2 hours, they are currently online/active
+        const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
+        if (minutesSinceLast < 120) {
+          status = 'online';
+          statusLabel = t('analytics.statusOnDuty', '工作中 (活跃)');
+          statusColor = 'var(--accent-blue)';
+        } else {
+          statusLabel = t('analytics.statusJustClockedIn', '今日已打卡');
+          statusColor = 'var(--accent-emerald)';
+        }
+      }
+
+      return {
+        ...r,
+        durationHours: Number(diffHours),
+        status,
+        statusLabel,
+        statusColor,
+        isToday
+      };
+    });
+
+    // Sort by date desc, then by first action time desc
+    return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
+  }, [logs, manualCheckins, teamMembers, lang, t]);
+
+  // Filtered attendance list
+  const filteredAttendance = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+    const now = new Date();
+
+    return picAttendanceRecords.filter(item => {
+      // PIC Filter
+      if (selectedPic !== 'all' && item.picName !== selectedPic) return false;
+
+      // Text Search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (!item.picName.toLowerCase().includes(q) && !item.userEmail.toLowerCase().includes(q)) {
+          return false;
+        }
+      }
+
+      // Date Range Filter
+      if (dateFilter === 'today') {
+        return item.date === todayStr;
+      }
+      if (dateFilter === '7days') {
+        const daysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return item.firstActionTime >= daysAgo;
+      }
+      if (dateFilter === '30days') {
+        const daysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return item.firstActionTime >= daysAgo;
+      }
+      return true;
+    });
+  }, [picAttendanceRecords, selectedPic, dateFilter, searchQuery]);
+
+  // -------------------------------------------------------------
+  // Render Chart: PIC 推送 vs 入职对比 (Chart.js)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    if (activeTab !== 'performance' || !chartRef.current) return;
+
+    if (chartInstanceRef.current) {
+      chartInstanceRef.current.destroy();
+      chartInstanceRef.current = null;
+    }
+
+    const topPics = picPerformanceData.slice(0, 8);
+    if (topPics.length === 0) return;
+
+    const labels = topPics.map(p => p.name);
+    const sourcedData = topPics.map(p => p.totalSourced);
+    const onboardedData = topPics.map(p => p.onboarded);
+    const interviewData = topPics.map(p => p.interview);
+
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#fff';
+    const gridColor = 'rgba(255,255,255,0.06)';
+
+    chartInstanceRef.current = new Chart(chartRef.current, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: t('analytics.chartDatasetSourced', '推送候选人'),
+            data: sourcedData,
+            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            borderColor: '#3b82f6',
+            borderWidth: 1,
+            borderRadius: 6
+          },
+          {
+            label: t('analytics.chartDatasetInterview', '面试考核'),
+            data: interviewData,
+            backgroundColor: 'rgba(168, 85, 247, 0.7)',
+            borderColor: '#a855f7',
+            borderWidth: 1,
+            borderRadius: 6
+          },
+          {
+            label: t('analytics.chartDatasetOnboarded', '成功入职 (业绩成单)'),
+            data: onboardedData,
+            backgroundColor: 'rgba(16, 185, 129, 0.85)',
+            borderColor: '#10b981',
+            borderWidth: 1,
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: { color: textColor, font: { size: 12, weight: '500' } }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            padding: 10
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: textColor, font: { size: 11 } }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: { color: textColor, precision: 0 }
+          }
+        }
+      }
+    });
+
+    return () => {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.destroy();
+        chartInstanceRef.current = null;
+      }
+    };
+  }, [picPerformanceData, activeTab, isOwner, lang, t]);
+
+  // -------------------------------------------------------------
+  // Manual Clock-in Action (一键打卡登记)
+  // -------------------------------------------------------------
+  // Progressive Zero-Trust Attendance Clock-in (2-Stage Verification)
+  // -------------------------------------------------------------
+  const executeAttendanceCheckin = async (type = 'CLOCK_IN') => {
+    if (!teamId || !user) return;
+    setIsClockingIn(true);
+    setClockInStatusMsg(t('analytics.statusConnecting', '正在连接安全核验网关，校验 Wi-Fi 出口 IP...'));
+
+    const picName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || t('analytics.defaultPicName', '顾问');
+
+    try {
+      // Stage 1: Check Wi-Fi public IP (pass coords: null)
+      let stage1Res;
+      try {
+        const resp = await fetch(getApiUrl('/api/attendance/verify'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            teamId,
+            type,
+            rules: attendanceRules,
+            coords: null
+          })
+        });
+        stage1Res = await resp.json();
+      } catch (netErr) {
+        throw new Error(t('analytics.netErrGateway', '无法连接考勤核验微服务 (端口 8000)，请确保 Python 后端已启动'));
+      }
+
+      const r1 = stage1Res?.result;
+
+      // Case A: Rule disabled OR Stage 1 Wi-Fi IP verified!
+      if (r1?.passed) {
+        const isWifi = r1.verify_method === 'WIFI_IP';
+        const verifySnapshot = {
+          method: r1.verify_method,
+          methodName: isWifi ? t('analytics.methodWifi', '公司 Wi-Fi') : t('analytics.methodRuleDisabled', '规则未限制'),
+          ip: r1.client_ip || r1.hit_ip || '',
+          timestamp: new Date().toISOString()
+        };
+
+        try {
+          await FirestoreStore.addAttendanceRecord(teamId, {
+            teamId,
+            userId: user.uid,
+            userEmail: user.email || '',
+            picName,
+            type,
+            verifyMethod: r1.verify_method,
+            verifySnapshot,
+            note: `[${verifySnapshot.methodName}] ${type === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
+          });
+        } catch (storeErr) {
+          console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
+        }
+
+        showToast(isWifi
+          ? (t('analytics.successWifiToast', '打卡成功！已连入公司 Wi-Fi（出口 IP: {ip}）')).replace('{ip}', r1.client_ip || '')
+          : t('analytics.checkinSuccess', '打卡成功！'));
+        return;
+      }
+
+      // Case B: Wi-Fi not matched -> enter Stage 2 (100m GPS Geofence)
+      if (r1?.code === 'NEED_GPS') {
+        setClockInStatusMsg(t('analytics.statusCheckingGps', '未连接公司 Wi-Fi，正在调用高精度 GPS 验证 100 米地理围栏...'));
+
+        if (typeof window === 'undefined' || !navigator.geolocation) {
+          throw new Error(t('analytics.errNoGeo', '当前浏览器不支持地理定位，且未连接公司 Wi-Fi，无法完成考勤打卡。'));
+        }
+
+        const getPos = () => new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+          );
+        });
+
+        let pos;
+        try {
+          pos = await getPos();
+        } catch (geoErr) {
+          let reason = t('analytics.geoErrDefault', '定位授权或信号异常');
+          if (geoErr.code === 1) reason = t('analytics.geoErrDenied', '您拒绝了浏览器地理定位授权。请在浏览器地址栏允许定位权限，或连接公司 Wi-Fi 直接打卡。');
+          else if (geoErr.code === 2) reason = t('analytics.geoErrFailed', '位置获取失败，请确保设备开启了高精度定位服务。');
+          else if (geoErr.code === 3) reason = t('analytics.geoErrTimeout', 'GPS 定位获取超时，请移至窗边或连接公司 Wi-Fi 重试。');
+          throw new Error(reason);
+        }
+
+        setClockInStatusMsg((t('analytics.statusGpsCaptured', '已捕获 GPS (精度 ±{acc}m)，正在提交后端进行 100 米测距与室内漂移补偿判定...')).replace('{acc}', Math.round(pos.coords.accuracy)));
+
+        const resp2 = await fetch(getApiUrl('/api/attendance/verify'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            teamId,
+            type,
+            rules: attendanceRules,
+            coords: {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy
+            }
+          })
+        });
+        const stage2Res = await resp2.json();
+        const r2 = stage2Res?.result;
+
+        if (r2?.passed) {
+          const verifySnapshot = {
+            method: 'GPS_GEOFENCE',
+            methodName: t('analytics.methodGeofence', '100m地理围栏'),
+            officeName: r2.office_name,
+            effectiveDistance: r2.effective_distance,
+            actualDistance: r2.actual_distance,
+            accuracy: r2.accuracy,
+            compensation: r2.compensation,
+            timestamp: new Date().toISOString()
+          };
+
+          try {
+            await FirestoreStore.addAttendanceRecord(teamId, {
+              teamId,
+              userId: user.uid,
+              userEmail: user.email || '',
+              picName,
+              type,
+              verifyMethod: 'GPS_GEOFENCE',
+              verifySnapshot,
+              note: `[100m / ${Math.round(r2.effective_distance)}m] ${type === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
+            });
+          } catch (storeErr) {
+            console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
+          }
+
+          showToast((t('analytics.successGpsToast', '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）')).replace('{dist}', Math.round(r2.effective_distance)));
+          return;
+        } else {
+          throw new Error(r2?.message || t('analytics.geofenceExceeded', '超出公司 100 米考勤有效范围'));
+        }
+      }
+
+      throw new Error(r1?.message || t('analytics.checkinFailedGeneral', '考勤核验未通过'));
+
+    } catch (err) {
+      console.error('Attendance error:', err);
+      const errMsg = err?.message || t('analytics.checkinFailedGeneral', '考勤核验未通过');
+      showToast((t('analytics.failedCheckin', '打卡未通过：{msg}')).replace('{msg}', errMsg));
+    } finally {
+      setIsClockingIn(false);
+      setClockInStatusMsg('');
+    }
+  };
+
+  // 1-Click Detect and Append Current IP
+  const handleDetectCurrentIp = async () => {
+    setIsDetectingIp(true);
+    try {
+      const resp = await fetch(getApiUrl('/api/attendance/current-ip'));
+      const data = await resp.json();
+      if (data.status === 'success' && data.client_ip) {
+        const ip = data.client_ip;
+        const currentIps = editingRules?.officeWifi?.allowedIps || [];
+        if (currentIps.includes(ip)) {
+          showToast((t('analytics.currentIpExists', '当前出口 IP ({ip}) 已存在于白名单中')).replace('{ip}', ip));
+        } else {
+          setEditingRules({
+            ...editingRules,
+            officeWifi: {
+              ...editingRules.officeWifi,
+              allowedIps: [...currentIps, ip]
+            }
+          });
+          showToast((t('analytics.addedCurrentIp', '成功添加当前出口 IP: {ip}')).replace('{ip}', ip));
+        }
+      } else {
+        alert(t('analytics.detectIpFailed', '无法检测公网出口 IP: ') + (data.message || 'Error'));
+      }
+    } catch (err) {
+      alert(t('analytics.detectIpNetFailed', '获取当前 IP 失败，请确认后端已运行: ') + err.message);
+    } finally {
+      setIsDetectingIp(false);
+    }
+  };
+
+  // 1-Click Adopt Current GPS as Office Center
+  const handleAdoptCurrentGps = () => {
+    if (!navigator.geolocation) {
+      alert(t('analytics.errNoGeoBrowser', '当前浏览器不支持地理定位'));
+      return;
+    }
+    setIsDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsDetectingGps(false);
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const acc = Math.round(pos.coords.accuracy);
+
+        const currentOffices = editingRules?.officeLocations || [];
+        const defaultOffice = t('analytics.defaultOfficeName', '公司总部');
+        const primary = currentOffices[0] || { name: defaultOffice, radiusMeters: editingRules?.maxDistanceMeters || 100 };
+        const updatedOffices = [
+          {
+            ...primary,
+            latitude: lat,
+            longitude: lng,
+            name: primary.name || defaultOffice
+          },
+          ...currentOffices.slice(1)
+        ];
+
+        setEditingRules({
+          ...editingRules,
+          officeLocations: updatedOffices
+        });
+        showToast((t('analytics.adoptedGpsSuccess', '成功采纳当前位置 ({lat}, {lng})，GPS 精度 ±{acc}米'))
+          .replace('{lat}', lat)
+          .replace('{lng}', lng)
+          .replace('{acc}', acc));
+      },
+      (err) => {
+        setIsDetectingGps(false);
+        alert(t('analytics.detectGpsFailed', '获取当前 GPS 失败: ') + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // Add Custom IP
+  const handleAddCustomIp = () => {
+    const trimmed = newIpInput.trim();
+    if (!trimmed) return;
+    const currentIps = editingRules?.officeWifi?.allowedIps || [];
+    if (currentIps.includes(trimmed)) {
+      alert(t('analytics.ipAlreadyExists', '该 IP 已在白名单中'));
+      return;
+    }
+    setEditingRules({
+      ...editingRules,
+      officeWifi: {
+        ...editingRules.officeWifi,
+        allowedIps: [...currentIps, trimmed]
+      }
+    });
+    setNewIpInput('');
+  };
+
+  // Remove IP
+  const handleRemoveIp = (ipToRemove) => {
+    const currentIps = editingRules?.officeWifi?.allowedIps || [];
+    setEditingRules({
+      ...editingRules,
+      officeWifi: {
+        ...editingRules.officeWifi,
+        allowedIps: currentIps.filter(ip => ip !== ipToRemove)
+      }
+    });
+  };
+
+  // Save Settings to Firestore
+  const handleSaveSettings = async () => {
+    if (!teamId) return;
+    setIsSavingRules(true);
+    try {
+      await FirestoreStore.saveAttendanceRules(teamId, editingRules);
+      setAttendanceRules(editingRules);
+      setIsSettingsOpen(false);
+      showToast(t('analytics.rulesSavedToast', '考勤规则与网络设置已保存并全员实时生效'));
+    } catch (err) {
+      console.error('Failed to save attendance rules:', err);
+      alert(t('analytics.saveRulesFailed', '保存失败: ') + err.message);
+    } finally {
+      setIsSavingRules(false);
+    }
+  };
+
+  // Calculate Top Banner Totals
+  const totalSourcedAll = candidates.length;
+  const totalOnboardedAll = candidates.filter(c => c.stage === 'onboarding' || c.stage === 'post_onboarding').length;
+  const totalInterviewsAll = candidates.filter(c => c.stage === 'interview' || c.stage === 'offer' || c.stage === 'onboarding').length;
+  const activePicsToday = picAttendanceRecords.filter(r => r.isToday).length;
+
+  return (
+    <div className="page-view active" style={{ paddingBottom: 'var(--space-8)' }}>
+      
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.95)',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
+          border: '1px solid var(--accent-emerald)',
+          fontSize: '14px',
+          backdropFilter: 'blur(10px)'
+        }}>
+          {toastMessage}
+        </div>
+      )}
+
+      {/* Header & Mode Switcher */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-6)', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-1)' }}>
+            <h2 style={{ fontSize: 'var(--text-xl)', margin: 0, fontWeight: '700' }}>{t('analytics.pageTitle', '数据洞察与顾问效能')}</h2>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: 'var(--text-sm)' }}>
+            {t('analytics.pageSubtitle', '集中监控经办顾问 (PIC) 的成单业绩转化与日常打卡活动轨迹')}
+          </p>
+        </div>
+
+        {/* Tab Switcher & Quick Clock In */}
+        {/* Tab Switcher & Attendance Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+          
+          {/* Owner Rule Settings Button */}
+          {isOwner && (
+            <button
+              className="btn btn-sm btn-outline"
+              style={{ border: '1px solid var(--border-interactive)', gap: '6px', background: 'rgba(255,255,255,0.03)' }}
+              onClick={() => {
+                setEditingRules(JSON.parse(JSON.stringify(attendanceRules)));
+                setIsSettingsOpen(true);
+              }}
+              title={t('analytics.rulesBtnTitle', '配置企业 Wi-Fi 出口 IP 白名单与 100 米考勤地理围栏')}
+            >
+              <i className="ph-bold ph-gear-six" style={{ color: 'var(--accent-amber)' }}></i>
+              {t('analytics.rulesBtn', '考勤规则与网络设置')}
+            </button>
+          )}
+
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+            <button
+              className={`btn btn-sm ${activeTab === 'performance' ? 'btn-primary' : ''}`}
+              style={{ background: activeTab === 'performance' ? 'var(--accent-blue)' : 'transparent', border: 'none', gap: '6px' }}
+              onClick={() => setActiveTab('performance')}
+            >
+              <i className="ph-bold ph-trophy"></i>
+              {t('analytics.tabPerformance', 'PIC 业绩看板')}
+            </button>
+            <button
+              className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : ''}`}
+              style={{ background: activeTab === 'attendance' ? 'var(--accent-blue)' : 'transparent', border: 'none', gap: '6px' }}
+              onClick={() => setActiveTab('attendance')}
+            >
+              <i className="ph-bold ph-clock-user"></i>
+              {t('analytics.tabAttendance', 'PIC 打卡记录')}
+            </button>
+          </div>
+
+          {/* Quick Clock-in Buttons */}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              className="btn btn-sm"
+              style={{ background: 'var(--accent-emerald)', color: '#fff', border: 'none', gap: '5px', fontWeight: '600' }}
+              disabled={isClockingIn}
+              onClick={() => executeAttendanceCheckin('CLOCK_IN')}
+              title={t('analytics.clockInTitle', '上班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
+            >
+              <i className="ph-bold ph-sign-in"></i>
+              {isClockingIn ? t('analytics.clockInVerifying', '核验中...') : t('analytics.clockInBtn', '上班签到')}
+            </button>
+            <button
+              className="btn btn-sm btn-outline"
+              style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px' }}
+              disabled={isClockingIn}
+              onClick={() => executeAttendanceCheckin('CLOCK_OUT')}
+              title={t('analytics.clockOutTitle', '下班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
+            >
+              <i className="ph-bold ph-sign-out"></i>
+              {t('analytics.clockOutBtn', '下班签退')}
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {/* 4 Core Summary KPI Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', marginBottom: 'var(--space-2)' }}>
+              <span>{t('analytics.kpiTotalSourced', '全团队推荐候选人')}</span>
+              <i className="ph-light ph-users" style={{ color: 'var(--accent-blue)', fontSize: '18px' }}></i>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)' }}>
+              {totalSourcedAll} <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-muted)' }}>{t('analytics.kpiTotalSourcedUnit', '人')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', marginBottom: 'var(--space-2)' }}>
+              <span>{t('analytics.kpiTotalInterviews', '累计安排面试')}</span>
+              <i className="ph-light ph-calendar-check" style={{ color: 'var(--accent-purple)', fontSize: '18px' }}></i>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)' }}>
+              {totalInterviewsAll} <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-muted)' }}>{t('analytics.kpiTotalInterviewsUnit', '场次')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', marginBottom: 'var(--space-2)' }}>
+              <span>{t('analytics.kpiTotalOnboarded', '成功入职 (核心成交)')}</span>
+              <i className="ph-light ph-medal" style={{ color: 'var(--accent-emerald)', fontSize: '18px' }}></i>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--accent-emerald)' }}>
+              {totalOnboardedAll} <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-muted)' }}>{t('analytics.kpiTotalOnboardedUnit', '人成功入职')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', marginBottom: 'var(--space-2)' }}>
+              <span>{t('analytics.kpiActivePicsToday', '今日打卡/活跃顾问')}</span>
+              <i className="ph-light ph-clock" style={{ color: 'var(--accent-amber)', fontSize: '18px' }}></i>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--accent-amber)' }}>
+              {activePicsToday} <span style={{ fontSize: '13px', fontWeight: 'normal', color: 'var(--text-muted)' }}>{t('analytics.kpiActivePicsTodayUnit', '位顾问在岗')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 1: PIC 业绩看板 (Performance Leaderboard & Comparison)               */}
+      {/* ========================================================================= */}
+      {activeTab === 'performance' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          
+          {/* Top Chart: Comparison Bar Chart */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-chart-bar" style={{ color: 'var(--accent-blue)' }}></i>
+                  {t('analytics.chartTitle', '顾问推人量 vs 成功入职成单效能对比 (Top PICs)')}
+                </h3>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  {t('analytics.chartNote', '绿色代表最终入职业绩，紫色代表面试量，蓝色代表推送总量')}
+                </span>
+              </div>
+              <div style={{ height: '300px', width: '100%', position: 'relative' }}>
+                <canvas ref={chartRef}></canvas>
+              </div>
+            </div>
+          </div>
+
+          {/* Performance Leaderboard Table */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+                <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-ranking" style={{ color: 'var(--accent-amber)' }}></i>
+                  {t('analytics.tableTitle', 'PIC 顾问个人业绩排行与成单转化明细')}
+                </h3>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                  {(t('analytics.tableSubtitle', '共 {count} 位经办顾问')).replace('{count}', picPerformanceData.length)}
+                </span>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)', width: '60px' }}>{t('analytics.colRank', '排名')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colPic', '经办顾问 (PIC)')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colSourced', '推荐推人量')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colInterviews', '面试数')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colOffers', 'Offer 数')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--accent-emerald)' }}>{t('analytics.colOnboarded', '成功入职 (业绩成单)')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)', minWidth: '160px' }}>{t('analytics.colRate', '成单转化率')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {picPerformanceData.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                          {t('analytics.emptyPerformance', '暂无顾问业绩数据')}
+                        </td>
+                      </tr>
+                    ) : (
+                      picPerformanceData.map((pic, idx) => {
+                        let rankBadge = (
+                          <span style={{ color: 'var(--text-muted)', fontWeight: '600', paddingLeft: '4px' }}>
+                            #{idx + 1}
+                          </span>
+                        );
+                        if (idx === 0) {
+                          rankBadge = (
+                            <span style={{ background: '#f59e0b', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' }}>
+                              1
+                            </span>
+                          );
+                        } else if (idx === 1) {
+                          rankBadge = (
+                            <span style={{ background: '#94a3b8', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' }}>
+                              2
+                            </span>
+                          );
+                        } else if (idx === 2) {
+                          rankBadge = (
+                            <span style={{ background: '#b45309', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' }}>
+                              3
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <tr key={pic.name} style={{ borderBottom: '1px solid var(--border-hairline)', transition: 'background 0.2s' }}>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              {rankBadge}
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600' }}>
+                                  {pic.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{pic.name}</span>
+                                {userProfile?.role === 'owner' && (
+                                  <span style={{
+                                    fontSize: '10px',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontWeight: '600',
+                                    background: !pic.isExternal && pic.uid ? 'rgba(59, 130, 246, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                    color: !pic.isExternal && pic.uid ? 'var(--accent-blue)' : 'var(--accent-amber)',
+                                    border: `1px solid ${!pic.isExternal && pic.uid ? 'rgba(59, 130, 246, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                                  }}>
+                                    {!pic.isExternal && pic.uid ? t('analytics.tagInHouse', '本部') : t('analytics.tagFreelance', '外部/协作')}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', fontWeight: '500' }}>
+                              {pic.totalSourced} {t('analytics.unitPeople', '人')}
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--accent-purple)' }}>
+                              {pic.interview}
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--accent-blue)' }}>
+                              {pic.offer}
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <span style={{
+                                padding: '3px 10px',
+                                background: pic.onboarded > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.04)',
+                                color: pic.onboarded > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)',
+                                borderRadius: '12px',
+                                fontWeight: '700',
+                                fontSize: '13px'
+                              }}>
+                                {pic.onboarded} {t('analytics.unitPeople', '人')}
+                              </span>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1, height: '6px', background: 'var(--border-subtle)', borderRadius: '3px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${Math.min(pic.rate * 3, 100)}%`, background: 'var(--accent-emerald)', borderRadius: '3px' }}></div>
+                                </div>
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', width: '42px' }}>
+                                  {pic.rate}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: PIC 打卡记录 (Attendance & Activity Logs)                          */}
+      {/* ========================================================================= */}
+      {activeTab === 'attendance' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          
+          {/* Attendance Filter Toolbar */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+                
+                {/* Search by PIC name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flex: 1, minWidth: '260px' }}>
+                  <div style={{ position: 'relative', width: '100%', maxWidth: '320px' }}>
+                    <i className="ph-light ph-magnifying-glass" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}></i>
+                    <input
+                      type="text"
+                      className="input"
+                      style={{ paddingLeft: '32px', width: '100%', height: '36px', fontSize: '13px' }}
+                      placeholder={t('analytics.searchPlaceholder', '搜索顾问姓名或邮箱...')}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Filter by PIC Dropdown */}
+                  <select
+                    className="select"
+                    style={{ height: '36px', fontSize: '13px', minWidth: '140px' }}
+                    value={selectedPic}
+                    onChange={(e) => setSelectedPic(e.target.value)}
+                  >
+                    <option value="all">{t('analytics.filterAllPics', '全部经办顾问 (PIC)')}</option>
+                    {allPicNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Filter Buttons */}
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                  <button
+                    className={`btn btn-sm ${dateFilter === 'today' ? 'btn-primary' : ''}`}
+                    style={{ background: dateFilter === 'today' ? 'var(--accent-blue)' : 'transparent', border: 'none', fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => setDateFilter('today')}
+                  >
+                    {t('analytics.dateFilterToday', '今日考勤')}
+                  </button>
+                  <button
+                    className={`btn btn-sm ${dateFilter === '7days' ? 'btn-primary' : ''}`}
+                    style={{ background: dateFilter === '7days' ? 'var(--accent-blue)' : 'transparent', border: 'none', fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => setDateFilter('7days')}
+                  >
+                    {t('analytics.dateFilter7Days', '近 7 天')}
+                  </button>
+                  <button
+                    className={`btn btn-sm ${dateFilter === '30days' ? 'btn-primary' : ''}`}
+                    style={{ background: dateFilter === '30days' ? 'var(--accent-blue)' : 'transparent', border: 'none', fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => setDateFilter('30days')}
+                  >
+                    {t('analytics.dateFilter30Days', '近 30 天')}
+                  </button>
+                  <button
+                    className={`btn btn-sm ${dateFilter === 'all' ? 'btn-primary' : ''}`}
+                    style={{ background: dateFilter === 'all' ? 'var(--accent-blue)' : 'transparent', border: 'none', fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => setDateFilter('all')}
+                  >
+                    {t('analytics.dateFilterAll', '全部历史')}
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* Attendance Log Table */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)' }}></i>
+                  {t('analytics.attendanceTableTitle', '顾问考勤打卡明细与系统日常活跃记录')}
+                </h3>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡/活跃记录')).replace('{count}', filteredAttendance.length)}
+                </span>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttPic', '打卡人 (PIC)')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttDate', '考勤日期')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colLastActive', '最后活跃时间')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时跨度')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colActionCount', '当日系统操作量')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colVerifyMethod', '核验凭证')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colMainProgress', '当日主要工作推进')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingLogs ? (
+                      <tr>
+                        <td colSpan="9" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                          <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }}></i>
+                          {t('analytics.loadingLogs', '正在加载实时打卡记录...')}
+                        </td>
+                      </tr>
+                    ) : filteredAttendance.length === 0 ? (
+                      <tr>
+                        <td colSpan="9" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                          {t('analytics.emptyAttendance', '所选时间范围内暂无打卡记录，可点击上方「上班签到」立即打卡')}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAttendance.map((item, idx) => {
+                        const firstTimeStr = item.firstActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const lastTimeStr = item.lastActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        
+                        return (
+                          <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>
+                                  {item.picName.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{item.picName}</div>
+                                  {item.userEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.userEmail}</div>}
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
+                              <span style={{ fontWeight: '500', color: item.isToday ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                                {item.date} {item.isToday ? t('analytics.todayTag', '(今天)') : ''}
+                              </span>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                {firstTimeStr}
+                              </span>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                {lastTimeStr}
+                              </span>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
+                              {item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')}
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', fontSize: '12px' }}>
+                                {item.actionCount} {t('analytics.unitActions', '次业务流转')}
+                              </span>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              {item.verifyMethod === 'WIFI_IP' ? (
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: 'var(--accent-emerald)',
+                                  background: 'rgba(16, 185, 129, 0.15)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }} title={`IP: ${item.verifySnapshot?.ip || 'LAN'}`}>
+                                  <i className="ph-bold ph-wifi-high"></i>
+                                  {t('analytics.methodWifi', '公司 Wi-Fi')}
+                                </span>
+                              ) : item.verifyMethod === 'GPS_GEOFENCE' ? (
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: 'var(--accent-blue)',
+                                  background: 'rgba(59, 130, 246, 0.15)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }} title={`Effective: ${Math.round(item.verifySnapshot?.effectiveDistance || 0)}m (±${Math.round(item.verifySnapshot?.accuracy || 0)}m)`}>
+                                  <i className="ph-bold ph-map-pin"></i>
+                                  {t('analytics.methodGeofence', '100m围栏')} ({Math.round(item.verifySnapshot?.effectiveDistance || 0)}m)
+                                </span>
+                              ) : item.verifyMethod === 'RULE_DISABLED' ? (
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: 'var(--accent-amber)',
+                                  background: 'rgba(234, 179, 8, 0.15)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <i className="ph-bold ph-lock-simple-open"></i>
+                                  {t('analytics.methodRuleDisabled', '规则免限')}
+                                </span>
+                              ) : (
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '500',
+                                  color: 'var(--text-muted)',
+                                  background: 'rgba(255, 255, 255, 0.04)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <i className="ph-light ph-terminal-window"></i>
+                                  {t('analytics.methodSystem', '系统操作')}
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <span style={{
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: item.statusColor,
+                                background: `${item.statusColor}18`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
+                                {item.status === 'online'
+                                  ? t('analytics.statusOnDuty', '工作中 (活跃)')
+                                  : item.isToday
+                                    ? t('analytics.statusJustClockedIn', '今日已打卡')
+                                    : t('analytics.statusFullShift', '正常完成')}
+                              </span>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
+                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.actions.map(a => a.note).join('; ')}>
+                                {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '候选人状态更新与跟进')) : t('analytics.onlineProgressNote', '在线跟进')}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Verification In-Progress Overlay */}
+      {isClockingIn && (
+        <div style={{
+          position: 'fixed',
+          bottom: '32px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.95)',
+          color: '#fff',
+          padding: '14px 24px',
+          borderRadius: 'var(--radius-full)',
+          boxShadow: '0 20px 35px -5px rgba(0,0,0,0.6)',
+          border: '1px solid var(--accent-blue)',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          backdropFilter: 'blur(12px)',
+          maxWidth: '90%'
+        }}>
+          <i className="ph-bold ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-blue)', fontSize: '20px' }}></i>
+          <span>{clockInStatusMsg || t('analytics.verifyingOverlay', '正在执行企业级安全考勤核验...')}</span>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* Owner Attendance & Network Configuration Modal                            */}
+      {/* ========================================================================= */}
+      {isSettingsOpen && editingRules && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10000,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--space-4)'
+        }}>
+          <div className="bezel-shell" style={{ maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="bezel-core" style={{ padding: 'var(--space-6)' }}>
+              
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                    <i className="ph-bold ph-shield-check"></i>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-lg)', margin: 0, fontWeight: '700' }}>{t('analytics.modalTitle', '考勤网络与地理围栏设置')}</h3>
+                    <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      {t('analytics.modalSubtitle', '配置仅在公司 Wi-Fi 或 100 米范围内允许打卡')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-sm btn-outline"
+                  style={{ border: 'none', background: 'rgba(255,255,255,0.06)', borderRadius: '50%', width: '32px', height: '32px', padding: 0 }}
+                  onClick={() => setIsSettingsOpen(false)}
+                >
+                  <i className="ph-bold ph-x"></i>
+                </button>
+              </div>
+
+              {/* Master Switch */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: 'var(--space-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px' }}>{t('analytics.masterSwitchTitle', '强制开启打卡安全核验')}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    {t('analytics.masterSwitchDesc', '开启后员工必须命中公司 Wi-Fi 出口 IP 或位于 100 米地理围栏内，关闭则免检放行')}
+                  </div>
+                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '24px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingRules.enabled}
+                    onChange={(e) => setEditingRules({ ...editingRules, enabled: e.target.checked })}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    background: editingRules.enabled ? 'var(--accent-emerald)' : 'rgba(255,255,255,0.15)',
+                    borderRadius: '24px', transition: '0.3s'
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: '""', height: '18px', width: '18px', left: editingRules.enabled ? '26px' : '3px', bottom: '3px',
+                      background: '#fff', borderRadius: '50%', transition: '0.3s'
+                    }}></span>
+                  </span>
+                </label>
+              </div>
+
+              {/* Section 1: Office Location & Geofence */}
+              <div style={{ marginBottom: 'var(--space-6)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                  <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph-bold ph-map-pin" style={{ color: 'var(--accent-blue)' }}></i>
+                    {t('analytics.secGeofenceTitle', '办公地点与 100 米弹性地理围栏')}
+                  </h4>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    style={{ fontSize: '11px', padding: '3px 8px', gap: '4px', borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}
+                    disabled={isDetectingGps}
+                    onClick={handleAdoptCurrentGps}
+                  >
+                    <i className={`ph-bold ${isDetectingGps ? 'ph-spinner-gap' : 'ph-crosshair'}`} style={isDetectingGps ? { animation: 'spin 1s linear infinite' } : {}}></i>
+                    {isDetectingGps ? t('analytics.detectingGps', '读取中...') : t('analytics.adoptGpsBtn', '将我当前位置设为公司中心')}
+                  </button>
+                </div>
+
+                {/* Office Info Inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{t('analytics.officeNameLabel', '办公点名称')}</label>
+                    <input
+                      type="text"
+                      className="input"
+                      style={{ width: '100%', height: '36px', fontSize: '13px' }}
+                      value={editingRules.officeLocations?.[0]?.name || ''}
+                      placeholder={t('analytics.officeNamePlaceholder', '例如：总部办公室')}
+                      onChange={(e) => {
+                        const locs = [...(editingRules.officeLocations || [])];
+                        locs[0] = { ...(locs[0] || {}), name: e.target.value };
+                        setEditingRules({ ...editingRules, officeLocations: locs });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{t('analytics.latLabel', '中心纬度 (Latitude)')}</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="input"
+                      style={{ width: '100%', height: '36px', fontSize: '13px', fontFamily: 'monospace' }}
+                      value={editingRules.officeLocations?.[0]?.latitude || ''}
+                      placeholder={t('analytics.latPlaceholder', '例如：3.1390')}
+                      onChange={(e) => {
+                        const locs = [...(editingRules.officeLocations || [])];
+                        locs[0] = { ...(locs[0] || {}), latitude: parseFloat(e.target.value) || 0 };
+                        setEditingRules({ ...editingRules, officeLocations: locs });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{t('analytics.lngLabel', '中心经度 (Longitude)')}</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className="input"
+                      style={{ width: '100%', height: '36px', fontSize: '13px', fontFamily: 'monospace' }}
+                      value={editingRules.officeLocations?.[0]?.longitude || ''}
+                      placeholder={t('analytics.lngPlaceholder', '例如：101.6869')}
+                      onChange={(e) => {
+                        const locs = [...(editingRules.officeLocations || [])];
+                        locs[0] = { ...(locs[0] || {}), longitude: parseFloat(e.target.value) || 0 };
+                        setEditingRules({ ...editingRules, officeLocations: locs });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Radius Slider */}
+                <div style={{ marginBottom: 'var(--space-4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('analytics.radiusLabel', '考勤有效打卡半径')}</span>
+                    <span style={{ fontWeight: '700', color: 'var(--accent-blue)' }}>{editingRules.maxDistanceMeters || 100} {t('analytics.radiusMeterUnit', '米')}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="500"
+                    step="10"
+                    value={editingRules.maxDistanceMeters || 100}
+                    onChange={(e) => setEditingRules({ ...editingRules, maxDistanceMeters: parseInt(e.target.value) })}
+                    style={{ width: '100%', accentColor: 'var(--accent-blue)' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                    <span>{t('analytics.radiusMark50', '50米 (极高严密)')}</span>
+                    <span>{t('analytics.radiusMark100', '100米 (企业标准推荐)')}</span>
+                    <span>{t('analytics.radiusMark500', '500米 (宽松园区)')}</span>
+                  </div>
+                </div>
+
+                {/* Drift Compensation Slider */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('analytics.driftLabel', '高楼/室内 GPS 漂移补偿池')}</span>
+                    <span style={{ fontWeight: '700', color: 'var(--accent-purple)' }}>{editingRules.maxDriftCompensation || 40} {t('analytics.radiusMeterUnit', '米')}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={editingRules.maxDriftCompensation || 40}
+                    onChange={(e) => setEditingRules({ ...editingRules, maxDriftCompensation: parseInt(e.target.value) })}
+                    style={{ width: '100%', accentColor: 'var(--accent-purple)' }}
+                  />
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                    {t('analytics.driftDesc', '写字楼玻璃幕墙与水泥墙体会导致 30~50 米 GPS 多径折射抖动。后端测距时会自动抵扣该漂移误差，确保室内不误拒。')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Company Wi-Fi Public IP */}
+              <div style={{ marginBottom: 'var(--space-6)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-5)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                  <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph-bold ph-wifi-high" style={{ color: 'var(--accent-emerald)' }}></i>
+                    {t('analytics.secWifiTitle', '公司 Wi-Fi / 企业出口 IP 白名单')}
+                  </h4>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    style={{ fontSize: '11px', padding: '3px 8px', gap: '4px', borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)' }}
+                    disabled={isDetectingIp}
+                    onClick={handleDetectCurrentIp}
+                  >
+                    <i className={`ph-bold ${isDetectingIp ? 'ph-spinner-gap' : 'ph-globe'}`} style={isDetectingIp ? { animation: 'spin 1s linear infinite' } : {}}></i>
+                    {isDetectingIp ? t('analytics.detectingIp', '探测中...') : t('analytics.detectIpBtn', '一键将当前网络添加为公司 Wi-Fi')}
+                  </button>
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
+                  {t('analytics.wifiDesc', '由于现代浏览器沙箱安全机制限制，纯网页端无法读取路由器的物理 SSID/BSSID。系统采用大厂通用的公网出口 IP 方案：员工只要连上公司 Wi-Fi，即可秒级免等待打卡！')}
+                </p>
+
+                {/* Allowed IPs List */}
+                <div style={{ minHeight: '44px', background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                  {(!editingRules.officeWifi?.allowedIps || editingRules.officeWifi.allowedIps.length === 0) ? (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.emptyWifiNotice', '暂未添加公司 Wi-Fi IP，请点击右上角一键探测添加')}</span>
+                  ) : (
+                    editingRules.officeWifi.allowedIps.map(ip => (
+                      <span key={ip} style={{
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: 'var(--accent-emerald)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        borderRadius: '4px',
+                        padding: '2px 8px',
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <i className="ph-bold ph-wifi-high" style={{ fontSize: '11px' }}></i>
+                        {ip}
+                        <button
+                          onClick={() => handleRemoveIp(ip)}
+                          style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                        >
+                          <i className="ph-bold ph-x" style={{ fontSize: '10px' }}></i>
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                {/* Manual IP Addition */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: 'var(--space-3)' }}>
+                  <input
+                    type="text"
+                    className="input"
+                    style={{ flex: 1, height: '34px', fontSize: '12px', fontFamily: 'monospace' }}
+                    placeholder={t('analytics.manualIpPlaceholder', '手动输入分公司或专线固定公网 IP (例如 202.108.22.5)')}
+                    value={newIpInput}
+                    onChange={(e) => setNewIpInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddCustomIp()}
+                  />
+                  <button className="btn btn-sm btn-secondary" onClick={handleAddCustomIp} style={{ height: '34px', fontSize: '12px' }}>
+                    {t('analytics.addIpBtn', '添加 IP')}
+                  </button>
+                </div>
+
+                {/* DDNS Dynamic Domain */}
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{t('analytics.ddnsLabel', '动态域名 DDNS (针对普通家庭宽带/浮动公网 IP)')}</label>
+                  <input
+                    type="text"
+                    className="input"
+                    style={{ width: '100%', height: '34px', fontSize: '12px' }}
+                    placeholder={t('analytics.ddnsPlaceholder', '例如：myoffice.ddns.net (系统将自动解析当前出口 IP)')}
+                    value={editingRules.officeWifi?.ddnsDomain || ''}
+                    onChange={(e) => setEditingRules({
+                      ...editingRules,
+                      officeWifi: { ...(editingRules.officeWifi || {}), ddnsDomain: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)' }}>
+                <button className="btn btn-secondary" onClick={() => setIsSettingsOpen(false)} disabled={isSavingRules}>
+                  {t('analytics.btnCancel', '取消')}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveSettings}
+                  disabled={isSavingRules}
+                  style={{ gap: '6px' }}
+                >
+                  <i className={`ph-bold ${isSavingRules ? 'ph-spinner-gap' : 'ph-floppy-disk'}`} style={isSavingRules ? { animation: 'spin 1s linear infinite' } : {}}></i>
+                  {isSavingRules ? t('analytics.savingRules', '正在保存...') : t('analytics.btnSaveRules', '保存考勤规则')}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

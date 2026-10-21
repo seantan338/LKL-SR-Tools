@@ -1,0 +1,98 @@
+{
+  "name": "Talent Flow - Google Sheets Realtime Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sheets-sync",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "id": "2b3c4d5e-0001-4000-8000-000000000001",
+      "name": "Google Sheets Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "talentflow-sheets-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/sheets/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body || $json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2b3c4d5e-0002-4000-8000-000000000002",
+      "name": "Forward to Talent Flow AI (:8000)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Talent Flow - Google Sheets 实时同步转发工作流\n\n### 运作机理 (Single Tunnel Gateway):\n- **痛点解决**：ngrok 免费版仅有 1 个静态域名，已被 n8n (:5678) 占用。\n- **本流作用**：接管 `https://unsafe-islamist-idealist.ngrok-free.dev/webhook/sheets-sync` 流量，透明转发到 Docker 宿主机的 `http://host.docker.internal:8000/api/sheets/webhook`。\n- **效果**：Telegram Bot 与 Google 表格编辑同步无冲突共存！\n\n### 激活使用：\n1. 在 n8n 点击右上角开启 **Active**。\n2. 将 Google Apps Script 中的 `backendUrl` 指向此 Webhook 路径即可。",
+        "height": 380,
+        "width": 540
+      },
+      "id": "2b3c4d5e-0003-4000-8000-000000000003",
+      "name": "Google Sheets Proxy Architecture Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        -120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Forward to Talent Flow AI (:8000)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "talentflow_orchestrator"
+  },
+  "tags": [
+    {
+      "createdAt": "2026-10-06T00:00:00.000Z",
+      "updatedAt": "2026-10-06T00:00:00.000Z",
+      "id": "talentflow",
+      "name": "Talent Flow"
+    }
+  ]
+}

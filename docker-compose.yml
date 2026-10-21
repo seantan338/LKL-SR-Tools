@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Python AI 后端微服务 (FastAPI)
+  # ----------------------------------------------------------------------------
+  ai-backend:
+    build:
+      context: ./ai_backend
+      dockerfile: Dockerfile
+    container_name: talentflow_ai_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./ai_backend/.env
+    volumes:
+      - ./ai_backend/uploads:/app/uploads
+      - ./ai_backend/chroma_data:/app/chroma_data
+    environment:
+      - PORT=8000
+
+  # ----------------------------------------------------------------------------
+  # 2. Web 前端协作平台 (Next.js 16)
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        PYTHON_API_URL: http://ai-backend:8000
+    container_name: talentflow_web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./web/.env.production
+    environment:
+      - PYTHON_API_URL=http://ai-backend:8000
+    depends_on:
+      - ai-backend
+
+  # ----------------------------------------------------------------------------
+  # 3. WhatsApp 内部通知机器人微服务
+  # ----------------------------------------------------------------------------
+  whatsapp-bot:
+    build:
+      context: ./whatsapp_bot
+      dockerfile: Dockerfile
+    container_name: talentflow_whatsapp_bot
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./whatsapp_bot/.env
+    environment:
+      - PORT=8002
+      - HOST=0.0.0.0
+      - AI_BACKEND_URL=http://ai-backend:8000
+    volumes:
+      # 持久化保存扫码登录凭据，防止容器重启后重复扫码
+      - ./whatsapp_bot/.wwebjs_auth:/app/.wwebjs_auth
+    depends_on:
+      - ai-backend
