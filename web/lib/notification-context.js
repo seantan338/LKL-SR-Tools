@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from './auth-context';
 import { FirestoreStore } from './firestore-store';
 import { Utils } from './utils';
+import { useI18n } from './i18n-context';
 import CandidateDrawer from '../components/CandidateDrawer';
 
 const NotificationContext = createContext();
@@ -23,6 +24,13 @@ const STALE_THRESHOLDS = {
 
 export function NotificationProvider({ children }) {
   const { teamId, user, role, userProfile } = useAuth();
+  const { t } = useI18n();
+  // Latest translator for side-effect code paths (alert dispatcher) without adding `t` to their deps,
+  // so switching language never re-runs the effect that fires chimes / WhatsApp / desktop notifications.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [candidates, setCandidates] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -205,6 +213,8 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     if (!candidates || candidates.length === 0) return;
     const now = currentTime;
+    // Latest translator read via ref (intentionally not a dependency of this side-effect hook)
+    const t = tRef.current;
 
     // Helper: Parse reminder datetime
     const getReminderTime = (r) => {
@@ -254,7 +264,7 @@ export function NotificationProvider({ children }) {
             id: r.id,
             candidateId: c.id,
             candidateName: c.name,
-            content: r.content || `请跟进候选人 ${c.name}`,
+            content: r.content || t('notifications.followUpCandidate', { name: c.name }, '请跟进候选人 {name}'),
             time: r.time || (r.dateTime ? r.dateTime.substring(11, 16) : ''),
             date: r.date || '',
             createdAt: Date.now()
@@ -294,7 +304,7 @@ export function NotificationProvider({ children }) {
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         newlyDue.forEach(item => {
           try {
-            const n = new Notification(`跟进提醒: ${item.candidateName}`, {
+            const n = new Notification(t('notifications.desktopReminderTitle', { name: item.candidateName }, '跟进提醒: {name}'), {
               body: item.content,
               tag: `reminder-${item.id}`
             });
@@ -343,12 +353,14 @@ export function NotificationProvider({ children }) {
             const activeSnooze = remarks.find(r => r.stage === c.stage && r.snoozeUntil && r.snoozeUntil >= todayStr);
             
             if (!activeSnooze) {
+              const stageLabel = Utils.getStageMeta(c.stage, t).label;
+              const staleHint = t(`notifications.stale.${c.stage}`, stageMeta.text);
               notifs.push({
                 id: `stale-${c.id}-${c.stage}`,
                 type: 'stale',
                 severity: stageMeta.severity,
-                title: '候选人阶段停滞',
-                body: `${c.name} 在「${Utils.getStageMeta(c.stage).label}」已停留 ${diffDays} 天。${stageMeta.text}`,
+                title: t('notifications.staleTitle', '候选人阶段停滞'),
+                body: t('notifications.staleBody', { name: c.name, stage: stageLabel, days: diffDays, hint: staleHint }, '{name} 在「{stage}」已停留 {days} 天。{hint}'),
                 candidateId: c.id,
                 candidateName: c.name,
                 candidateStage: c.stage,
@@ -369,8 +381,8 @@ export function NotificationProvider({ children }) {
             id: `interview-today-${c.id}`,
             type: 'interview',
             severity: 'urgent',
-            title: '今日面试提醒',
-            body: `${c.name} 的面试安排在今天 ${c.interviewTime || ''}，请提前准备。`,
+            title: t('notifications.interviewTodayTitle', '今日面试提醒'),
+            body: t('notifications.interviewTodayBody', { name: c.name, time: c.interviewTime || '' }, '{name} 的面试安排在今天 {time}，请提前准备。'),
             candidateId: c.id,
             candidateName: c.name,
             createdAt: new Date(),
@@ -382,8 +394,8 @@ export function NotificationProvider({ children }) {
             id: `interview-tomorrow-${c.id}`,
             type: 'interview',
             severity: 'warning',
-            title: '明日面试提醒',
-            body: `${c.name} 的面试安排在明天 ${c.interviewTime || ''}。`,
+            title: t('notifications.interviewTomorrowTitle', '明日面试提醒'),
+            body: t('notifications.interviewTomorrowBody', { name: c.name, time: c.interviewTime || '' }, '{name} 的面试安排在明天 {time}。'),
             candidateId: c.id,
             candidateName: c.name,
             createdAt: new Date(),
@@ -422,8 +434,8 @@ export function NotificationProvider({ children }) {
             id: `reminder-${c.id}-${r.id}`,
             type: 'reminder',
             severity: 'info',
-            title: '跟进提醒',
-            body: r.content || `请跟进 ${c.name} 的情况`,
+            title: t('notifications.reminderTitle', '跟进提醒'),
+            body: r.content || t('notifications.reminderBody', { name: c.name }, '请跟进 {name} 的情况'),
             candidateId: c.id,
             candidateName: c.name,
             createdAt: remTime && !isNaN(remTime.getTime()) ? remTime : new Date(r.createdAt || now),
@@ -448,8 +460,10 @@ export function NotificationProvider({ children }) {
                   id: `activity-${c.id}-${history.length}`,
                   type: 'activity',
                   severity: 'info',
-                  title: isNew ? '新候选人录入' : '阶段推进',
-                  body: isNew ? `录入了新候选人: ${c.name}` : `将 ${c.name} 推进至「${Utils.getStageMeta(c.stage).label}」`,
+                  title: isNew ? t('notifications.activityNewTitle', '新候选人录入') : t('notifications.activityAdvanceTitle', '阶段推进'),
+                  body: isNew
+                    ? t('notifications.activityNewBody', { name: c.name }, '录入了新候选人: {name}')
+                    : t('notifications.activityAdvanceBody', { name: c.name, stage: Utils.getStageMeta(c.stage, t).label }, '将 {name} 推进至「{stage}」'),
                   candidateId: c.id,
                   candidateName: c.name,
                   createdAt: actDate,
@@ -468,7 +482,7 @@ export function NotificationProvider({ children }) {
       read: localRead.includes(n.id)
     })).sort((a, b) => b.createdAt - a.createdAt);
 
-  }, [candidates, localDismissed, localRead, role, currentTime, user?.uid]);
+  }, [candidates, localDismissed, localRead, role, currentTime, user?.uid, t]);
 
   // Only high-priority actionable events (today/tomorrow interviews and due follow-up reminders) light up the notification bell badge
   const unreadCount = notifications.filter(n => !n.read && (n.type === 'interview' || n.type === 'reminder')).length;
@@ -545,7 +559,7 @@ export function NotificationProvider({ children }) {
                   </div>
                   <div>
                     <div style={{ fontWeight: '600', fontSize: '0.88rem', color: '#ffffff' }}>
-                      跟进提醒 · {alert.candidateName}
+                      {t('notifications.alertTitle', { name: alert.candidateName }, '跟进提醒 · {name}')}
                     </div>
                     {alert.time && (
                       <div style={{ fontSize: '0.72rem', color: 'var(--accent-amber)', fontWeight: '500' }}>
@@ -560,7 +574,7 @@ export function NotificationProvider({ children }) {
                     e.stopPropagation();
                     dismissAlert(alert.id);
                   }}
-                  title="关闭提示"
+                  title={t('notifications.alertClose', '关闭提示')}
                   style={{ color: 'var(--text-muted)' }}
                 >
                   <i className="ph-light ph-x"></i>
@@ -570,7 +584,7 @@ export function NotificationProvider({ children }) {
               <div className="reminder-alert-body">
                 {alert.content}
                 <div style={{ marginTop: '4px', fontSize: '0.72rem', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>点击卡片直接查看候选人资料</span>
+                  <span>{t('notifications.alertClickHint', '点击卡片直接查看候选人资料')}</span>
                   <i className="ph-bold ph-arrow-up-right"></i>
                 </div>
               </div>
@@ -580,7 +594,7 @@ export function NotificationProvider({ children }) {
                   className="btn btn-secondary btn-xs" 
                   onClick={() => dismissAlert(alert.id)}
                 >
-                  稍后提醒
+                  {t('notifications.alertLater', '稍后提醒')}
                 </button>
                 <button 
                   className="btn btn-primary btn-xs" 
@@ -590,14 +604,14 @@ export function NotificationProvider({ children }) {
                     dismissAlert(alert.id);
                   }}
                 >
-                  <i className="ph-bold ph-user"></i> 查看候选人
+                  <i className="ph-bold ph-user"></i> {t('notifications.alertViewCandidate', '查看候选人')}
                 </button>
                 <button 
                   className="btn btn-primary btn-xs" 
                   style={{ background: 'var(--accent-amber)', borderColor: 'var(--accent-amber)', color: '#000000', fontWeight: '600' }}
                   onClick={() => completeReminder(alert.candidateId, alert.id)}
                 >
-                  <i className="ph-bold ph-check"></i> 标记已完成
+                  <i className="ph-bold ph-check"></i> {t('notifications.alertComplete', '标记已完成')}
                 </button>
               </div>
             </div>

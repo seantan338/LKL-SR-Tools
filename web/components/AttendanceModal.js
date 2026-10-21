@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../lib/auth-context';
+import { useI18n } from '../lib/i18n-context';
 import { FirestoreStore } from '../lib/firestore-store';
 import { SystemLogger } from '../lib/logger';
 import { db } from '../lib/firebase';
@@ -13,6 +14,7 @@ const getApiUrl = (path) => {
 
 export default function AttendanceModal() {
   const { user, userProfile, teamId, isOwner, isHqTeam } = useAuth();
+  const { t, lang } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -164,7 +166,7 @@ export default function AttendanceModal() {
   const handleQuickBindCurrentIp = async () => {
     if (!teamId || !detectedIp) return;
     setIsVerifying(true);
-    setStatusMessage(`正在将当前网络公网出口 IP (${detectedIp}) 登记为公司 Wi-Fi...`);
+    setStatusMessage(t('attendanceModal.statusBindingIp', { ip: detectedIp }, '正在将当前网络公网出口 IP ({ip}) 登记为公司 Wi-Fi...'));
     try {
       const currentIps = attendanceRules?.officeWifi?.allowedIps || [];
       const updatedIps = Array.from(new Set([...currentIps, detectedIp]));
@@ -177,12 +179,12 @@ export default function AttendanceModal() {
       };
       await FirestoreStore.saveAttendanceRules(teamId, updatedRules);
       setAttendanceRules(updatedRules);
-      showToast(`已成功将 IP (${detectedIp}) 设为公司 Wi-Fi！正在立即打卡...`);
+      showToast(t('attendanceModal.toastIpBound', { ip: detectedIp }, '已成功将 IP ({ip}) 设为公司 Wi-Fi！正在立即打卡...'));
       setTimeout(() => {
         handlePunch(todayClockIn ? 'CLOCK_OUT' : 'CLOCK_IN');
       }, 500);
     } catch (e) {
-      setStatusMessage(`绑定失败: ${e.message}`);
+      setStatusMessage(t('attendanceModal.bindFailed', { msg: e.message }, '绑定失败: {msg}'));
       setIsVerifying(false);
     }
   };
@@ -191,9 +193,9 @@ export default function AttendanceModal() {
   const handlePunch = async (punchType = 'CLOCK_IN') => {
     if (!teamId || !user) return;
     setIsVerifying(true);
-    setStatusMessage('正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...');
+    setStatusMessage(t('attendanceModal.statusDetecting', '正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...'));
 
-    const picName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || '顾问';
+    const picName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || t('analytics.defaultPicName', '顾问');
 
     try {
       // Stage 1: Wi-Fi Public IP check (pass coords: null)
@@ -211,7 +213,7 @@ export default function AttendanceModal() {
         });
         stage1Res = await resp.json();
       } catch (err) {
-        throw new Error('无法连接考勤核验服务，请检查网络连接');
+        throw new Error(t('attendanceModal.errServiceUnreachable', '无法连接考勤核验服务，请检查网络连接'));
       }
 
       const r1 = stage1Res?.result;
@@ -224,7 +226,7 @@ export default function AttendanceModal() {
         const isWifi = r1.verify_method === 'WIFI_IP';
         const verifySnapshot = {
           method: r1.verify_method,
-          methodName: isWifi ? '公司 Wi-Fi 内网认证' : '规则未限制',
+          methodName: isWifi ? t('analytics.methodWifi', '公司 Wi-Fi 内网认证') : t('analytics.methodRuleDisabled', '规则未限制'),
           ip: r1.client_ip || r1.hit_ip || '',
           timestamp: new Date().toISOString()
         };
@@ -238,15 +240,15 @@ export default function AttendanceModal() {
             type: punchType,
             verifyMethod: r1.verify_method,
             verifySnapshot,
-            note: `[${verifySnapshot.methodName}] ${punchType === 'CLOCK_IN' ? '上班签到' : '下班签退'}`
+            note: `[${verifySnapshot.methodName}] ${punchType === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
           });
         } catch (storeErr) {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
         }
 
         showToast(isWifi
-          ? `命中公司 Wi-Fi 认证，打卡成功！(IP: ${r1.client_ip || ''})`
-          : `打卡成功！`);
+          ? t('attendanceModal.toastWifiSuccess', { ip: r1.client_ip || '' }, '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})')
+          : t('analytics.checkinSuccess', '打卡成功！'));
         setIsVerifying(false);
         setStatusMessage('');
         
@@ -257,10 +259,10 @@ export default function AttendanceModal() {
 
       // Case 2: Wi-Fi not matched -> enter Stage 2 (100m GPS Geofence)
       if (r1?.code === 'NEED_GPS') {
-        setStatusMessage('未连接公司 Wi-Fi，正在调用高精度 GPS 校验 100 米考勤围栏...');
+        setStatusMessage(t('attendanceModal.statusCheckingGps', '未连接公司 Wi-Fi，正在调用高精度 GPS 校验 100 米考勤围栏...'));
 
         if (typeof window === 'undefined' || !navigator.geolocation) {
-          throw new Error('当前浏览器不支持地理定位，且未连接公司 Wi-Fi，无法完成考勤打卡。');
+          throw new Error(t('analytics.errNoGeo', '当前浏览器不支持地理定位，且未连接公司 Wi-Fi，无法完成考勤打卡。'));
         }
 
         const getPos = () => new Promise((resolve, reject) => {
@@ -275,14 +277,14 @@ export default function AttendanceModal() {
         try {
           pos = await getPos();
         } catch (geoErr) {
-          let reason = '定位授权或信号异常';
-          if (geoErr.code === 1) reason = '您拒绝了浏览器地理定位授权。请在浏览器地址栏允许定位权限，或连接公司 Wi-Fi 直接打卡。';
-          else if (geoErr.code === 2) reason = '位置获取失败，请确保设备开启了高精度定位服务。';
-          else if (geoErr.code === 3) reason = 'GPS 定位获取超时，请移至窗边或连接公司 Wi-Fi 重试。';
+          let reason = t('analytics.geoErrDefault', '定位授权或信号异常');
+          if (geoErr.code === 1) reason = t('analytics.geoErrDenied', '您拒绝了浏览器地理定位授权。请在浏览器地址栏允许定位权限，或连接公司 Wi-Fi 直接打卡。');
+          else if (geoErr.code === 2) reason = t('analytics.geoErrFailed', '位置获取失败，请确保设备开启了高精度定位服务。');
+          else if (geoErr.code === 3) reason = t('analytics.geoErrTimeout', 'GPS 定位获取超时，请移至窗边或连接公司 Wi-Fi 重试。');
           throw new Error(reason);
         }
 
-        setStatusMessage(`已捕获 GPS (精度 ±${Math.round(pos.coords.accuracy)}m)，正在提交后端核验...`);
+        setStatusMessage(t('attendanceModal.statusGpsCaptured', { acc: Math.round(pos.coords.accuracy) }, '已捕获 GPS (精度 ±{acc}m)，正在提交后端核验...'));
 
         const resp2 = await fetch(getApiUrl('/api/attendance/verify'), {
           method: 'POST',
@@ -304,7 +306,7 @@ export default function AttendanceModal() {
         if (r2?.passed) {
           const verifySnapshot = {
             method: 'GPS_GEOFENCE',
-            methodName: '100米地理围栏',
+            methodName: t('analytics.methodGeofence', '100米地理围栏'),
             officeName: r2.office_name,
             effectiveDistance: r2.effective_distance,
             actualDistance: r2.actual_distance,
@@ -322,29 +324,29 @@ export default function AttendanceModal() {
               type: punchType,
               verifyMethod: 'GPS_GEOFENCE',
               verifySnapshot,
-              note: `[100米围栏 / 距${Math.round(r2.effective_distance)}m] ${punchType === 'CLOCK_IN' ? '上班签到' : '下班签退'}`
+              note: `[100m / ${Math.round(r2.effective_distance)}m] ${punchType === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
             });
           } catch (storeErr) {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
           }
 
-          showToast(`打卡成功！已通过 100 米地理围栏核验（距公司约 ${Math.round(r2.effective_distance)} 米）`);
+          showToast(t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）'));
           setIsVerifying(false);
           setStatusMessage('');
           setTimeout(() => setIsOpen(false), 1500);
           return;
         } else {
-          throw new Error(r2?.message || '超出公司 100 米考勤有效范围');
+          throw new Error(r2?.message || t('analytics.geofenceExceeded', '超出公司 100 米考勤有效范围'));
         }
       }
 
-      throw new Error(r1?.message || '考勤核验未通过');
+      throw new Error(r1?.message || t('analytics.checkinFailedGeneral', '考勤核验未通过'));
 
     } catch (err) {
       console.error('考勤失败:', err);
-      const errMsg = err?.message || '考勤核验未通过';
-      setStatusMessage(`打卡未通过：${errMsg}`);
-      showToast(`打卡未通过：${errMsg}`);
+      const errMsg = err?.message || t('analytics.checkinFailedGeneral', '考勤核验未通过');
+      setStatusMessage(t('analytics.failedCheckin', { msg: errMsg }, '打卡未通过：{msg}'));
+      showToast(t('analytics.failedCheckin', { msg: errMsg }, '打卡未通过：{msg}'));
     } finally {
       setIsVerifying(false);
     }
@@ -355,23 +357,25 @@ export default function AttendanceModal() {
   const hoursStr = String(currentTime.getHours()).padStart(2, '0');
   const minutesStr = String(currentTime.getMinutes()).padStart(2, '0');
   const secondsStr = String(currentTime.getSeconds()).padStart(2, '0');
-  const dateFullStr = currentTime.toLocaleDateString('zh-CN', {
+  // Display-only locale (date-matching logic above intentionally stays on zh-CN)
+  const displayLocale = lang === 'en' ? 'en-US' : 'zh-CN';
+  const dateFullStr = currentTime.toLocaleDateString(displayLocale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     weekday: 'long'
   });
 
-  const userName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || '员工';
+  const userName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || t('attendanceModal.defaultUserName', '员工');
 
   // Format record timestamps
   const inTimeStr = todayClockIn ? (
     todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp)
-  ).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+  ).toLocaleTimeString(displayLocale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
 
   const outTimeStr = todayClockOut ? (
     todayClockOut.timestamp?.toDate ? todayClockOut.timestamp.toDate() : new Date(todayClockOut.timestamp)
-  ).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+  ).toLocaleTimeString(displayLocale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
 
   return (
     <div style={{
@@ -416,12 +420,12 @@ export default function AttendanceModal() {
               <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px' }}>
                 <i className="ph-bold ph-clock-user"></i>
               </div>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>日常考勤签到</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>{t('attendanceModal.title', '日常考勤签到')}</span>
             </div>
             <button
               onClick={handleDismiss}
               style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: 'var(--text-secondary)', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-              title="稍后打卡"
+              title={t('attendanceModal.later', '稍后打卡')}
             >
               <i className="ph-bold ph-x"></i>
             </button>
@@ -430,7 +434,7 @@ export default function AttendanceModal() {
           {/* User Greeting */}
           <div style={{ marginBottom: 'var(--space-4)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', margin: '0 0 4px 0', color: 'var(--text-primary)' }}>
-              您好，{userName}
+              {t('attendanceModal.greeting', { name: userName }, '您好，{name}')}
             </h3>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
               {dateFullStr}
@@ -459,22 +463,22 @@ export default function AttendanceModal() {
             {/* Attendance Status Pill */}
             <div style={{ marginTop: 'var(--space-3)', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '16px', background: todayClockIn ? 'rgba(16, 185, 129, 0.12)' : 'rgba(234, 179, 8, 0.12)', fontSize: '12px', fontWeight: '600', color: todayClockIn ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: todayClockIn ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}></span>
-              {todayClockIn ? `今日已签到 (${inTimeStr})` : '今日待签到 · 上班考勤'}
+              {todayClockIn ? t('attendanceModal.statusClockedIn', { time: inTimeStr }, '今日已签到 ({time})') : t('attendanceModal.statusPending', '今日待签到 · 上班考勤')}
             </div>
           </div>
 
           {/* Today Records Info */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', textAlign: 'left', fontSize: '12px' }}>
             <div style={{ background: 'rgba(255,255,255,0.02)', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)' }}>
-              <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>上班打卡</div>
+              <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>{t('attendanceModal.clockInLabel', '上班打卡')}</div>
               <div style={{ fontWeight: '700', color: inTimeStr ? 'var(--accent-emerald)' : 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '13px' }}>
-                {inTimeStr || '未签到'}
+                {inTimeStr || t('attendanceModal.notClockedIn', '未签到')}
               </div>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.02)', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)' }}>
-              <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>下班打卡</div>
+              <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>{t('attendanceModal.clockOutLabel', '下班打卡')}</div>
               <div style={{ fontWeight: '700', color: outTimeStr ? 'var(--accent-blue)' : 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '13px' }}>
-                {outTimeStr || '待签退'}
+                {outTimeStr || t('attendanceModal.pendingClockOut', '待签退')}
               </div>
             </div>
           </div>
@@ -519,7 +523,7 @@ export default function AttendanceModal() {
                   onClick={handleQuickBindCurrentIp}
                 >
                   <i className="ph-bold ph-wifi-high"></i>
-                  <span>【管理员快捷设定】将此网络 IP ({detectedIp}) 设为公司 Wi-Fi 并打卡</span>
+                  <span>{t('attendanceModal.quickBindIp', { ip: detectedIp }, '【管理员快捷设定】将此网络 IP ({ip}) 设为公司 Wi-Fi 并打卡')}</span>
                 </button>
               )}
             </div>
@@ -545,7 +549,7 @@ export default function AttendanceModal() {
                 onClick={() => handlePunch('CLOCK_IN')}
               >
                 <i className="ph-bold ph-sign-in"></i>
-                {isVerifying ? '正在安全核验...' : '立即上班打卡'}
+                {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : t('attendanceModal.clockInNow', '立即上班打卡')}
               </button>
             ) : (
               <button
@@ -565,7 +569,7 @@ export default function AttendanceModal() {
                 onClick={() => handlePunch('CLOCK_OUT')}
               >
                 <i className="ph-bold ph-sign-out"></i>
-                {isVerifying ? '正在安全核验...' : '下班签退打卡'}
+                {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : t('attendanceModal.clockOutNow', '下班签退打卡')}
               </button>
             )}
 
@@ -575,14 +579,14 @@ export default function AttendanceModal() {
               onClick={handleDismiss}
               disabled={isVerifying}
             >
-              稍后打卡
+              {t('attendanceModal.later', '稍后打卡')}
             </button>
           </div>
 
           {/* Security Subtitle */}
           <div style={{ marginTop: 'var(--space-4)', fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
             <i className="ph-bold ph-shield-check" style={{ color: 'var(--accent-emerald)' }}></i>
-            <span>企业级安全风控：支持公司 Wi-Fi 自动秒验 或 100 米地理围栏</span>
+            <span>{t('attendanceModal.securityNote', '企业级安全风控：支持公司 Wi-Fi 自动秒验 或 100 米地理围栏')}</span>
           </div>
 
         </div>
