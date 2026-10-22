@@ -557,8 +557,31 @@ const JobOrdersModule = {
           });
           const json = await res.json();
           if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            this.populateAiResult(json.data[0]);
-            App.showToast('文本解析成功并已自动填入！', 'success');
+            if (json.data.length === 1) {
+              this.populateAiResult(json.data[0]);
+              App.showToast('文本解析成功并已自动填入！', 'success');
+            } else {
+              const fallbackCompany = (json.data.find(d => d.company && d.company.trim()) || {}).company || document.getElementById('jobOrderCompanyInput')?.value?.trim() || '未命名公司';
+              let added = 0;
+              json.data.forEach(item => {
+                if (!item.position) return;
+                Store.addJobOrder({
+                  company: (item.company || fallbackCompany).trim(),
+                  position: item.position.trim(),
+                  salary: (item.salary || '').trim(),
+                  location: (item.location || '').trim(),
+                  workHours: (item.workHours || '').trim(),
+                  status: 'open',
+                  benefits: (item.benefits || '').trim(),
+                  requirements: (item.requirements || '').trim(),
+                  notes: (item.notes || '').trim()
+                });
+                added++;
+              });
+              this.closeModal();
+              this.render();
+              App.showToast(`已从文本智能拆分并批量发布 ${added} 个独立岗位！`, 'success', 4000);
+            }
             textContainer.style.display = 'none';
             textArea.value = '';
           } else {

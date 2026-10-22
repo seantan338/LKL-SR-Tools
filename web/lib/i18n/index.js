@@ -944,6 +944,15 @@ export const zh = {
     statusPaused: '⏸️ 已暂停',
     statusFilled: '🤝 已招满',
     statusClosed: '已关闭',
+    batchPreviewTitle: '已从文本中拆出 {count} 个独立岗位，请核对后批量入库',
+    batchSharedCompany: '统一归属企业',
+    batchSelectAll: '全选 / 取消全选',
+    batchDuplicateBadge: '已有同名岗位 (保存时将自动更新)',
+    batchNewBadge: '新岗位',
+    batchImportBtn: '一键批量入库 ({count} 个岗位)',
+    batchImporting: '正在批量写入...',
+    batchImportSuccess: '成功批量导入 {created} 个新岗位，更新 {updated} 个已有岗位！',
+    batchBackToSingle: '清空并退回单条录入',
   },
   calendar: {
 
@@ -2696,6 +2705,15 @@ export const en = {
     statusPaused: '⏸️ Paused',
     statusFilled: '🤝 Filled',
     statusClosed: 'Closed',
+    batchPreviewTitle: 'Extracted {count} separate job orders. Review and batch import below:',
+    batchSharedCompany: 'Shared Company Name',
+    batchSelectAll: 'Select / Deselect All',
+    batchDuplicateBadge: 'Existing Match (Will Update)',
+    batchNewBadge: 'New Job',
+    batchImportBtn: 'Batch Import ({count} Jobs)',
+    batchImporting: 'Importing...',
+    batchImportSuccess: 'Successfully imported {created} new jobs and updated {updated} existing jobs!',
+    batchBackToSingle: 'Clear & Back to Single Form',
   },
   calendar: {
 
