@@ -281,7 +281,7 @@ function formatReplyHtml(result, isGroup = false) {
     const webLink = `${WEB_APP_BASE_URL}/candidates?id=${result.id}`;
 
     if (isGroup) {
-        const statusTag = result.isNew ? '<b>[简历已入库]</b>' : '<b>[档案已更新]</b>';
+        const statusTag = result.isNew ? '<b>[简历已入库 / CV Saved]</b>' : '<b>[档案已更新 / Profile Updated]</b>';
         return [
             `${statusTag} <b>${result.name}</b>`,
             `岗位: ${result.position}${result.company ? ` (${result.company})` : ''}`,
@@ -291,7 +291,7 @@ function formatReplyHtml(result, isGroup = false) {
         ].join('\n');
     }
 
-    const title = result.isNew ? '<b>[新简历录入成功]</b>' : '<b>[候选人档案已更新]</b>';
+    const title = result.isNew ? '<b>[新简历录入成功 / New CV Imported]</b>' : '<b>[候选人档案已更新 / Candidate Profile Updated]</b>';
 
     let html = [
         title,
@@ -372,7 +372,7 @@ bot.on('document', async (ctx) => {
     } catch (err) {
         console.error(`[Telegram Bot] 处理文档失败 (${filename}):`, err.message);
         if (!SILENT_MODE) {
-            await ctx.replyWithHTML(`[处理失败] 无法解析 ${filename}: ${err.message}`, {
+            await ctx.replyWithHTML(`[处理失败 / Failed] 无法解析 ${filename}: ${err.message}`, {
                 reply_to_message_id: ctx.message.message_id
             });
         }
@@ -408,7 +408,7 @@ bot.on('photo', async (ctx) => {
     } catch (err) {
         console.error(`[Telegram Bot] 处理图片失败:`, err.message);
         if (!SILENT_MODE) {
-            await ctx.replyWithHTML(`[图片识别失败]: ${err.message}`, {
+            await ctx.replyWithHTML(`[图片识别失败 / Image OCR Failed]: ${err.message}`, {
                 reply_to_message_id: ctx.message.message_id
             });
         }

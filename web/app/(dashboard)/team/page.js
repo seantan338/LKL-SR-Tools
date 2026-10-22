@@ -21,7 +21,8 @@ export default function TeamPage() {
   } = useAuth();
   
   const { showToast, confirm } = useFeedback();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -382,7 +383,7 @@ export default function TeamPage() {
                   fontSize: 'var(--text-sm)'
                 }}>
                   <i className="ph-light ph-users-three" style={{ fontSize: '2rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}></i>
-                  暂无关联的合作人团队。点击上方按钮可添加合作人公司并建立单向只读穿透通道。
+                  {isEn ? 'No linked partner teams. Click the button above to add a partner company and establish one-way read-only access.' : '暂无关联的合作人团队。点击上方按钮可添加合作人公司并建立单向只读穿透通道。'}
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
@@ -443,7 +444,7 @@ export default function TeamPage() {
                               padding: '4px 10px'
                             }}
                           >
-                            {isCurrentlyViewing ? '当前正在查看' : t('team.switchToView', '切换查看')}
+                            {isCurrentlyViewing ? (isEn ? 'Viewing Now' : '当前正在查看') : t('team.switchToView', '切换查看')}
                           </button>
 
                           <button
@@ -486,7 +487,7 @@ export default function TeamPage() {
                       cursor: 'pointer'
                     }}
                   >
-                    全部 ({approvedUsers.length})
+                    {isEn ? 'All' : '全部'} ({approvedUsers.length})
                   </button>
                   <button
                     onClick={() => setTeamFilter('default_team')}
@@ -501,7 +502,7 @@ export default function TeamPage() {
                       cursor: 'pointer'
                     }}
                   >
-                    公司本部 ({approvedUsers.filter(u => u.teamId === 'default_team').length})
+                    {isEn ? 'HQ Team' : '公司本部'} ({approvedUsers.filter(u => u.teamId === 'default_team').length})
                   </button>
                   {linkedChildTeams.map(l => (
                     <button
@@ -531,7 +532,7 @@ export default function TeamPage() {
               </div>
             ) : filteredMembers.length === 0 ? (
               <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius-lg)' }}>
-                该筛选条件下暂无成员
+                {isEn ? 'No members found under this filter' : '该筛选条件下暂无成员'}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -608,7 +609,7 @@ export default function TeamPage() {
                               gap: '4px'
                             }}>
                               <i className={isHqMember ? "ph-bold ph-buildings" : "ph-bold ph-handshake"} style={{ fontSize: '11px' }}></i>
-                              <span>{isHqMember ? '本部' : (partnerInfo?.childTeamName || member.teamId)}</span>
+                              <span>{isHqMember ? (isEn ? 'HQ' : '本部') : (partnerInfo?.childTeamName || member.teamId)}</span>
                             </span>
                           )}
                         </div>
@@ -710,7 +711,7 @@ export default function TeamPage() {
                       {t('team.createPartnerTitle', '创建并关联合作人团队')}
                     </h3>
                     <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      建立后本部享有单向只读查看权限，合作人无法查看本部数据
+                      {isEn ? 'Once linked, HQ has one-way read-only view. Partner cannot view HQ data.' : '建立后本部享有单向只读查看权限，合作人无法查看本部数据'}
                     </p>
                   </div>
                 </div>
@@ -777,7 +778,7 @@ export default function TeamPage() {
                     }}
                   />
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    字母数字及下划线，作为 Firestore 团队集合定位 ID。
+                    {isEn ? 'Letters, numbers, and underscores, used as Firestore Team Collection ID.' : '字母数字及下划线，作为 Firestore 团队集合定位 ID。'}
                   </span>
                 </div>
 
@@ -793,10 +794,10 @@ export default function TeamPage() {
                 }}>
                   <div style={{ fontWeight: '700', color: 'var(--accent-blue)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <i className="ph-bold ph-shield-check"></i>
-                    <span>安全与数据隔离保障</span>
+                    <span>{isEn ? 'Security & Data Isolation Assurance' : '安全与数据隔离保障'}</span>
                   </div>
-                  <div>• <strong>公司本部：</strong>可通过顶栏随时切换穿透查看该合作人的候选人名单与招聘订单（单向只读）。</div>
-                  <div>• <strong>合作人成员：</strong>仅能看到其自身录入的候选人与订单，在数据库底层（Firestore Rules）绝无权限读取本部任何私密数据。</div>
+                  <div>• <strong>{isEn ? 'HQ: ' : '公司本部：'}</strong>{isEn ? 'Can switch through top bar anytime to view partner candidates & job orders (one-way read-only).' : '可通过顶栏随时切换穿透查看该合作人的候选人名单与招聘订单（单向只读）。'}</div>
+                  <div>• <strong>{isEn ? 'Partner Members: ' : '合作人成员：'}</strong>{isEn ? 'Can only see their own candidates & orders; database rules strictly forbid reading HQ private data.' : '仅能看到其自身录入的候选人与订单，在数据库底层（Firestore Rules）绝无权限读取本部任何私密数据。'}</div>
                 </div>
               </div>
 
@@ -924,7 +925,7 @@ export default function TeamPage() {
                     required
                     value={editForm.displayName}
                     onChange={(e) => setEditForm(prev => ({ ...prev, displayName: e.target.value }))}
-                    placeholder="张顾问 / Alex Lee"
+                    placeholder={isEn ? "Alex Lee / Recruiter" : "张顾问 / Alex Lee"}
                     style={{
                       width: '100%',
                       padding: '9px 12px',
@@ -958,15 +959,15 @@ export default function TeamPage() {
                       cursor: 'pointer'
                     }}
                   >
-                    <option value="default_team">公司本部 (HQ)</option>
+                    <option value="default_team">{isEn ? "HQ Team" : "公司本部 (HQ)"}</option>
                     {linkedChildTeams.map(l => (
                       <option key={l.id} value={l.childTeamId}>
-                        {l.childTeamName} (合作人)
+                        {l.childTeamName} {isEn ? "(Partner)" : "(合作人)"}
                       </option>
                     ))}
                   </select>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。
+                    {isEn ? 'After reassignment, this member can only access the selected team data. Isolation rules take effect immediately.' : '调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。'}
                   </span>
                 </div>
 
@@ -1010,7 +1011,7 @@ export default function TeamPage() {
                 }}>
                   <i className="ph-bold ph-shield-check" style={{ color: 'var(--accent-blue)', fontSize: '16px', marginTop: '2px', flexShrink: 0 }}></i>
                   <div>
-                    团队成员归属与角色权限由数据库安全规则物理隔离，保存后该成员的下一次会话及数据订阅将立即重定向至新团队。
+                    {isEn ? 'Member team assignment and role permissions are physically enforced by database security rules. Changes take effect on next session.' : '团队成员归属与角色权限由数据库安全规则物理隔离，保存后该成员的下一次会话及数据订阅将立即重定向至新团队。'}
                   </div>
                 </div>
               </div>

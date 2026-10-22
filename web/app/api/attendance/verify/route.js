@@ -67,7 +67,7 @@ export async function POST(request) {
         result: {
           passed: true,
           verify_method: 'RULE_DISABLED',
-          message: '考勤规则未启用，直接放行',
+          message: '考勤规则未启用，直接放行 / Attendance rules disabled, check-in allowed',
           client_ip: clientIp
         }
       });
@@ -91,7 +91,7 @@ export async function POST(request) {
         result: {
           passed: true,
           verify_method: 'WIFI_IP',
-          message: '打卡成功！已通过公司 Wi-Fi 内网认证（免除 GPS 等待）',
+          message: '打卡成功！已通过公司 Wi-Fi 认证 / Clocked in! Verified via Office Wi-Fi',
           client_ip: clientIp,
           hit_ip: clientIp
         }
@@ -105,7 +105,7 @@ export async function POST(request) {
         result: {
           passed: true,
           verify_method: 'WIFI_IP',
-          message: '企业考勤网络白名单尚未设定，已默认放行',
+          message: '企业考勤网络白名单尚未设定，已默认放行 / Office Wi-Fi whitelist not configured, allowed by default',
           client_ip: clientIp,
           hit_ip: clientIp,
           unconfigured: true
@@ -120,7 +120,7 @@ export async function POST(request) {
         result: {
           passed: false,
           code: 'NEED_GPS',
-          message: `未检测到公司 Wi-Fi（当前网络 IP: ${clientIp}），请允许获取定位或请管理员将此 IP 加入公司 Wi-Fi`,
+          message: `未检测到公司 Wi-Fi（当前 IP: ${clientIp}），请允许定位或联系管理员将该 IP 加入白名单 / Not on Office Wi-Fi (IP: ${clientIp}), allow GPS or ask admin to whitelist IP`,
           client_ip: clientIp
         }
       });
@@ -139,7 +139,7 @@ export async function POST(request) {
         result: {
           passed: false,
           code: 'INVALID_COORDS',
-          message: '经纬度数据格式异常，请重试',
+          message: '经纬度数据格式异常，请重试 / Invalid GPS coordinates format, please retry',
           client_ip: clientIp
         }
       });
@@ -151,7 +151,7 @@ export async function POST(request) {
         result: {
           passed: false,
           code: 'LOW_ACCURACY',
-          message: `当前定位信号过弱（误差 ±${Math.round(userAccuracy)}米），请开启手机高精度 GPS 或连接公司 Wi-Fi 后重试`,
+          message: `当前定位信号过弱（误差 ±${Math.round(userAccuracy)}米），请开启手机高精度 GPS 或连接公司 Wi-Fi / GPS signal too weak (±${Math.round(userAccuracy)}m), enable high-accuracy GPS or connect to Office Wi-Fi`,
           client_ip: clientIp,
           accuracy: userAccuracy
         }
@@ -164,7 +164,7 @@ export async function POST(request) {
         result: {
           passed: false,
           code: 'NO_OFFICE_CONFIGURED',
-          message: '企业尚未配置办公室坐标或 Wi-Fi 白名单，请联系管理员在后台完成考勤围栏设定',
+          message: '企业尚未配置办公室坐标或 Wi-Fi 白名单，请联系管理员在后台完成考勤围栏设定 / Office coordinates not configured, please contact admin',
           client_ip: clientIp
         }
       });
@@ -206,7 +206,7 @@ export async function POST(request) {
           result: {
             passed: true,
             verify_method: 'GPS_GEOFENCE',
-            message: `打卡成功！已通过 ${oName} 考勤围栏核验（有效测距约 ${Math.round(effectiveDist)} 米）`,
+            message: `打卡成功！已通过 ${oName} 考勤围栏核验（约 ${Math.round(effectiveDist)}m） / Clocked in! Verified at ${oName} (~${Math.round(effectiveDist)}m)`,
             client_ip: clientIp,
             office_name: oName,
             actual_distance: actualDist,
@@ -223,7 +223,7 @@ export async function POST(request) {
       result: {
         passed: false,
         code: 'OUT_OF_RANGE',
-        message: `超出打卡范围：您当前距离最近办公点约 ${Math.round(bestMatch?.effective_distance || minEffectiveDistance)} 米（允许范围 ${Math.round(defaultMaxRadius)} 米内）`,
+        message: `超出打卡范围：距离最近办公点约 ${Math.round(bestMatch?.effective_distance || minEffectiveDistance)}m（限 ${Math.round(defaultMaxRadius)}m 内） / Out of range: ~${Math.round(bestMatch?.effective_distance || minEffectiveDistance)}m from office (limit: ${Math.round(defaultMaxRadius)}m)`,
         client_ip: clientIp,
         details: bestMatch
       }
@@ -232,7 +232,7 @@ export async function POST(request) {
   } catch (err) {
     return NextResponse.json({
       status: 'error',
-      message: err.message || '考勤核验异常'
+      message: err.message || '考勤核验异常 / Attendance verification error'
     }, { status: 500 });
   }
 }

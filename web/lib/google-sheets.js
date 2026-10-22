@@ -99,7 +99,7 @@ export const GoogleSheetsAPI = {
       if (error.message === 'PRIVATE_SHEET') {
         throw error;
       }
-      throw new Error('无法访问公开表格。请检查链接是否正确，或者尝试授权登录获取。');
+      throw new Error('无法访问公开表格，请检查链接或尝试授权登录获取 / Cannot access public sheet. Check URL or authorize with Google.');
     }
   },
 
@@ -126,7 +126,7 @@ export const GoogleSheetsAPI = {
       const data = await response.json();
       return data.values || [];
     } catch (error) {
-      throw new Error(`无法获取私有表格数据: ${error.message}`);
+      throw new Error(`无法获取私有表格数据 / Failed to fetch private sheet: ${error.message}`);
     }
   },
 

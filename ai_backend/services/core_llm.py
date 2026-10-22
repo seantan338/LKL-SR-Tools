@@ -97,11 +97,11 @@ def ensure_api_key():
     if IS_OPENROUTER:
         if not _is_valid_key(OPENROUTER_API_KEY):
             logger.error("OPENROUTER_API_KEY not configured")
-            raise ValueError("请在 .env 文件中配置 OPENROUTER_API_KEY")
+            raise ValueError("请配置 OPENROUTER_API_KEY / Please configure OPENROUTER_API_KEY in .env")
     else:
         if not _is_valid_key(GEMINI_API_KEY):
             logger.error("GEMINI_API_KEY not configured")
-            raise ValueError("请在 .env 文件中配置 GEMINI_API_KEY")
+            raise ValueError("请配置 GEMINI_API_KEY / Please configure GEMINI_API_KEY in .env")
 
 def extract_json_block(content: str, start_char='{', end_char='}') -> str:
     """
@@ -159,7 +159,7 @@ def safe_json_parse(content: str, fallback_start='{', fallback_end='}'):
     import json_repair
 
     if not content or not content.strip():
-        raise ValueError("输入内容为空，无法解析 JSON")
+        raise ValueError("输入内容为空，无法解析 JSON / Input is empty, cannot parse JSON")
 
     # 1. Greedy markdown code block match
     code_block_pattern = r'```(?:json)?\s*([\{\[].*[\}\]])\s*```'
@@ -211,5 +211,5 @@ def safe_json_parse(content: str, fallback_start='{', fallback_end='}'):
     except Exception:
         pass
 
-    raise ValueError("未能从模型返回内容中解析或修复出有效的 JSON 结构")
+    raise ValueError("未能从模型返回内容中解析出有效的 JSON 结构 / Failed to parse valid JSON from AI response")
 

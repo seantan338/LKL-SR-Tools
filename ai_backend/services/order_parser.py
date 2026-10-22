@@ -87,4 +87,4 @@ async def parse_job_orders(raw_text: str) -> list:
 
     except Exception as e:
         logger.error(f"Exception in parse_job_orders: {str(e)}", exc_info=True)
-        raise ValueError(f"招聘需求解析失败: {str(e)}")
+        raise ValueError(f"招聘需求解析失败 / Job order parsing failed: {str(e)}")

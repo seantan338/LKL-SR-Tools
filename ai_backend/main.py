@@ -102,18 +102,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     if "429" in err_str or "resource_exhausted" in err_lower or "quota" in err_lower or "rate limit" in err_lower:
         if IS_OPENROUTER:
-            msg = f"AI 提供商 (OpenRouter) 配额或频率超限 (HTTP 429)，请前往 https://openrouter.ai/activity 检查用量与额度: {err_str}"
+            msg = f"AI 提供商 (OpenRouter) 配额或频率超限 (HTTP 429) / OpenRouter quota or rate limit exceeded: {err_str}"
         else:
-            msg = f"AI 提供商 (Gemini API) 配额或频率超限 (HTTP 429)，请稍后重试，或前往 https://aistudio.google.com 检查用量与计费: {err_str}"
+            msg = f"AI 提供商 (Gemini API) 配额或频率超限 (HTTP 429)，请稍后重试 / Gemini API rate limit exceeded, please retry later: {err_str}"
     elif "402" in err_str or "credits" in err_lower or "insufficient_quota" in err_lower:
-        msg = f"AI 提供商账户余额不足 (HTTP 402)，请充值后重试: {err_str}"
+        msg = f"AI 提供商账户余额不足 (HTTP 402)，请充值后重试 / AI provider insufficient balance (HTTP 402): {err_str}"
     elif "api key" in err_lower or "api_key_invalid" in err_lower or "permission_denied" in err_lower:
         if IS_OPENROUTER:
-            msg = f"OpenRouter API 密钥无效或无权限，请检查 ai_backend/.env 中的 OPENROUTER_API_KEY: {err_str}"
+            msg = f"OpenRouter API 密钥无效或无权限 / Invalid OpenRouter API key: {err_str}"
         else:
-            msg = f"Gemini API 密钥无效或无权限，请检查 ai_backend/.env 中的 GEMINI_API_KEY: {err_str}"
+            msg = f"Gemini API 密钥无效或无权限 / Invalid Gemini API key: {err_str}"
     else:
-        msg = f"服务器内部处理异常: {err_str}" 
+        msg = f"服务器内部处理异常 / Internal server error: {err_str}"
 
     return JSONResponse(
 
@@ -203,7 +203,7 @@ async def parse_text_endpoint(req: TextParseRequest, auth_user: dict = Depends(v
 
         logger.warning("Empty text received in /api/parse/text")
 
-        raise HTTPException(status_code=400, detail="文本不能为空")
+        raise HTTPException(status_code=400, detail="文本不能为空 / Text cannot be empty")
 
     try:
 
@@ -229,7 +229,7 @@ async def parse_sheet_endpoint(req: SheetParseRequest, auth_user: dict = Depends
 
         logger.warning("Empty data received in /api/parse/sheet")
 
-        raise HTTPException(status_code=400, detail="解析数据不能为空")
+        raise HTTPException(status_code=400, detail="解析数据不能为空 / Data to parse cannot be empty")
 
     try:
 
@@ -253,7 +253,7 @@ async def get_sheet_tabs_endpoint(spreadsheetId: str, auth_user: dict = Depends(
 
     if not spreadsheetId:
 
-        raise HTTPException(status_code=400, detail="spreadsheetId 不能为空")
+        raise HTTPException(status_code=400, detail="spreadsheetId 不能为空 / spreadsheetId cannot be empty")
 
     try:
 
@@ -317,11 +317,11 @@ async def normalize_interview_endpoint(req: NormalizeInterviewRequest, auth_user
 
         except Exception as e:
 
-            return {"status": "error", "message": f"拉取表格失败: {str(e)}"}
+            return {"status": "error", "message": f"拉取表格失败 / Failed to fetch sheet: {str(e)}"}
 
     if not rows:
 
-        raise HTTPException(status_code=400, detail="必须提供 rawRows 或合法的 spreadsheetId + sheetName")
+        raise HTTPException(status_code=400, detail="必须提供 rawRows 或合法的 spreadsheetId + sheetName / Must provide rawRows or valid spreadsheetId + sheetName")
 
     try:
 
@@ -372,7 +372,7 @@ async def parse_file_endpoint(
 
             logger.warning(f"No valid text extracted from file {filename}")
 
-            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本")
+            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本 / Unable to extract valid text from file")
 
         # Call LLM
 
@@ -394,7 +394,7 @@ async def parse_file_endpoint(
 
         logger.error(f"Error in /api/parse/file: {str(e)}", exc_info=True)
 
-        return {"status": "error", "message": f"文件解析或AI生成失败: {str(e)}"}
+        return {"status": "error", "message": f"文件解析或AI生成失败 / File parsing or AI generation failed: {str(e)}"}
 
 @app.post("/api/parse/file/job_order")
 async def parse_file_job_order_endpoint(
@@ -422,7 +422,7 @@ async def parse_file_job_order_endpoint(
 
             logger.warning(f"No valid text extracted from {filename} in job order parse")
 
-            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本")
+            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本 / Unable to extract valid text from file")
 
         # Call LLM for job_order
 
@@ -444,7 +444,7 @@ async def parse_file_job_order_endpoint(
 
         logger.error(f"Error in /api/parse/file/job_order: {str(e)}", exc_info=True)
 
-        return {"status": "error", "message": f"文件解析或AI生成失败: {str(e)}"}
+        return {"status": "error", "message": f"文件解析或AI生成失败 / File parsing or AI generation failed: {str(e)}"}
 
 @app.post("/api/parse/cv")
 
@@ -456,7 +456,7 @@ async def parse_cv_endpoint(req: TextParseRequest, auth_user: dict = Depends(ver
 
         logger.warning("Empty text received in /api/parse/cv")
 
-        raise HTTPException(status_code=400, detail="文本不能为空")
+        raise HTTPException(status_code=400, detail="文本不能为空 / Text cannot be empty")
 
     try:
 
@@ -507,14 +507,14 @@ async def parse_file_cv_endpoint(
             from services.cv_parser import parse_cv_from_images
             base64_images = extract_images_from_pdf(file_bytes)
             if not base64_images:
-                raise HTTPException(status_code=400, detail="PDF没有任何页面，无法解析。")
+                raise HTTPException(status_code=400, detail="PDF没有任何页面，无法解析 / PDF has no pages and cannot be parsed")
             results = await parse_cv_from_images(base64_images)
             logger.info(f"Successfully parsed CV from images for file {filename}")
             return {"status": "success", "data": results}
 
         if not extracted_text.strip():
             logger.warning(f"No valid text extracted from {filename} in CV parse")
-            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本，或者非PDF格式的扫描件不支持。")
+            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本，或非PDF扫描件不支持 / Unable to extract text from file, or unsupported non-PDF scan")
 
         logger.info(f"Calling parse_cv for {filename}...")
         results = await parse_cv(extracted_text)
@@ -533,7 +533,7 @@ async def parse_file_cv_endpoint(
 
         logger.error(f"Error in /api/parse/file/cv: {str(e)}", exc_info=True)
 
-        return {"status": "error", "message": f"简历解析失? {str(e)}"}
+        return {"status": "error", "message": f"简历解析失败 / Resume parsing failed: {str(e)}"}
 
 @app.post("/api/match/candidates")
 
@@ -830,23 +830,21 @@ async def process_webhook_in_background(req: SheetsWebhookRequest):
             # If for some reason it's missing, fallback to UUID
             candidate_id = req.uid if req.uid else str(uuid.uuid4())
             candidate_data['id'] = candidate_id
-            
-            candidate_data['updatedAt'] = now_iso
-            # We don't overwrite createdAt if it exists, so we let merge=True handle it gracefully.
-            if 'createdAt' not in candidate_data:
-                candidate_data['createdAt'] = now_iso
-                
+            candidate_data['updatedAt'] = firestore.SERVER_TIMESTAMP
             candidate_data['source'] = 'Google Sheets Webhook'
-            
-            # Safe defaults only for new creations
-            if 'status' not in candidate_data:
-                candidate_data['status'] = 'active'
-            if 'stage' not in candidate_data:
-                candidate_data['stage'] = 'new'
-            
-            # MERGE=TRUE is critical! It updates the parsed fields (like salary, phone) 
-            # WITHOUT wiping out the candidate's existing notes, reminders, or stage inside the web app.
-            db.collection('teams').document(safe_team_id).collection('candidates').document(candidate_id).set(candidate_data, merge=True)
+
+            doc_ref = db.collection('teams').document(safe_team_id).collection('candidates').document(candidate_id)
+            existing_snap = doc_ref.get()
+
+            if not existing_snap.exists:
+                # Safe defaults strictly for brand-new creations
+                candidate_data['createdAt'] = firestore.SERVER_TIMESTAMP
+                candidate_data.setdefault('status', 'active')
+                candidate_data.setdefault('stage', 'screening')
+                candidate_data.setdefault('stageHistory', [{'stage': candidate_data['stage'], 'movedAt': now_iso}])
+
+            # MERGE=TRUE updates parsed fields without wiping existing notes, reminders, or web stage
+            doc_ref.set(candidate_data, merge=True)
             saved_count += 1
 
         logger.info(f"Background webhook parsed and UPSERTED {saved_count} candidates for team '{safe_team_id}' with UID: {req.uid}")

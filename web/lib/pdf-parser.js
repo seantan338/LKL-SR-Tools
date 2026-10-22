@@ -33,7 +33,7 @@ export const PDFParser = {
       return fullText;
     } catch (error) {
       console.error('Error extracting text from PDF:', error);
-      throw new Error('PDF 文本解析失败，请确保文件未加密且格式正确。');
+      throw new Error('PDF 文本解析失败，请确保文件未加密且格式正确 / Failed to parse PDF text, ensure file is unencrypted and valid.');
     }
   }
 };

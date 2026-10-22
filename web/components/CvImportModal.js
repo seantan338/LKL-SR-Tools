@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '../lib/auth-context';
 import { useFeedback } from '../lib/feedback-context';
+import { useI18n } from '../lib/i18n-context';
 import { FirestoreStore } from '../lib/firestore-store';
 import { SystemLogger } from '../lib/logger';
 import WhatsAppButton from './WhatsAppButton';
@@ -143,6 +144,7 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '') {
 export default function CvImportModal({ isOpen, onClose, onSuccess }) {
   const { teamId, user, userProfile } = useAuth();
   const { showToast } = useFeedback();
+  const { t } = useI18n();
   
   const [activeTab, setActiveTab] = useState('file'); // 'file' | 'text'
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -178,9 +180,9 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
     Array.from(files).forEach(file => {
       const ext = file.name.split('.').pop().toLowerCase();
       if (!validExts.includes(ext)) {
-        errors.push(`${file.name}: 格式不支持 (仅支持 .docx, .doc, .pdf, .txt, 图片)`);
+        errors.push(t('cvImportModal.errUnsupportedFormat', { name: file.name }, `${file.name}: 格式不支持 (仅支持 .docx, .doc, .pdf, .txt, 图片)`));
       } else if (file.size > 20 * 1024 * 1024) {
-        errors.push(`${file.name}: 文件超过 20MB 上限`);
+        errors.push(t('cvImportModal.errFileTooLarge', { name: file.name }, `${file.name}: 文件超过 20MB 上限`));
       } else {
         valid.push(file);
       }
@@ -226,7 +228,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
     try {
       if (activeTab === 'file') {
         if (selectedFiles.length === 0) {
-          setParseError('请先选择或拖拽简历 Word (.docx) / PDF 文档');
+          setParseError(t('cvImportModal.errSelectFileFirst', '请先选择或拖拽简历 Word (.docx) / PDF 文档'));
           setIsParsing(false);
           return;
         }
@@ -280,7 +282,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       } else {
         // 纯文本解析
         if (!cvText.trim()) {
-          setParseError('请粘贴简历内容文本');
+          setParseError(t('cvImportModal.errPasteTextFirst', '请粘贴简历内容文本'));
           setIsParsing(false);
           return;
         }
@@ -316,7 +318,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       }
     } catch (err) {
       console.error('Failed to parse CVs:', err);
-      setParseError(err.message || '解析服务暂时不可用，请确认后端微服务正在运行');
+      setParseError(err.message || t('cvImportModal.errServiceUnavailable', '解析服务暂时不可用，请确认后端微服务正在运行'));
     } finally {
       setIsParsing(false);
     }
@@ -384,7 +386,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
   // 单个保存
   const handleSaveSingle = async (candidate) => {
     if (!candidate.name?.trim()) {
-      setParseError('候选人姓名不能为空');
+      setParseError(t('cvImportModal.errNameRequired', '候选人姓名不能为空'));
       return;
     }
     setIsSaving(true);
@@ -394,15 +396,15 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       // 从未存列表中移除
       setParsedCandidates(prev => prev.filter(c => c._id !== candidate._id));
       if (savedDoc.isMerged) {
-        showToast(`🎉 检测到已存在同电话候选人 (${candidate.phone || candidate.name})，已合并更新档案并追加重投记录！`);
+        showToast(t('extraUi.duplicatePhoneMergedToast', { phone: candidate.phone || candidate.name }, `🎉 检测到已存在同电话候选人 (${candidate.phone || candidate.name})，已合并更新档案并追加重投记录！`));
       } else {
-        showToast(`🎉 候选人 ${candidate.name} 已成功入库！`);
+        showToast(t('cvImportModal.toastCandidateSaved', { name: candidate.name }, `🎉 候选人 ${candidate.name} 已成功入库！`));
       }
       if (parsedCandidates.length <= 1) {
         handleClose();
       }
     } catch (err) {
-      setParseError(`保存失败: ${err.message}`);
+      setParseError(t('cvImportModal.errSaveFailed', { msg: err.message }, `保存失败: ${err.message}`));
     } finally {
       setIsSaving(false);
     }
@@ -412,7 +414,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
   const handleSaveAll = async () => {
     const validItems = parsedCandidates.filter(c => !c.parseFailed);
     if (validItems.length === 0) {
-      setParseError('没有可保存的有效候选人数据');
+      setParseError(t('cvImportModal.errNoValidCandidates', '没有可保存的有效候选人数据'));
       return;
     }
 
@@ -442,13 +444,13 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
         onSuccess(lastSaved);
       }
       if (mergedCount > 0) {
-        showToast(`🎉 批量入库完成：新建 ${createdCount} 人，合并更新 ${mergedCount} 人并追加重投记录！`);
+        showToast(t('cvImportModal.toastBatchSavedMerged', { created: createdCount, merged: mergedCount }, `🎉 批量入库完成：新建 ${createdCount} 人，合并更新 ${mergedCount} 人并追加重投记录！`));
       } else {
-        showToast(`🎉 成功录入 ${createdCount} 位候选人！`);
+        showToast(t('cvImportModal.toastBatchSavedNew', { created: createdCount }, `🎉 成功录入 ${createdCount} 位候选人！`));
       }
       handleClose();
     } catch (err) {
-      setParseError(`批量保存中断: ${err.message}`);
+      setParseError(t('cvImportModal.errBatchSaveInterrupted', { msg: err.message }, `批量保存中断: ${err.message}`));
     } finally {
       setIsSaving(false);
     }
@@ -526,29 +528,29 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                 {parsedCandidates.length > 0 ? (
                   parsedCandidates.length > 1 && !editingCandidateId ? (
                     <>
-                      <span>批量核对候选人</span>
+                      <span>{t('cvImportModal.batchReviewBadge', '批量核对候选人')}</span>
                       <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
-                        已解析 {parsedCandidates.filter(c => !c.parseFailed).length} 份
+                        {t('cvImportModal.parsedCountBadge', { count: parsedCandidates.filter(c => !c.parseFailed).length }, `已解析 ${parsedCandidates.filter(c => !c.parseFailed).length} 份`)}
                       </span>
                     </>
                   ) : (
-                    '核对并确认候选人 Sunrise 档案'
+                    t('cvImportModal.reviewTitle', '核对并确认候选人 Sunrise 档案')
                   )
                 ) : (
-                  'AI 智能简历导入 (支持 Sunrise DOCX 批量)'
+                  t('cvImportModal.uploadTitle', 'AI 智能简历导入 (支持 Sunrise DOCX 批量)')
                 )}
               </h3>
               <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 {parsedCandidates.length > 0
-                  ? '已完整识别个人信息、薪资诉求及离职原因履历，确认无误后一键存入人才库'
-                  : '支持拖入 1 份或多份 Word (.docx)、PDF 简历文件，自动解析全量 Sunrise 字段'}
+                  ? t('cvImportModal.reviewSubtitle', '已完整识别个人信息、薪资诉求及离职原因履历，确认无误后一键存入人才库')
+                  : t('cvImportModal.uploadSubtitle', '支持拖入 1 份或多份 Word (.docx)、PDF 简历文件，自动解析全量 Sunrise 字段')}
               </p>
             </div>
           </div>
           <button 
             className="btn-icon" 
             onClick={handleClose} 
-            title="关闭"
+            title={t('cvImportModal.closeTip', '关闭')}
             style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'transparent' }}
           >
             <i className="ph-light ph-x"></i>
@@ -591,7 +593,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                     cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                   }}
                 >
-                  <i className="ph-light ph-files"></i> 文件批量拖拽 (.docx / .pdf)
+                  <i className="ph-light ph-files"></i> {t('cvImportModal.tabFileDrop', '文件批量拖拽 (.docx / .pdf)')}
                 </button>
                 <button
                   type="button"
@@ -604,7 +606,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                     cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                   }}
                 >
-                  <i className="ph-light ph-textbox"></i> 文本直接粘贴
+                  <i className="ph-light ph-textbox"></i> {t('cvImportModal.tabTextPaste', '文本直接粘贴')}
                 </button>
               </div>
 
@@ -650,11 +652,11 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                     <div>
                       <div style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.98rem' }}>
                         {selectedFiles.length > 0
-                          ? `已选取 ${selectedFiles.length} 份简历文档（点击可继续添加）`
-                          : '点击选取或将 Sunrise Word (.docx) / PDF 拖拽至此处'}
+                          ? t('cvImportModal.selectedFilesHint', { count: selectedFiles.length }, `已选取 ${selectedFiles.length} 份简历文档（点击可继续添加）`)
+                          : t('cvImportModal.dropzonePlaceholder', '点击选取或将 Sunrise Word (.docx) / PDF 拖拽至此处')}
                       </div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '6px' }}>
-                        支持同时拖入多份文档批量解析；系统将自动识别离职原因与薪资全景
+                        {t('cvImportModal.dropzoneSubhint', '支持同时拖入多份文档批量解析；系统将自动识别离职原因与薪资全景')}
                       </div>
                     </div>
                   </div>
@@ -664,14 +666,14 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                     <div style={{ marginTop: 'var(--space-4)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                          待解析队列 ({selectedFiles.length})
+                          {t('cvImportModal.queueTitle', { count: selectedFiles.length }, `待解析队列 (${selectedFiles.length})`)}
                         </span>
                         <button 
                           className="btn btn-sm" 
                           onClick={(e) => { e.stopPropagation(); setSelectedFiles([]); }}
                           style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'transparent' }}
                         >
-                          清空列表
+                          {t('cvImportModal.clearQueue', '清空列表')}
                         </button>
                       </div>
 
@@ -710,7 +712,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   <textarea
                     className="form-input"
                     rows="8"
-                    placeholder="在此直接粘贴候选人简历全文，包含 Sunrise 模板的 Personal Information、Professional History 等内容..."
+                    placeholder={t('cvImportModal.pastePlaceholder', '在此直接粘贴候选人简历全文，包含 Sunrise 模板的 Personal Information、Professional History 等内容...')}
                     value={cvText}
                     onChange={(e) => setCvText(e.target.value)}
                     style={{
@@ -735,10 +737,10 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
               }}>
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                   <i className="ph-bold ph-sparkle" style={{ color: 'var(--accent-blue)', marginRight: '6px' }}></i>
-                  AI 已批量完成 <strong>{parsedCandidates.filter(c => !c.parseFailed).length}</strong> 位候选人的 Sunrise 数据抽取
+                  {t('cvImportModal.batchExtractedBanner', { count: parsedCandidates.filter(c => !c.parseFailed).length }, `AI 已批量完成 ${parsedCandidates.filter(c => !c.parseFailed).length} 位候选人的 Sunrise 数据抽取`)}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  点击卡片可查看与微调详情
+                  {t('cvImportModal.clickCardToEditHint', '点击卡片可查看与微调详情')}
                 </span>
               </div>
 
@@ -754,17 +756,17 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                         <div>
                           <div style={{ color: 'var(--accent-rose)', fontWeight: '600', fontSize: '0.9rem' }}>
                             <i className="ph-bold ph-x-circle" style={{ marginRight: '6px' }}></i>
-                            {cand.rawResumeFilename} 解析失败
+                            {cand.rawResumeFilename} {t('cvImportModal.parseFailedSuffix', '解析失败')}
                           </div>
                           <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '2px' }}>
-                            {cand.errorMessage || '无法提取有效文本'}
+                            {cand.errorMessage || t('cvImportModal.noValidTextError', '无法提取有效文本')}
                           </div>
                         </div>
                         <button 
                           className="btn btn-sm btn-secondary"
                           onClick={() => setParsedCandidates(prev => prev.filter(c => c._id !== cand._id))}
                         >
-                          忽略此项
+                          {t('cvImportModal.ignoreItem', '忽略此项')}
                         </button>
                       </div>
                     );
@@ -789,7 +791,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                             {cand.name}
                           </span>
                           <span className="badge" style={{ color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
-                            {cand.position || '未定职位'}
+                            {cand.position || t('cvImportModal.unspecifiedPosition', '未定职位')}
                           </span>
                           {cand.company && (
                             <span className="badge" style={{ color: 'var(--text-secondary)' }}>
@@ -801,15 +803,15 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                         <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                           {cand.phone && <span>📞 {cand.phone}</span>}
-                          {cand.nationality && <span>🌐 国籍: {cand.nationality}</span>}
+                          {cand.nationality && <span>{t('cvImportModal.nationalityPrefix', '🌐 国籍: ')}{cand.nationality}</span>}
                           {cand.expectedSalary && (
                             <span style={{ color: 'var(--accent-emerald)' }}>
-                              💰 期望薪资: {cand.expectedSalary}
+                              {t('cvImportModal.expectedSalaryPrefix', '💰 期望薪资: ')}{cand.expectedSalary}
                             </span>
                           )}
                           {cand.workExperience?.length > 0 && (
                             <span style={{ color: 'var(--accent-amber)' }}>
-                              📜 {cand.workExperience.length} 段履历 (含离职原因)
+                              {t('cvImportModal.workExpCountBadge', { count: cand.workExperience.length }, `📜 ${cand.workExperience.length} 段履历 (含离职原因)`)}
                             </span>
                           )}
                         </div>
@@ -820,11 +822,11 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                           className="btn btn-sm btn-secondary"
                           onClick={(e) => { e.stopPropagation(); setEditingCandidateId(cand._id); }}
                         >
-                          <i className="ph-light ph-pencil-simple"></i> 编辑
+                          <i className="ph-light ph-pencil-simple"></i> {t('cvImportModal.editBtn', '编辑')}
                         </button>
                         <button 
                           className="btn-icon"
-                          title="移除"
+                          title={t('cvImportModal.removeTip', '移除')}
                           onClick={(e) => { e.stopPropagation(); setParsedCandidates(prev => prev.filter(c => c._id !== cand._id)); }}
                           style={{ width: '28px', height: '28px', color: 'var(--text-muted)' }}
                         >
@@ -847,10 +849,10 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                     onClick={() => setEditingCandidateId(null)}
                     style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
-                    <i className="ph-bold ph-arrow-left"></i> 返回批量列表
+                    <i className="ph-bold ph-arrow-left"></i> {t('cvImportModal.backToBatchList', '返回批量列表')}
                   </button>
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    正在编辑: <strong>{activeCandidate?.name}</strong>
+                    {t('cvImportModal.editingPrefix', '正在编辑: ')}<strong>{activeCandidate?.name}</strong>
                   </span>
                 </div>
               )}
@@ -863,7 +865,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
               }}>
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    候选人姓名 <span style={{ color: 'var(--accent-rose)' }}>*</span>
+                    {t('cvImportModal.candidateNameLabel', '候选人姓名')} <span style={{ color: 'var(--accent-rose)' }}>*</span>
                   </label>
                   <input
                     type="text"
@@ -875,7 +877,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>联系电话</span>
+                    <span>{t('cvImportModal.phoneLabel', '联系电话')}</span>
                     {activeCandidate?.phone && (
                       <WhatsAppButton phone={activeCandidate.phone} candidateName={activeCandidate.name} variant="icon" style={{ padding: 0 }} />
                     )}
@@ -890,7 +892,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    电子邮箱
+                    {t('cvImportModal.emailLabel', '电子邮箱')}
                   </label>
                   <input
                     type="email"
@@ -902,7 +904,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    现居地址 / 城市
+                    {t('cvImportModal.locationLabel', '现居地址 / 城市')}
                   </label>
                   <input
                     type="text"
@@ -914,7 +916,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    应聘/当前岗位 (Position)
+                    {t('cvImportModal.positionLabel', '应聘/当前岗位 (Position)')}
                   </label>
                   <input
                     type="text"
@@ -926,12 +928,12 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    意向企业 (Company)
+                    {t('cvImportModal.companyLabel', '意向企业 (Company)')}
                   </label>
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="如 IPE, PSA, Santak"
+                    placeholder={t('cvImportModal.companyPlaceholder', '如 IPE, PSA, Santak')}
                     value={activeCandidate?.company || ''}
                     onChange={(e) => updateCandidateField(activeCandidate._id, 'company', e.target.value)}
                   />
@@ -946,7 +948,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                 border: '1px solid var(--border-subtle)'
               }}>
                 <div style={{ fontSize: '0.78rem', color: 'var(--accent-amber)', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="ph-fill ph-identification-card"></i> Sunrise 专属背景画像与薪资诉求
+                  <i className="ph-fill ph-identification-card"></i> {t('cvImportModal.sunriseProfileSection', 'Sunrise 专属背景画像与薪资诉求')}
                 </div>
 
                 <div style={{
@@ -955,7 +957,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   gap: '8px'
                 }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>国籍 (Nationality)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.nationalityLabel', '国籍 (Nationality)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -965,7 +967,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>种族 (Race)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.raceLabel', '种族 (Race)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -975,7 +977,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>性别 (Gender)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.genderLabel', '性别 (Gender)')}</label>
                     <select
                       className="form-select"
                       value={activeCandidate?.gender || 'Male'}
@@ -987,7 +989,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>婚姻 (Marital)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.maritalLabel', '婚姻 (Marital)')}</label>
                     <select
                       className="form-select"
                       value={activeCandidate?.maritalStatus || 'Single'}
@@ -999,44 +1001,44 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>现薪 (Last Drawn)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.lastDrawnLabel', '现薪 (Last Drawn)')}</label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="如: RM 3,500"
+                      placeholder={t('cvImportModal.lastDrawnPlaceholder', '如: RM 3,500')}
                       value={activeCandidate?.lastDrawnSalary || ''}
                       onChange={(e) => updateCandidateField(activeCandidate._id, 'lastDrawnSalary', e.target.value)}
                     />
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)' }}>期望薪资 (Expected)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)' }}>{t('cvImportModal.expectedSalaryLabel', '期望薪资 (Expected)')}</label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="如: RM 4,500"
+                      placeholder={t('cvImportModal.expectedSalaryPlaceholder', '如: RM 4,500')}
                       value={activeCandidate?.expectedSalary || ''}
                       onChange={(e) => updateCandidateField(activeCandidate._id, 'expectedSalary', e.target.value)}
                     />
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>到岗时间 (Availability)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.availabilityLabel', '到岗时间 (Availability)')}</label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="如: Immediate / 1 month"
+                      placeholder={t('cvImportModal.availabilityPlaceholder', '如: Immediate / 1 month')}
                       value={activeCandidate?.availability || ''}
                       onChange={(e) => updateCandidateField(activeCandidate._id, 'availability', e.target.value)}
                     />
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>熟练语言 (Languages)</label>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.languagesLabel', '熟练语言 (Languages)')}</label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="如: English, Malay, Chinese"
+                      placeholder={t('cvImportModal.languagesPlaceholder', '如: English, Malay, Chinese')}
                       value={activeCandidate?.languagesText || ''}
                       onChange={(e) => updateCandidateField(activeCandidate._id, 'languagesText', e.target.value)}
                     />
@@ -1053,7 +1055,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   border: '1px solid var(--border-subtle)'
                 }}>
                   <div style={{ fontSize: '0.78rem', color: 'var(--accent-blue)', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="ph-fill ph-briefcase"></i> Sunrise 工作履历与离职原因 ({activeCandidate.workExperience.length} 段)
+                    <i className="ph-fill ph-briefcase"></i> {t('cvImportModal.workExpSection', { count: activeCandidate.workExperience.length }, `Sunrise 工作履历与离职原因 (${activeCandidate.workExperience.length} 段)`)}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
                     {activeCandidate.workExperience.map((exp, expIdx) => (
@@ -1068,7 +1070,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                         {exp.reason_for_leaving && (
                           <div style={{ marginTop: '3px', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span className="badge" style={{ fontSize: '10px', padding: '1px 4px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
-                              离职原因:
+                              {t('cvImportModal.reasonForLeavingLabel', '离职原因:')}
                             </span>
                             <span>{exp.reason_for_leaving}</span>
                           </div>
@@ -1087,7 +1089,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
               }}>
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    毕业院校 / 学历专业
+                    {t('cvImportModal.schoolDegreeLabel', '毕业院校 / 学历专业')}
                   </label>
                   <input
                     type="text"
@@ -1099,7 +1101,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    技能标签 (逗号隔开)
+                    {t('cvImportModal.skillsLabel', '技能标签 (逗号隔开)')}
                   </label>
                   <input
                     type="text"
@@ -1130,7 +1132,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                 onClick={handleClose}
                 disabled={isParsing}
               >
-                取消
+                {t('cvImportModal.cancelBtn', '取消')}
               </button>
               
               <button
@@ -1143,12 +1145,12 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                 {isParsing ? (
                   <>
                     <i className="ph-light ph-spinner ph-spin"></i>
-                    AI 深度解析中 ({parsingProgress.current}/{parsingProgress.total})...
+                    {t('cvImportModal.aiParsingProgress', { current: parsingProgress.current, total: parsingProgress.total }, `AI 深度解析中 (${parsingProgress.current}/${parsingProgress.total})...`)}
                   </>
                 ) : (
                   <>
                     <i className="ph-light ph-magic-wand"></i>
-                    开始 AI 解析 {selectedFiles.length > 1 ? `(${selectedFiles.length} 份)` : ''}
+                    {t('cvImportModal.startAiParseBtn', '开始 AI 解析')} {selectedFiles.length > 1 ? `(${selectedFiles.length})` : ''}
                   </>
                 )}
               </button>
@@ -1162,7 +1164,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                 onClick={() => setParsedCandidates([])}
                 disabled={isSaving}
               >
-                <i className="ph-light ph-arrow-counter-clockwise"></i> 重新上传
+                <i className="ph-light ph-arrow-counter-clockwise"></i> {t('cvImportModal.reuploadBtn', '重新上传')}
               </button>
 
               <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
@@ -1172,7 +1174,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   onClick={handleClose}
                   disabled={isSaving}
                 >
-                  取消
+                  {t('cvImportModal.cancelBtn', '取消')}
                 </button>
                 <button
                   type="button"
@@ -1184,12 +1186,12 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   {isSaving ? (
                     <>
                       <i className="ph-light ph-spinner ph-spin"></i>
-                      正在批量存入人才库...
+                      {t('cvImportModal.batchSavingProgress', '正在批量存入人才库...')}
                     </>
                   ) : (
                     <>
                       <i className="ph-bold ph-check"></i>
-                      一键全部存入人才库 ({parsedCandidates.filter(c => !c.parseFailed).length})
+                      {t('cvImportModal.saveAllBtn', { count: parsedCandidates.filter(c => !c.parseFailed).length }, `一键全部存入人才库 (${parsedCandidates.filter(c => !c.parseFailed).length})`)}
                     </>
                   )}
                 </button>
@@ -1210,7 +1212,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                 }}
                 disabled={isSaving}
               >
-                {parsedCandidates.length > 1 ? '返回列表' : '重新选择'}
+                {parsedCandidates.length > 1 ? t('cvImportModal.backToListBtn', '返回列表') : t('cvImportModal.reselectBtn', '重新选择')}
               </button>
 
               <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
@@ -1220,7 +1222,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   onClick={handleClose}
                   disabled={isSaving}
                 >
-                  取消
+                  {t('cvImportModal.cancelBtn', '取消')}
                 </button>
                 <button
                   type="button"
@@ -1232,12 +1234,12 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   {isSaving ? (
                     <>
                       <i className="ph-light ph-spinner ph-spin"></i>
-                      正在存入人才库...
+                      {t('cvImportModal.savingSingleProgress', '正在存入人才库...')}
                     </>
                   ) : (
                     <>
                       <i className="ph-bold ph-check"></i>
-                      确认存入人才库
+                      {t('cvImportModal.confirmSaveBtn', '确认存入人才库')}
                     </>
                   )}
                 </button>

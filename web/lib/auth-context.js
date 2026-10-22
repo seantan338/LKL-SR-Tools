@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
       Promise.race([
         promise,
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore 账户信息读取超时，请检查数据库名称或网络连接')), ms)
+          setTimeout(() => reject(new Error('Firestore 账户信息读取超时，请检查网络连接 / Firestore profile read timed out, please check network connection')), ms)
         ),
       ]);
 

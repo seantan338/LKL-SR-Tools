@@ -96,7 +96,7 @@ def verify_clockin_eligibility(
         return {
             "passed": True,
             "verify_method": "RULE_DISABLED",
-            "message": "考勤规则未启用，直接放行",
+            "message": "考勤规则未启用，直接放行 / Attendance rules disabled, check-in allowed",
             "client_ip": client_ip,
         }
 
@@ -118,7 +118,7 @@ def verify_clockin_eligibility(
         return {
             "passed": True,
             "verify_method": "WIFI_IP",
-            "message": "打卡成功！已通过公司 Wi-Fi 内网认证（免除 GPS 等待）",
+            "message": "打卡成功！已通过公司 Wi-Fi 认证 / Clocked in! Verified via Office Wi-Fi",
             "client_ip": client_ip,
             "hit_ip": client_ip,
         }
@@ -128,7 +128,7 @@ def verify_clockin_eligibility(
         return {
             "passed": False,
             "code": "NEED_GPS",
-            "message": "未检测到公司 Wi-Fi，请允许获取位置信息以验证 100 米考勤范围",
+            "message": "未检测到公司 Wi-Fi，请允许获取位置信息以验证 100 米考勤范围 / Not on Office Wi-Fi, please allow location access to verify 100m geofence",
             "client_ip": client_ip,
         }
 
@@ -143,7 +143,7 @@ def verify_clockin_eligibility(
         return {
             "passed": False,
             "code": "INVALID_COORDS",
-            "message": "经纬度数据格式异常，请重试",
+            "message": "经纬度数据格式异常，请重试 / Invalid GPS coordinates format, please retry",
             "client_ip": client_ip,
         }
 
@@ -152,7 +152,7 @@ def verify_clockin_eligibility(
         return {
             "passed": False,
             "code": "LOW_ACCURACY",
-            "message": f"当前定位信号过弱（定位误差达 ±{int(user_accuracy)}米），请开启手机精准 GPS 或连接公司 Wi-Fi 后打卡",
+            "message": f"当前定位信号过弱（定位误差达 ±{int(user_accuracy)}米），请开启手机精准 GPS 或连接公司 Wi-Fi / GPS signal too weak (±{int(user_accuracy)}m), enable high-accuracy GPS or connect to Office Wi-Fi",
             "client_ip": client_ip,
             "accuracy": user_accuracy,
         }
@@ -167,7 +167,7 @@ def verify_clockin_eligibility(
         return {
             "passed": False,
             "code": "NO_OFFICE_CONFIGURED",
-            "message": "企业尚未配置办公室地理坐标，请联系管理员在后台完成考勤围栏设定",
+            "message": "企业尚未配置办公室地理坐标，请联系管理员在后台完成考勤围栏设定 / Office coordinates not configured, please contact admin",
             "client_ip": client_ip,
         }
 
@@ -208,7 +208,7 @@ def verify_clockin_eligibility(
             return {
                 "passed": True,
                 "verify_method": "GPS_GEOFENCE",
-                "message": f"打卡成功！已通过 {o_name} 考勤围栏核验（有效测距约 {int(effective_dist)} 米）",
+                "message": f"打卡成功！已通过 {o_name} 考勤围栏核验（约 {int(effective_dist)}m） / Clocked in! Verified at {o_name} (~{int(effective_dist)}m)",
                 "client_ip": client_ip,
                 "office_name": o_name,
                 "actual_distance": actual_dist,
@@ -221,7 +221,7 @@ def verify_clockin_eligibility(
     return {
         "passed": False,
         "code": "OUT_OF_RANGE",
-        "message": f"超出打卡范围：您当前距离最近办公点约 {int(best_match['effective_distance'] if best_match else min_effective_distance)} 米（允许范围 {int(default_max_radius)} 米内）",
+        "message": f"超出打卡范围：距离最近办公点约 {int(best_match['effective_distance'] if best_match else min_effective_distance)}m（限 {int(default_max_radius)}m 内） / Out of range: ~{int(best_match['effective_distance'] if best_match else min_effective_distance)}m from office (limit: {int(default_max_radius)}m)",
         "client_ip": client_ip,
         "details": best_match,
     }

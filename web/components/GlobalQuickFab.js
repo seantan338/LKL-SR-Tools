@@ -79,7 +79,7 @@ export default function GlobalQuickFab() {
     }
 
     if (!teamId) {
-      showToast('未检测到有效团队，无法提交反馈', 'error');
+      showToast(t('extraUi.fabNoTeamError', '未检测到有效团队，无法提交反馈'), 'error');
       return;
     }
 
@@ -100,7 +100,7 @@ export default function GlobalQuickFab() {
       });
     } catch (err) {
       console.error('Failed to submit feedback via QuickFab:', err);
-      showToast('提交失败，请稍后重试: ' + (err.message || ''), 'error');
+      showToast(t('extraUi.fabSubmitError', '提交失败，请稍后重试: ') + (err.message || ''), 'error');
     } finally {
       setIsSubmittingFeedback(false);
     }

@@ -43,12 +43,12 @@ async def verify_user_or_internal_token(
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
-            detail="未授权访问：缺少有效的 Authorization Bearer Token，请重新登录系统后重试",
+            detail="未授权访问：缺少有效的 Authorization Bearer Token，请重新登录系统后重试 / Unauthorized: Missing valid Authorization Bearer Token, please sign in again",
         )
 
     token = authorization.split("Bearer ", 1)[1].strip()
     if not token:
-        raise HTTPException(status_code=401, detail="未授权访问：Token 为空")
+        raise HTTPException(status_code=401, detail="未授权访问：Token 为空 / Unauthorized: Empty token")
 
     # 2a. Match against INTERNAL_API_SECRET if configured
     if internal_secret and secrets.compare_digest(token, internal_secret):
@@ -73,7 +73,7 @@ async def verify_user_or_internal_token(
         logger.warning(f"Firebase ID Token verification failed from {request.client.host if request.client else 'unknown'}: {e}")
         raise HTTPException(
             status_code=401,
-            detail="登录凭证已过期或无效，请刷新页面或重新登录",
+            detail="登录凭证已过期或无效，请刷新页面或重新登录 / Session expired or invalid, please refresh or sign in again",
         )
 
 

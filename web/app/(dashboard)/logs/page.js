@@ -421,10 +421,10 @@ export default function LogsPage() {
                     {selectedLog.isDeleted ? (
                       <div style={{ padding: '12px', background: 'rgba(244,63,94,0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(244,63,94,0.2)' }}>
                         <div style={{ color: 'var(--accent-rose)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                          <i className="ph-fill ph-shield-check"></i> 该日志已被最高管理者软删除归档（底层数据物理保全用于合规存证）
+                          <i className="ph-fill ph-shield-check"></i> {t('extraUi.logArchivedBanner', '该日志已被最高管理者软删除归档（底层数据物理保全用于合规存证）')}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                          归档操作人: {selectedLog.deletedByName || '最高管理者'}
+                          {t('extraUi.logArchivedBy', '归档操作人: ')}{selectedLog.deletedByName || '最高管理者'}
                         </div>
                         <button 
                           className="btn btn-secondary btn-sm"
@@ -441,7 +441,7 @@ export default function LogsPage() {
                         style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }}
                         onClick={() => handleSoftDeleteLog(selectedLog.id)}
                         disabled={isProcessing}
-                        title="仅最高管理者可用：将该条日志从活跃视口软删除归档，底层数据物理保全"
+                        title={t('extraUi.logOwnerArchiveTip', '仅最高管理者可用：将该条日志从活跃视口软删除归档，底层数据物理保全')}
                       >
                         <i className="ph-light ph-archive"></i> {t('logsPage.deleteBtn')}
                       </button>

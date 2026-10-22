@@ -32,7 +32,7 @@ async def process_agent_message(text: str, team_id: str, uid: str, user_name: st
     for kw in blacklisted_keywords:
         if kw in text_lower:
             logger.warning(f"Intercepted potentially malicious/invalid prompt from {user_name}: {text}")
-            return {"status": "error", "message": "收到不合法指令或越权操作（如删除/取消），操作被拦截。抱歉，我只负责为您新建提醒。"}
+            return {"status": "error", "message": "收到不合法指令或越权操作，已拦截。我只负责为您新建提醒。 / Unauthorized or invalid command blocked. I can only create new reminders."}
 
     db = get_firestore_client()
     if not db:
@@ -72,7 +72,7 @@ async def process_agent_message(text: str, team_id: str, uid: str, user_name: st
                     reason = args.get("reason", "")
                     
                     if not candidate_name or len(candidate_name.strip()) < 2:
-                        return {"status": "error", "message": "提取到的候选人姓名过短或为空，请提供更明确的候选人姓名。"}
+                        return {"status": "error", "message": "提取到的候选人姓名过短或为空，请提供更明确的候选人姓名。 / Candidate name is empty or too short, please specify clearly."}
                     
                     # 检索团队活跃候选人 (优先完全匹配，其次子串包含)
                     candidates_ref = db.collection(f"teams/{team_id}/candidates")
@@ -101,7 +101,7 @@ async def process_agent_message(text: str, team_id: str, uid: str, user_name: st
                                 break
                             
                     if not matched_candidate:
-                        return {"status": "error", "message": f"未在库中找到名为 '{candidate_name}' 的活跃候选人，请确认姓名是否正确。"}
+                        return {"status": "error", "message": f"未在库中找到名为 '{candidate_name}' 的活跃候选人 / Active candidate '{candidate_name}' not found."}
 
                         
                     # 写入 Reminder 记录 (通过更新 candidate 的 reminders 数组)
@@ -130,7 +130,7 @@ async def process_agent_message(text: str, team_id: str, uid: str, user_name: st
                     
                     return {
                         "status": "success",
-                        "message": f"✅ 没问题！已经为您设定了 {new_reminder['date']} {new_reminder['time']} 对 {matched_candidate['name']} 的提醒：{reason}"
+                        "message": f"✅ 已设定提醒 / Reminder set: {new_reminder['date']} {new_reminder['time']} - {matched_candidate['name']} ({reason})"
                     }
                     
         # 如果模型只是回话，没有调工具
@@ -141,4 +141,4 @@ async def process_agent_message(text: str, team_id: str, uid: str, user_name: st
 
     except Exception as e:
         logger.error(f"Agent error: {e}", exc_info=True)
-        return {"status": "error", "message": f"Agent 处理失败: {e}"}
+        return {"status": "error", "message": f"Agent 处理失败 / Agent error: {e}"}

@@ -511,7 +511,7 @@ export default function OrdersPage() {
               fontWeight: '600'
             }}>
               <i className="ph-bold ph-lock-key"></i>
-              <span>{t('team.readOnlyBadge', '单向只读')} · 合作人数据</span>
+              <span>{t('team.readOnlyBadge', '单向只读')} · {t('extraUi.partnerDataBadge', '合作人数据')}</span>
             </div>
           )}
         </div>

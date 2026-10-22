@@ -3,11 +3,13 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../lib/auth-context';
+import { useI18n } from '../lib/i18n-context';
 
 export default function AuthGuard({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!loading) {
@@ -29,7 +31,7 @@ export default function AuthGuard({ children }) {
         <div className="empty-state-icon" style={{ animation: 'pulse 2s infinite' }}>
           <i className="ph-light ph-spinner-gap"></i>
         </div>
-        <div className="empty-state-title">正在验证身份...</div>
+        <div className="empty-state-title">{t('authPages.verifyingIdentity', '正在验证身份...')}</div>
       </div>
     );
   }

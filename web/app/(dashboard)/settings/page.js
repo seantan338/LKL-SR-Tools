@@ -20,7 +20,8 @@ import { authFetch } from '../../../lib/api-client';
 export default function SettingsPage() {
   const { teamId, user, isOwner, signInWithGoogleSheets } = useAuth();
   const { showToast } = useFeedback();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
 
@@ -251,7 +252,7 @@ function onEdit(e) {
         sheetCompany: sheetCompany.trim(),
         isActive: true,
         boundAt: new Date().toISOString(),
-        lastSyncAt: savedSyncConfig?.lastSyncAt || '尚未执行全量初始化同步',
+        lastSyncAt: savedSyncConfig?.lastSyncAt || (isEn ? 'Initial full sync not yet executed' : '尚未执行全量初始化同步'),
         syncCount: savedSyncConfig?.syncCount || 0
       };
 
@@ -261,7 +262,7 @@ function onEdit(e) {
       setShowScriptModal(true);
     } catch (err) {
       console.error('Failed to bind sheet sync:', err);
-      showToast('绑定失败: ' + (err.message || ''), 'error');
+      showToast((isEn ? 'Bind failed: ' : '绑定失败: ') + (err.message || ''), 'error');
     } finally {
       setIsBindingSync(false);
     }
@@ -308,7 +309,7 @@ function onEdit(e) {
       }
 
       if (!rows || rows.length < 2) {
-        throw new Error('表格为空或未包含有效数据行');
+        throw new Error(isEn ? 'Sheet is empty or contains no valid data rows' : '表格为空或未包含有效数据行');
       }
 
       const tsvText = rows.map(r => r.join('\t')).join('\n');
@@ -320,7 +321,7 @@ function onEdit(e) {
       });
 
       if (!response.ok) {
-        throw new Error(`AI 服务异常 (${response.status})`);
+        throw new Error(isEn ? `AI service error (${response.status})` : `AI 服务异常 (${response.status})`);
       }
 
       const resJson = await response.json();
@@ -330,7 +331,7 @@ function onEdit(e) {
 
       const parsedItems = Array.isArray(resJson.data) ? resJson.data : [];
       if (parsedItems.length === 0) {
-        throw new Error('AI 未能从表格内容中提取出有效候选人数据');
+        throw new Error(isEn ? 'AI could not extract valid candidate data from sheet' : 'AI 未能从表格内容中提取出有效候选人数据');
       }
 
       const safeTeamId = teamId || 'default_team';
@@ -384,7 +385,7 @@ function onEdit(e) {
         spreadsheetId: parsed.spreadsheetId,
         sheetCompany: savedSyncConfig?.sheetCompany || sheetCompany || '',
         isActive: true,
-        lastSyncAt: `${nowStr} (全量同步 ${successCount} 条)`,
+        lastSyncAt: `${nowStr} (${isEn ? 'Full sync' : '全量同步'} ${successCount} ${isEn ? 'records' : '条'})`,
         syncCount: successCount
       };
       await FirestoreStore.saveSheetSyncConfig(teamId, updatedConfig);
@@ -394,7 +395,7 @@ function onEdit(e) {
     } catch (err) {
       console.error('Quick full sync error:', err);
       showToast(t('sheetSync.toastSyncFailed', '全量同步失败: ') + (err.message || ''), 'error');
-      setSheetStatus('全量同步失败: ' + err.message);
+      setSheetStatus((isEn ? 'Full sync failed: ' : '全量同步失败: ') + err.message);
     } finally {
       setIsFullSyncing(false);
     }
@@ -550,7 +551,7 @@ function onEdit(e) {
 
     try {
       const { token } = await signInWithGoogleSheets();
-      if (!token) throw new Error('未获取到 Access Token');
+      if (!token) throw new Error(isEn ? 'Failed to obtain Access Token' : '未获取到 Access Token');
       
       const sheetInfo = GoogleSheetsAPI.parseSheetUrl(sheetUrl);
       setSheetStatus(t('settingsPage.fetchingPrivateStatus') || '拉取私有数据与工作表信息...');
@@ -619,7 +620,7 @@ function onEdit(e) {
   const handleAiProcess = async () => {
     if (!sheetData || sheetData.length < 2) return;
     setIsAiProcessing(true);
-    setSheetStatus('正在使用 AI 智能清洗与解析，这可能需要几十秒时间...');
+    setSheetStatus(isEn ? 'AI smart cleaning and parsing in progress, this may take a few moments...' : '正在使用 AI 智能清洗与解析，这可能需要几十秒时间...');
     
     try {
       const s = specifyRows ? Math.max(1, parseInt(startRow) || 1) : 1;
@@ -627,12 +628,12 @@ function onEdit(e) {
       const targetRows = sheetData.slice(s, e + 1);
 
       if (targetRows.length === 0) {
-        setSheetStatus('选定的行数范围无效或无数据。');
+        setSheetStatus(isEn ? 'Selected row range is invalid or empty.' : '选定的行数范围无效或无数据。');
         setIsAiProcessing(false);
         return;
       }
 
-      setSheetStatus('正在检查系统数据以防重复导入 (Deduplication)...');
+      setSheetStatus(isEn ? 'Checking existing system records for deduplication...' : '正在检查系统数据以防重复导入 (Deduplication)...');
       const collName = importTarget === 'candidate' ? 'candidates' : 'job_orders';
       const existingRef = collection(db, 'teams', teamId, collName);
       const snapshot = await getDocs(existingRef);
@@ -669,7 +670,7 @@ function onEdit(e) {
       }
 
       if (newRows.length === 0) {
-        setSheetStatus(`智能去重完成：指定范围内的 ${targetRows.length} 行数据在系统中均已存在，无需重复解析，已为您节省 Token。`);
+        setSheetStatus(isEn ? `Deduplication complete: All ${targetRows.length} row(s) already exist in system, skipped AI parsing to save tokens.` : `智能去重完成：指定范围内的 ${targetRows.length} 行数据在系统中均已存在，无需重复解析，已为您节省 Token。`);
         setIsAiProcessing(false);
         return;
       }
@@ -699,7 +700,7 @@ function onEdit(e) {
 
       for (let b = 0; b < batches.length; b++) {
         const batchRows = batches[b];
-        setSheetStatus(`AI 解析中... (去重拦截了 ${skippedCount} 条，正在并发处理批次: ${b + 1} / ${batches.length}, 本批次包含 ${batchRows.length} 行)`);
+        setSheetStatus(isEn ? `AI parsing... (${skippedCount} duplicates filtered, processing batch ${b + 1}/${batches.length} with ${batchRows.length} rows)` : `AI 解析中... (去重拦截了 ${skippedCount} 条，正在并发处理批次: ${b + 1} / ${batches.length}, 本批次包含 ${batchRows.length} 行)`);
         
         const serialized = GoogleSheetsAPI.serializeRowsForAI(sheetHeaders, batchRows);
 
@@ -720,11 +721,11 @@ function onEdit(e) {
             if ((response.status === 500 || response.status === 504) && (errBody.includes('Internal Server Error') || errBody.includes('Gateway Timeout'))) {
               const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
               if (isLocal) {
-                throw new Error('本地 Python 后端连接重置或正在热重载，请确保后端 (端口 8000) 正常运行并稍后重试');
+                throw new Error(isEn ? 'Backend connection reset or reloading, please ensure backend (port 8000) is running and retry' : '本地 Python 后端连接重置或正在热重载，请确保后端 (端口 8000) 正常运行并稍后重试');
               }
-              throw new Error('免费服务器正从休眠中唤醒 (冷启动约需 50 秒)，请您稍后再点击一次按钮');
+              throw new Error(isEn ? 'Free server instance is waking up from sleep (~50s cold start), please click again shortly' : '免费服务器正从休眠中唤醒 (冷启动约需 50 秒)，请您稍后再点击一次按钮');
             }
-            throw new Error(`批次 ${b + 1} 请求失败 (${response.status}): ${errBody.substring(0, 300)}`);
+            throw new Error(isEn ? `Batch ${b + 1} failed (${response.status}): ${errBody.substring(0, 300)}` : `批次 ${b + 1} 请求失败 (${response.status}): ${errBody.substring(0, 300)}`);
           }
           
           const resJson = await response.json();
@@ -742,7 +743,7 @@ function onEdit(e) {
       }
 
       if (allParsedData.length === 0 && failedBatchIndices.length > 0) {
-        throw new Error(`所有批次均解析失败，请检查网络或后端状态`);
+        throw new Error(isEn ? 'All batches failed to parse, please check network or backend service' : '所有批次均解析失败，请检查网络或后端状态');
       }
       
       // 去重机制：按岗位 (公司+职位) 或候选人 (姓名+电话/岗位) 去除批次边界可能产生的重复数据
@@ -790,7 +791,7 @@ function onEdit(e) {
 
       setAiPreviewData(mappedData);
       const itemNoun = isJobOrder ? t('settingsPage.itemNounJobOrder', '招聘需求岗位') : t('settingsPage.itemNounCandidate', '候选人');
-      const failureNote = failedBatchIndices.length > 0 ? ` (⚠️ 第 ${failedBatchIndices.join(', ')} 批次网络波动失败，已为您隔离并保留成功数据)` : '';
+      const failureNote = failedBatchIndices.length > 0 ? (isEn ? ` (⚠️ Batch ${failedBatchIndices.join(', ')} failed due to network fluctuation, isolated & kept successful rows)` : ` (⚠️ 第 ${failedBatchIndices.join(', ')} 批次网络波动失败，已为您隔离并保留成功数据)`) : '';
       setSheetStatus((t('settingsPage.parseCompleteNotice') || 'AI 解析完成：共成功提取 {count} 条有效{noun}记录{failureNote}，请核对后确认导入。')
         .replace('{count}', mappedData.length)
         .replace('{noun}', itemNoun)
@@ -798,7 +799,7 @@ function onEdit(e) {
 
     } catch (err) {
       console.error(err);
-      setSheetStatus(`AI 解析失败: ${err.message}`);
+      setSheetStatus(`${isEn ? 'AI parsing failed: ' : 'AI 解析失败: '}${err.message}`);
       SystemLogger.error(teamId, 'AI_PARSER', 'AI 智能解析失败', err);
     } finally {
       setIsAiProcessing(false);
@@ -808,7 +809,7 @@ function onEdit(e) {
   const handleImportAiData = async () => {
     if (!aiPreviewData || aiPreviewData.length === 0) return;
     setIsImporting(true);
-    setSheetStatus('开始导入 AI 清洗数据...');
+    setSheetStatus(isEn ? 'Starting import of AI cleaned records...' : '开始导入 AI 清洗数据...');
     
     let successCount = 0;
     let errorCount = 0;
@@ -888,10 +889,10 @@ function onEdit(e) {
     }
     
     if (errorCount > 0 && successCount === 0) {
-      setSheetStatus(`导入失败！成功: 0, 失败: ${errorCount}。原因: ${lastError?.message || '未知错误'}`);
+      setSheetStatus(isEn ? `Import failed! Succeeded: 0, Failed: ${errorCount}. Reason: ${lastError?.message || 'Unknown error'}` : `导入失败！成功: 0, 失败: ${errorCount}。原因: ${lastError?.message || '未知错误'}`);
       // 保留 aiPreviewData 让用户无需重新花费额度让 AI 解析，可直接排查重试
     } else {
-      setSheetStatus(`导入完成！成功: ${successCount}, 失败: ${errorCount}${lastError ? ` (部分失败: ${lastError.message})` : ''}`);
+      setSheetStatus(isEn ? `Import complete! Succeeded: ${successCount}, Failed: ${errorCount}${lastError ? ` (Partial failure: ${lastError.message})` : ''}` : `导入完成！成功: ${successCount}, 失败: ${errorCount}${lastError ? ` (部分失败: ${lastError.message})` : ''}`);
       setAiPreviewData(null);
     }
     setIsImporting(false);
@@ -900,7 +901,7 @@ function onEdit(e) {
   const handleImportSheetData = async () => {
     if (!sheetData || sheetData.length < 2) return;
     setIsImporting(true);
-    setSheetStatus('开始导入...');
+    setSheetStatus(isEn ? 'Starting import...' : '开始导入...');
     
     let successCount = 0;
     let errorCount = 0;
@@ -926,7 +927,7 @@ function onEdit(e) {
       }
     }
     
-    setSheetStatus(`导入完成！成功: ${successCount}, 跳过/失败: ${errorCount}${lastError ? ` (部分失败: ${lastError.message})` : ''}`);
+    setSheetStatus(isEn ? `Import complete! Succeeded: ${successCount}, Skipped/Failed: ${errorCount}${lastError ? ` (Partial failure: ${lastError.message})` : ''}` : `导入完成！成功: ${successCount}, 跳过/失败: ${errorCount}${lastError ? ` (部分失败: ${lastError.message})` : ''}`);
     setIsImporting(false);
   };
 
