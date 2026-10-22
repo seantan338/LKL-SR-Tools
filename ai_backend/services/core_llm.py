@@ -10,52 +10,98 @@ try:
 except ImportError:
     from ..logger import logger
 
+# Try loading ai_backend/.env first, then fallback to current working directory
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_env_file = os.path.join(_backend_dir, ".env")
+if os.path.exists(_env_file):
+    load_dotenv(_env_file)
 load_dotenv()
 
-# Google Gemini API（通过官方 OpenAI 兼容端点调用，沿用 openai SDK）
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_BASE_URL = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+# ==============================================================================
+# Dual Provider Auto-Detection: Google Gemini API (AI Studio) vs OpenRouter
+# ==============================================================================
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
-# 两档模型：Pro（深度推理）与 Flash（高效提取）
-MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-3.1-pro-preview")
-MODEL_FLASH = os.getenv("GEMINI_MODEL_FLASH", "gemini-3.8-flash")
-AI_MODEL_NAME = MODEL_PRO
+def _is_valid_key(k: str) -> bool:
+    return bool(k and k not in ("your_gemini_api_key_here", "your_openrouter_api_key_here", "placeholder"))
 
-# 按任务复杂度分级路由模型
-MODEL_TIER_MAP = {
-    "candidate": MODEL_FLASH,
-    "interview_schedule": MODEL_FLASH,
-    "job_order": MODEL_PRO,
-    "resume_cv": MODEL_FLASH,
-    "cv": MODEL_FLASH,
-    "generate_jds": MODEL_FLASH,
-}
+# Allow explicit override via AI_PROVIDER ('gemini' or 'openrouter')
+env_provider = os.getenv("AI_PROVIDER", "").strip().lower()
+
+if env_provider in ("openrouter", "gemini"):
+    ACTIVE_PROVIDER = env_provider
+elif _is_valid_key(GEMINI_API_KEY):
+    ACTIVE_PROVIDER = "gemini"
+elif _is_valid_key(OPENROUTER_API_KEY):
+    ACTIVE_PROVIDER = "openrouter"
+else:
+    ACTIVE_PROVIDER = "gemini"
+
+IS_OPENROUTER = (ACTIVE_PROVIDER == "openrouter")
+
+if IS_OPENROUTER:
+    BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    API_KEY = OPENROUTER_API_KEY
+    MODEL_HEAVY = os.getenv("MODEL_HEAVY", os.getenv("AI_MODEL_NAME", "anthropic/claude-sonnet-4.5"))
+    MODEL_LIGHT = os.getenv("MODEL_LIGHT", "google/gemini-2.5-flash")
+    MODEL_CV = os.getenv("MODEL_CV", "google/gemini-3.8-flash")
+    MODEL_JD = os.getenv("MODEL_JD", "google/gemini-3.8-flash")
+    AI_MODEL_NAME = MODEL_HEAVY
+    MODEL_TIER_MAP = {
+        "candidate": MODEL_LIGHT,
+        "interview_schedule": MODEL_LIGHT,
+        "job_order": MODEL_HEAVY,
+        "resume_cv": MODEL_CV,
+        "cv": MODEL_CV,
+        "generate_jds": MODEL_JD,
+    }
+else:
+    BASE_URL = os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+    API_KEY = GEMINI_API_KEY
+    MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-3.1-pro-preview")
+    MODEL_FLASH = os.getenv("GEMINI_MODEL_FLASH", "gemini-3.8-flash")
+    AI_MODEL_NAME = MODEL_PRO
+    MODEL_TIER_MAP = {
+        "candidate": MODEL_FLASH,
+        "interview_schedule": MODEL_FLASH,
+        "job_order": MODEL_PRO,
+        "resume_cv": MODEL_FLASH,
+        "cv": MODEL_FLASH,
+        "generate_jds": MODEL_FLASH,
+    }
+
+logger.info(f"[core_llm] Active AI Provider: {ACTIVE_PROVIDER.upper()} (Base URL: {BASE_URL}, Default Model: {AI_MODEL_NAME})")
 
 def get_model_for_task(target_type: str) -> str:
     """
     根据任务复杂度分级返回最适模型：
-    - 体力活/模式提取（candidate、interview_schedule、resume_cv、generate_jds）：使用 Flash (MODEL_FLASH)
-    - 深度推理/段落合并/跨行语义（job_order 及未列出的任务）：使用 Pro (MODEL_PRO)
+    - 体力活/模式提取（candidate、interview_schedule、resume_cv、generate_jds）：轻量模型 (Flash / MODEL_LIGHT)
+    - 深度推理/段落合并/跨行语义（job_order 及未列出的任务）：旗舰模型 (Pro / MODEL_HEAVY)
     """
     normalized = (target_type or "").lower().strip()
     return MODEL_TIER_MAP.get(normalized, AI_MODEL_NAME)
 
 # 单次请求最长等待 120 秒，失败只重试 1 次（SDK 默认 600 秒 + 2 次重试，最坏可挂约 30 分钟）
 client = AsyncOpenAI(
-    base_url=GEMINI_BASE_URL,
-    api_key=GEMINI_API_KEY,
+    base_url=BASE_URL,
+    api_key=API_KEY or "dummy_key_to_prevent_init_crash",
     timeout=httpx.Timeout(120.0, connect=10.0),
     max_retries=1,
 )
-
 
 def get_client() -> AsyncOpenAI:
     return client
 
 def ensure_api_key():
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
-        logger.error("GEMINI_API_KEY not configured")
-        raise ValueError("请在 .env 文件中配置 GEMINI_API_KEY")
+    if IS_OPENROUTER:
+        if not _is_valid_key(OPENROUTER_API_KEY):
+            logger.error("OPENROUTER_API_KEY not configured")
+            raise ValueError("请在 .env 文件中配置 OPENROUTER_API_KEY")
+    else:
+        if not _is_valid_key(GEMINI_API_KEY):
+            logger.error("GEMINI_API_KEY not configured")
+            raise ValueError("请在 .env 文件中配置 GEMINI_API_KEY")
 
 def extract_json_block(content: str, start_char='{', end_char='}') -> str:
     """
