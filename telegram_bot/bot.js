@@ -32,7 +32,9 @@ if (fs.existsSync(serviceAccountPath)) {
                 credential: cert(require(serviceAccountPath))
             });
         }
-        const databaseId = (process.env.FIREBASE_DATABASE_ID || '(default)').trim();
+        const projId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        const defaultDbId = projId === 'omnirecruitmanagement' ? 'default' : '(default)';
+        const databaseId = (process.env.FIREBASE_DATABASE_ID || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || defaultDbId).trim();
         db = databaseId === '(default)' ? getFirestore() : getFirestore(databaseId);
         console.log(`[Firebase Admin] Firestore 已成功连接 ('${databaseId}')`);
     } catch (e) {

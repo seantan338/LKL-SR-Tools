@@ -57,10 +57,13 @@ def init_firebase():
             return None
             
     try:
+        app_instance = firebase_admin.get_app()
+        proj_id = getattr(app_instance, "project_id", None) or os.getenv("FIREBASE_PROJECT_ID") or os.getenv("NEXT_PUBLIC_FIREBASE_PROJECT_ID")
+        default_db_id = "default" if proj_id == "omnirecruitmanagement" else "(default)"
         target_db_id = (
             os.getenv("FIREBASE_DATABASE_ID")
             or os.getenv("NEXT_PUBLIC_FIREBASE_DATABASE_ID")
-            or "(default)"
+            or default_db_id
         ).strip()
         if target_db_id == "(default)":
             db = firestore.client()
