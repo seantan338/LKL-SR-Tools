@@ -15,6 +15,7 @@ import { Utils } from '../../../lib/utils';
 import WhatsAppButton from '../../../components/WhatsAppButton';
 import MiniBlackHole from '../../../components/MiniBlackHole';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
+import { authFetch } from '../../../lib/api-client';
 
 export default function SettingsPage() {
   const { teamId, user, isOwner, signInWithGoogleSheets } = useAuth();
@@ -311,10 +312,8 @@ function onEdit(e) {
       }
 
       const tsvText = rows.map(r => r.join('\t')).join('\n');
-      const customApi = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-      const apiUrl = customApi ? `${customApi}/api/parse/sheet` : (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000/api/parse/sheet' : '/api/parse/sheet');
       
-      const response = await fetch(apiUrl, {
+      const response = await authFetch('/api/parse/sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: tsvText, targetType: 'candidate', sourceTab: savedSyncConfig?.sheetCompany || sheetCompany || '' })
@@ -703,10 +702,9 @@ function onEdit(e) {
         setSheetStatus(`AI 解析中... (去重拦截了 ${skippedCount} 条，正在并发处理批次: ${b + 1} / ${batches.length}, 本批次包含 ${batchRows.length} 行)`);
         
         const serialized = GoogleSheetsAPI.serializeRowsForAI(sheetHeaders, batchRows);
-        const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || '';
 
         try {
-          const response = await fetch(`${baseUrl}/api/parse/sheet`, {
+          const response = await authFetch('/api/parse/sheet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 

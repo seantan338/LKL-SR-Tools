@@ -19,14 +19,8 @@ export default function DashboardLayout({ children }) {
   // Background ping to wake up the free Render Python instance early
   useEffect(() => {
     if (userProfile && userProfile.role !== 'pending') {
-      // We send an empty text to /api/parse/text
-      // The python server will return 400 Bad Request, but it WILL wake up the server!
       const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || '';
-      fetch(`${baseUrl}/api/parse/text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: '' })
-      }).catch(() => {}); // ignore proxy timeout errors during wakeup
+      fetch(`${baseUrl}/`, { method: 'GET' }).catch(() => {});
     }
   }, [userProfile]);
 

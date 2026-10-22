@@ -6,15 +6,7 @@ import { useFeedback } from '../lib/feedback-context';
 import { FirestoreStore } from '../lib/firestore-store';
 import { SystemLogger } from '../lib/logger';
 import WhatsAppButton from './WhatsAppButton';
-
-const getAiBackendUrl = (path) => {
-  const custom = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-  if (custom) return `${custom}${path}`;
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return `http://localhost:8000${path}`;
-  }
-  return path;
-};
+import { authFetch } from '../lib/api-client';
 
 /**
  * 智能逆向推断文件名中的线索
@@ -249,7 +241,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
             const formData = new FormData();
             formData.append('file', file);
 
-            const res = await fetch(getAiBackendUrl('/api/parse/file/cv'), {
+            const res = await authFetch('/api/parse/file/cv', {
               method: 'POST',
               body: formData
             });
@@ -295,7 +287,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
         setParsingProgress({ current: 1, total: 1 });
 
-        const res = await fetch(getAiBackendUrl('/api/parse/cv'), {
+        const res = await authFetch('/api/parse/cv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: cvText })

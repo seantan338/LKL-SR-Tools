@@ -8,6 +8,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
 import { SystemLogger } from '../../../lib/logger';
 import { MatchService } from '../../../lib/match-service';
+import { authFetch } from '../../../lib/api-client';
 import OrderDrawer from '../../../components/OrderDrawer';
 import { useI18n } from '../../../lib/i18n-context';
 
@@ -115,8 +116,7 @@ export default function OrdersPage() {
     if (!aiImportText.trim()) return;
     setIsAiImporting(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${baseUrl}/api/parse/sheet`, {
+      const response = await authFetch('/api/parse/sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: aiImportText, targetType: 'job_order' })

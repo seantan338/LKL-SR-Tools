@@ -274,6 +274,8 @@ export default function AnalyticsPage() {
           lastActionTime: dateObj,
           actionCount: 0,
           manualClockIn: null,
+          manualLunchOut: null,
+          manualLunchIn: null,
           manualClockOut: null,
           verifyMethod: meta.verifyMethod || null,
           verifySnapshot: meta.verifySnapshot || null,
@@ -292,6 +294,10 @@ export default function AnalyticsPage() {
           rec.verifyMethod = meta.verifyMethod;
           rec.verifySnapshot = meta.verifySnapshot;
         }
+      } else if (actionType === 'LUNCH_OUT') {
+        rec.manualLunchOut = dateObj;
+      } else if (actionType === 'LUNCH_IN') {
+        rec.manualLunchIn = dateObj;
       } else if (actionType === 'CLOCK_OUT') {
         rec.manualClockOut = dateObj;
         if (meta.verifyMethod && !rec.verifyMethod) {
@@ -347,15 +353,21 @@ export default function AnalyticsPage() {
       let statusColor = 'var(--accent-emerald)';
 
       if (isToday) {
-        // If last action was within 2 hours, they are currently online/active
-        const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
-        if (minutesSinceLast < 120) {
-          status = 'online';
-          statusLabel = t('analytics.statusOnDuty', '工作中 (活跃)');
-          statusColor = 'var(--accent-blue)';
+        // If employee has clocked lunch out and not yet clocked lunch in
+        if (r.manualLunchOut && !r.manualLunchIn) {
+          status = 'lunch';
+          statusLabel = t('analytics.statusOnLunch', '午休中 (离岗)');
+          statusColor = 'var(--accent-amber)';
         } else {
-          statusLabel = t('analytics.statusJustClockedIn', '今日已打卡');
-          statusColor = 'var(--accent-emerald)';
+          const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
+          if (minutesSinceLast < 120) {
+            status = 'online';
+            statusLabel = r.manualLunchIn ? t('analytics.statusAfternoonDuty', '工作中 (下午)') : t('analytics.statusOnDuty', '工作中 (活跃)');
+            statusColor = 'var(--accent-blue)';
+          } else {
+            statusLabel = t('analytics.statusJustClockedIn', '今日已打卡');
+            statusColor = 'var(--accent-emerald)';
+          }
         }
       }
 
@@ -499,6 +511,16 @@ export default function AnalyticsPage() {
   // -------------------------------------------------------------
   // Progressive Zero-Trust Attendance Clock-in (2-Stage Verification)
   // -------------------------------------------------------------
+  const getPunchTypeLabel = (pType) => {
+    switch (pType) {
+      case 'CLOCK_IN': return t('analytics.clockInBtn', '上班签到');
+      case 'LUNCH_OUT': return t('analytics.lunchOutBtn', '午休离开');
+      case 'LUNCH_IN': return t('analytics.lunchInBtn', '午休返回');
+      case 'CLOCK_OUT': return t('analytics.clockOutBtn', '下班签退');
+      default: return pType;
+    }
+  };
+
   const executeAttendanceCheckin = async (type = 'CLOCK_IN') => {
     if (!teamId || !user) return;
     setIsClockingIn(true);
@@ -546,7 +568,7 @@ export default function AnalyticsPage() {
             type,
             verifyMethod: r1.verify_method,
             verifySnapshot,
-            note: `[${verifySnapshot.methodName}] ${type === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
+            note: `[${verifySnapshot.methodName}] ${getPunchTypeLabel(type)}`
           });
         } catch (storeErr) {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
@@ -625,7 +647,7 @@ export default function AnalyticsPage() {
               type,
               verifyMethod: 'GPS_GEOFENCE',
               verifySnapshot,
-              note: `[100m / ${Math.round(r2.effective_distance)}m] ${type === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
+              note: `[100m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(type)}`
             });
           } catch (storeErr) {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
@@ -869,7 +891,7 @@ export default function AnalyticsPage() {
             </button>
             <button
               className="btn btn-sm btn-outline"
-              style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px' }}
+              style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px', fontWeight: '600' }}
               disabled={isClockingIn}
               onClick={() => executeAttendanceCheckin('CLOCK_OUT')}
               title={t('analytics.clockOutTitle', '下班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
@@ -1322,11 +1344,13 @@ export default function AnalyticsPage() {
                                 gap: '4px'
                               }}>
                                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
-                                {item.status === 'online'
-                                  ? t('analytics.statusOnDuty', '工作中 (活跃)')
-                                  : item.isToday
-                                    ? t('analytics.statusJustClockedIn', '今日已打卡')
-                                    : t('analytics.statusFullShift', '正常完成')}
+                                {item.statusLabel || (
+                                  item.status === 'online'
+                                    ? t('analytics.statusOnDuty', '工作中 (活跃)')
+                                    : item.isToday
+                                      ? t('analytics.statusJustClockedIn', '今日已打卡')
+                                      : t('analytics.statusFullShift', '正常完成')
+                                )}
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>

@@ -8,6 +8,7 @@ import { useFeedback } from '../../../lib/feedback-context';
 import { FirestoreStore } from '../../../lib/firestore-store';
 import { SystemLogger } from '../../../lib/logger';
 import { useI18n } from '../../../lib/i18n-context';
+import { authFetch } from '../../../lib/api-client';
 
 export default function AIParserPage() {
   const { user, teamId, role } = useAuth();
@@ -81,7 +82,6 @@ export default function AIParserPage() {
     setError(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || '';
       let response;
       if (file) {
         const formData = new FormData();
@@ -90,12 +90,12 @@ export default function AIParserPage() {
           formData.append('text', inputText);
         }
         
-        response = await fetch(`${baseUrl}/api/parse/file`, {
+        response = await authFetch('/api/parse/file', {
           method: 'POST',
           body: formData
         });
       } else {
-        response = await fetch(`${baseUrl}/api/parse/text`, {
+        response = await authFetch('/api/parse/text', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: inputText })

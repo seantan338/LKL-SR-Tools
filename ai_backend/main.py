@@ -1,6 +1,7 @@
 import uvicorn
 
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Request, Header
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Request, Header, Depends
+from auth_guard import verify_user_or_internal_token, verify_optional_webhook_secret
 
 from fastapi.responses import JSONResponse
 
@@ -189,7 +190,7 @@ def health_check():
 
 @app.post("/api/parse/text")
 
-async def parse_text_endpoint(req: TextParseRequest):
+async def parse_text_endpoint(req: TextParseRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info("Received request at /api/parse/text")
 
@@ -215,7 +216,7 @@ async def parse_text_endpoint(req: TextParseRequest):
 
 @app.post("/api/parse/sheet")
 
-async def parse_sheet_endpoint(req: SheetParseRequest):
+async def parse_sheet_endpoint(req: SheetParseRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/parse/sheet with targetType: {req.targetType}, sourceTab: {req.sourceTab}")
 
@@ -241,7 +242,7 @@ async def parse_sheet_endpoint(req: SheetParseRequest):
 
 @app.get("/api/sheets/tabs")
 
-async def get_sheet_tabs_endpoint(spreadsheetId: str):
+async def get_sheet_tabs_endpoint(spreadsheetId: str, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/sheets/tabs for spreadsheetId: {spreadsheetId}")
 
@@ -267,7 +268,7 @@ async def get_sheet_tabs_endpoint(spreadsheetId: str):
 
 @app.post("/api/sheets/fetch")
 
-async def fetch_sheet_endpoint(req: FetchSheetRequest):
+async def fetch_sheet_endpoint(req: FetchSheetRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/sheets/fetch for sheet: {req.sheetName}")
 
@@ -289,7 +290,7 @@ async def fetch_sheet_endpoint(req: FetchSheetRequest):
 
 @app.post("/api/sheets/normalize-interview")
 
-async def normalize_interview_endpoint(req: NormalizeInterviewRequest):
+async def normalize_interview_endpoint(req: NormalizeInterviewRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     """
 
@@ -332,13 +333,10 @@ async def normalize_interview_endpoint(req: NormalizeInterviewRequest):
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/parse/file")
-
 async def parse_file_endpoint(
-
-    file: UploadFile = File(...), 
-
-    text: Optional[str] = Form(None)
-
+    file: UploadFile = File(...),
+    text: Optional[str] = Form(None),
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
 
     logger.info(f"Received request at /api/parse/file for filename: {file.filename}")
@@ -394,11 +392,9 @@ async def parse_file_endpoint(
         return {"status": "error", "message": f"文件解析或AI生成失败: {str(e)}"}
 
 @app.post("/api/parse/file/job_order")
-
 async def parse_file_job_order_endpoint(
-
-    file: UploadFile = File(...)
-
+    file: UploadFile = File(...),
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
 
     logger.info(f"Received request at /api/parse/file/job_order for filename: {file.filename}")
@@ -447,7 +443,7 @@ async def parse_file_job_order_endpoint(
 
 @app.post("/api/parse/cv")
 
-async def parse_cv_endpoint(req: TextParseRequest):
+async def parse_cv_endpoint(req: TextParseRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info("Received request at /api/parse/cv")
 
@@ -472,11 +468,9 @@ async def parse_cv_endpoint(req: TextParseRequest):
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/parse/file/cv")
-
 async def parse_file_cv_endpoint(
-
-    file: UploadFile = File(...)
-
+    file: UploadFile = File(...),
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
 
     logger.info(f"Received request at /api/parse/file/cv for filename: {file.filename}")
@@ -538,7 +532,7 @@ async def parse_file_cv_endpoint(
 
 @app.post("/api/match/candidates")
 
-async def match_candidates_endpoint(req: MatchCandidatesRequest):
+async def match_candidates_endpoint(req: MatchCandidatesRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/match/candidates")
 
@@ -568,7 +562,7 @@ async def match_candidates_endpoint(req: MatchCandidatesRequest):
 
 @app.post("/api/embeddings/sync")
 
-async def sync_embeddings_endpoint(req: SyncRequest):
+async def sync_embeddings_endpoint(req: SyncRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/embeddings/sync for teamId: {req.teamId}")
 
@@ -642,41 +636,22 @@ class AgentChatRequest(BaseModel):
 @app.post("/api/agent/chat")
 async def agent_chat_endpoint(
     req: AgentChatRequest, 
-    request: Request,
-    authorization: str = Header(None)
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
     logger.info("Received request at /api/agent/chat")
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
+    if auth_user.get("auth_type") == "internal_secret":
+        uid = req.senderUid or "system_bot"
+        email = req.senderEmail or "bot@talentflow.internal"
+        name = req.senderName or "WhatsApp Bot"
+    else:
+        uid = auth_user.get("uid") or "unknown"
+        email = auth_user.get("email") or "未知邮箱"
+        name = auth_user.get("name") or "未知用户"
 
-    token = authorization.split("Bearer ")[1]
-
-    # Server-to-Server 身份校验 (供 whatsapp_bot 内部调用)
-    INTERNAL_SERVER_SECRET = "talent-flow-internal-ai-agent-secret-2026"
-    
-    uid = req.senderUid or "system_bot"
-    email = req.senderEmail or "bot@talentflow.internal"
-    name = req.senderName or "WhatsApp Bot"
-
-    if token != INTERNAL_SERVER_SECRET:
-        try:
-            import firebase_admin.auth
-            decoded_token = firebase_admin.auth.verify_id_token(token)
-            uid = decoded_token.get("uid")
-            email = decoded_token.get("email", "未知邮箱")
-            name = decoded_token.get("name", "未知用户")
-        except Exception as e:
-            logger.error(f"Token verification failed in agent chat: {e}")
-            raise HTTPException(status_code=401, detail="Unauthorized: Token invalid")
-        
     from services.agent_service import process_agent_message
-    
+
     result = await process_agent_message(req.text, req.teamId, uid, name, email)
     return result
-
-if __name__ == "__main__":
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 from pydantic import Field
 
@@ -701,51 +676,18 @@ class AuditLogRequest(BaseModel):
     details: Optional[Any] = None
 
 @app.post("/api/audit-log")
-
 async def write_audit_log(
-
     req: AuditLogRequest, 
-
     request: Request,
-
-    authorization: str = Header(None)
-
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
-
-    uid = "anonymous"
-    email = "未知邮箱"
-    name = "未知用户"
-
-    if authorization and authorization.startswith("Bearer "):
-        id_token = authorization.split("Bearer ")[1].strip()
-        if id_token:
-            try:
-                decoded_token = firebase_admin.auth.verify_id_token(id_token, clock_skew_seconds=60)
-                uid = decoded_token.get("uid", uid)
-                email = decoded_token.get("email", email)
-                name = decoded_token.get("name", name)
-            except Exception as e:
-                logger.warning(f"Audit token verification fallback: {e}")
-                try:
-                    import base64
-                    import json
-                    parts = id_token.split(".")
-                    if len(parts) >= 2:
-                        payload_b64 = parts[1]
-                        payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-                        claims = json.loads(base64.urlsafe_b64decode(payload_b64.encode('utf-8')).decode('utf-8'))
-                        uid = claims.get("user_id") or claims.get("sub", uid)
-                        email = claims.get("email", email)
-                        name = claims.get("name", name)
-                except Exception as decode_err:
-                    logger.warning(f"Audit token payload decode fallback failed: {decode_err}")
+    uid = auth_user.get("uid") or "anonymous"
+    email = auth_user.get("email") or "未知邮箱"
+    name = auth_user.get("name") or "未知用户"
 
     from firebase_admin_init import get_firestore_client
-
     db = get_firestore_client()
-
     if not db:
-
         raise HTTPException(status_code=500, detail="Firestore not initialized")
 
     client_ip = request.client.host
@@ -806,7 +748,7 @@ class ExportDocxRequest(BaseModel):
     parsed_data: dict
 
 @app.post("/api/export/cv-docx")
-async def export_cv_docx_endpoint(req: ExportDocxRequest):
+async def export_cv_docx_endpoint(req: ExportDocxRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
     try:
         from services.docx_exporter import export_cv_to_docx
         from fastapi.responses import StreamingResponse
@@ -907,14 +849,14 @@ async def process_webhook_in_background(req: SheetsWebhookRequest):
         logger.error(f"Background Webhook error: {e}", exc_info=True)
 
 @app.post("/api/sheets/webhook")
-async def sheets_webhook_endpoint(req: SheetsWebhookRequest, background_tasks: BackgroundTasks):
+async def sheets_webhook_endpoint(req: SheetsWebhookRequest, background_tasks: BackgroundTasks, _webhook_ok: bool = Depends(verify_optional_webhook_secret)):
     logger.info(f"Received Sheets Webhook from {req.spreadsheetId} - {req.sheetName}. Pushing to background task.")
     # 异步解耦：立即返回 HTTP 200 防止 Google Sheets 超时卡顿，耗时的 AI 解析和数据库写入放入后台队列
     background_tasks.add_task(process_webhook_in_background, req)
     return {"status": "processing", "message": "Webhook received, processing AI parsing in background"}
 
 @app.post("/api/telegram/webhook")
-async def telegram_webhook_endpoint(request: Request, background_tasks: BackgroundTasks, sync: bool = False):
+async def telegram_webhook_endpoint(request: Request, background_tasks: BackgroundTasks, sync: bool = False, _webhook_ok: bool = Depends(verify_optional_webhook_secret)):
     """
     Direct Telegram Webhook / n8n Ingest endpoint.
     If sync=True, awaits processing and returns the parsed candidate data for n8n visualization.
@@ -936,7 +878,8 @@ async def telegram_webhook_endpoint(request: Request, background_tasks: Backgrou
 async def ingest_candidate_file_endpoint(
     file: UploadFile = File(...),
     teamId: Optional[str] = Form("default_team"),
-    senderName: Optional[str] = Form("n8n_workflow")
+    senderName: Optional[str] = Form("n8n_workflow"),
+    _webhook_ok: bool = Depends(verify_optional_webhook_secret)
 ):
     """
     Universal Candidate File Ingest Endpoint (Ideal for n8n, Zapier, Make, or Webhooks).

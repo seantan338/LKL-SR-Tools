@@ -6,16 +6,7 @@ import { useFeedback } from '../../../lib/feedback-context';
 import { useI18n } from '../../../lib/i18n-context';
 import { FirestoreStore } from '../../../lib/firestore-store';
 import { SystemLogger } from '../../../lib/logger';
-
-// Helper for direct backend communication (bypasses Next.js Turbopack proxy timeout & multipart drops)
-const getAiBackendUrl = (path) => {
-  const custom = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-  if (custom) return `${custom}${path}`;
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return `http://localhost:8000${path}`;
-  }
-  return path;
-};
+import { authFetch, getAiBackendUrl } from '../../../lib/api-client';
 
 export default function CvAutofillPage() {
   const { teamId, user, userProfile } = useAuth();
@@ -105,7 +96,7 @@ export default function CvAutofillPage() {
         }
         const formDataPayload = new FormData();
         formDataPayload.append('file', aiFile);
-        res = await fetch(getAiBackendUrl('/api/parse/file/cv'), {
+        res = await authFetch('/api/parse/file/cv', {
           method: 'POST',
           body: formDataPayload
         });
@@ -115,7 +106,7 @@ export default function CvAutofillPage() {
           setIsAiParsing(false);
           return;
         }
-        res = await fetch(getAiBackendUrl('/api/parse/cv'), {
+        res = await authFetch('/api/parse/cv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: aiText })
@@ -693,7 +684,7 @@ export default function CvAutofillPage() {
         }
       };
 
-      const res = await fetch(getAiBackendUrl('/api/export/cv-docx'), {
+      const res = await authFetch('/api/export/cv-docx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parsed_data: docxPayload })

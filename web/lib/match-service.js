@@ -1,19 +1,9 @@
-export const MatchService = {
-  getApiBaseUrl() {
-    const custom = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-    if (custom) {
-      const cleanCustom = custom.replace(/\/+$/, '');
-      return cleanCustom.endsWith('/api') ? cleanCustom : `${cleanCustom}/api`;
-    }
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      return 'http://localhost:8000/api';
-    }
-    return '/api';
-  },
+import { authFetch } from './api-client';
 
+export const MatchService = {
   async matchCandidates(order, filters = {}, topK = 5, preFilterK = 20, teamId = null) {
     try {
-      const response = await fetch(`${this.getApiBaseUrl()}/match/candidates`, {
+      const response = await authFetch('/api/match/candidates', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,7 +38,7 @@ export const MatchService = {
 
   async syncEmbeddings(teamId) {
     try {
-      const response = await fetch(`${this.getApiBaseUrl()}/embeddings/sync`, {
+      const response = await authFetch('/api/embeddings/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
