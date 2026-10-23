@@ -16,7 +16,8 @@ const getApiUrl = (path) => {
 const ENABLE_LUNCH_PUNCH = false;
 
 export default function AttendanceModal() {
-  const { user, userProfile, teamId, isOwner, isHqTeam } = useAuth();
+  const { user, userProfile, teamId, isOwner, isManager, isHqTeam } = useAuth();
+  const canWfh = Boolean(isOwner || isManager || userProfile?.allowWfhPunch);
   const { t, lang } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -26,6 +27,13 @@ export default function AttendanceModal() {
   const [userRecords, setUserRecords] = useState([]);
   const [workMode, setWorkMode] = useState('OFFICE'); // 'OFFICE' | 'WFH'
   const [wfhNote, setWfhNote] = useState('');
+
+  // Enforce OFFICE mode if user has no WFH permission
+  useEffect(() => {
+    if (!canWfh && workMode === 'WFH') {
+      setWorkMode('OFFICE');
+    }
+  }, [canWfh, workMode]);
   const [attendanceRules, setAttendanceRules] = useState({
     enabled: true,
     allowWfh: true,
@@ -255,9 +263,12 @@ export default function AttendanceModal() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             teamId,
+            userId: user?.uid,
+            userRole: userProfile?.role,
+            userWfhAllowed: canWfh,
             type: punchType,
-            workMode,
-            wfhNote: wfhNote.trim(),
+            workMode: canWfh ? workMode : 'OFFICE',
+            wfhNote: canWfh ? wfhNote.trim() : '',
             rules: attendanceRules,
             coords: null
           })
@@ -758,8 +769,8 @@ export default function AttendanceModal() {
             </div>
           )}
 
-          {/* Office vs WFH Mode Selector */}
-          {attendanceRules.allowWfh !== false && (
+          {/* Office vs WFH Mode Selector (Only visible if user has WFH permission) */}
+          {attendanceRules.allowWfh !== false && canWfh && (
             <div style={{ marginBottom: 'var(--space-4)', textAlign: 'left' }}>
               <div style={{
                 display: 'grid',

@@ -19,7 +19,8 @@ const getApiUrl = (path) => {
 
 export default function AnalyticsPage() {
   const router = useRouter();
-  const { teamId, role, isOwner, user, userProfile, isHqTeam } = useAuth();
+  const { teamId, role, isOwner, isManager, user, userProfile, isHqTeam } = useAuth();
+  const canWfh = Boolean(isOwner || isManager || userProfile?.allowWfhPunch);
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
 
@@ -527,6 +528,10 @@ export default function AnalyticsPage() {
 
   const executeAttendanceCheckin = async (type = 'CLOCK_IN', workMode = 'OFFICE') => {
     if (!teamId || !user) return;
+    if (workMode === 'WFH' && !canWfh) {
+      showToast(t('attendanceModal.errWfhUnauthorized', '您未获得居家办公 (WFH) 打卡权限，请在办公室打卡或联系管理员'), 'error');
+      return;
+    }
     setIsClockingIn(true);
     setClockInStatusMsg(workMode === 'WFH' ? t('analytics.statusConnectingWfh', '正在提交居家办公 (WFH) 安全打卡...') : t('analytics.statusConnecting', '正在连接安全核验网关，校验 Wi-Fi 出口 IP...'));
 
@@ -541,6 +546,9 @@ export default function AnalyticsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             teamId,
+            userId: user.uid,
+            userRole: userProfile?.role,
+            userWfhAllowed: canWfh,
             type,
             workMode,
             rules: attendanceRules,
@@ -968,7 +976,7 @@ export default function AnalyticsPage() {
               <i className="ph-bold ph-sign-in"></i>
               {isClockingIn ? t('analytics.clockInVerifying', '核验中...') : t('analytics.clockInBtn', '上班签到')}
             </button>
-            {attendanceRules.allowWfh !== false && (
+            {attendanceRules.allowWfh !== false && canWfh && (
               <button
                 className="btn btn-sm btn-outline"
                 style={{ border: '1px solid #c084fc', color: '#c084fc', background: 'rgba(168, 85, 247, 0.1)', gap: '5px', fontWeight: '600' }}

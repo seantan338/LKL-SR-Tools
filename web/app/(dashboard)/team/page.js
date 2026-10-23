@@ -41,7 +41,7 @@ export default function TeamPage() {
 
   // Modal for editing existing member
   const [editingMember, setEditingMember] = useState(null);
-  const [editForm, setEditForm] = useState({ displayName: '', role: 'recruiter', teamId: 'default_team' });
+  const [editForm, setEditForm] = useState({ displayName: '', role: 'recruiter', teamId: 'default_team', allowWfhPunch: false });
   const [isSavingMember, setIsSavingMember] = useState(false);
 
   // Lock background scrolling when any modal is open
@@ -127,7 +127,8 @@ export default function TeamPage() {
     setEditForm({
       displayName: member.displayName || '',
       role: member.role || 'recruiter',
-      teamId: member.teamId || 'default_team'
+      teamId: member.teamId || 'default_team',
+      allowWfhPunch: member.role === 'owner' || member.role === 'manager' || Boolean(member.allowWfhPunch)
     });
   };
 
@@ -136,10 +137,12 @@ export default function TeamPage() {
     if (!editingMember) return;
     setIsSavingMember(true);
     try {
+      const isRoleAdmin = editForm.role === 'owner' || editForm.role === 'manager';
       await updateDoc(doc(db, 'users', editingMember.id), {
         displayName: editForm.displayName.trim(),
         role: editForm.role,
-        teamId: editForm.teamId
+        teamId: editForm.teamId,
+        allowWfhPunch: isRoleAdmin ? true : Boolean(editForm.allowWfhPunch)
       });
       showToast(t('team.memberUpdatedSuccess', '成员信息与权限已成功更新'), 'success');
       setEditingMember(null);
@@ -625,6 +628,23 @@ export default function TeamPage() {
                         }}>
                           {member.role === 'owner' ? 'Owner' : member.role === 'manager' ? 'Manager' : 'Recruiter'}
                         </span>
+
+                        {/* WFH Permission Badge */}
+                        {(member.role === 'owner' || member.role === 'manager' || member.allowWfhPunch) && (
+                          <span className="badge" style={{
+                            color: '#8b5cf6',
+                            background: 'rgba(139, 92, 246, 0.12)',
+                            borderColor: 'rgba(139, 92, 246, 0.25)',
+                            fontWeight: '600',
+                            fontSize: '11px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}>
+                            <i className="ph-bold ph-house-line"></i>
+                            <span>{t('team.wfhBadge', 'WFH 允许')}</span>
+                          </span>
+                        )}
                         
                         {isOwner && member.id !== userProfile?.uid && (
                           <>
@@ -995,6 +1015,56 @@ export default function TeamPage() {
                     <option value="manager">{t('team.managerOpt', 'Manager (管理员)')}</option>
                     <option value="recruiter">{t('team.recruiterOpt', 'Recruiter (招聘员)')}</option>
                   </select>
+                </div>
+
+                {/* WFH Check-in Permission Toggle */}
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'rgba(139, 92, 246, 0.06)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ph-bold ph-house-line" style={{ color: '#8b5cf6', fontSize: '18px' }}></i>
+                      <div>
+                        <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {editForm.role === 'owner' || editForm.role === 'manager'
+                            ? t('team.wfhAdminNotice', 'Owner / Manager 角色默认具备居家打卡权限')
+                            : t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「🏠 WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
+                        </div>
+                      </div>
+                    </div>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '22px', flexShrink: 0, cursor: (editForm.role === 'owner' || editForm.role === 'manager') ? 'not-allowed' : 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={editForm.role === 'owner' || editForm.role === 'manager' || Boolean(editForm.allowWfhPunch)}
+                        disabled={editForm.role === 'owner' || editForm.role === 'manager'}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, allowWfhPunch: e.target.checked }))}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: (editForm.role === 'owner' || editForm.role === 'manager' || editForm.allowWfhPunch) ? '#8b5cf6' : 'var(--border-subtle)',
+                        transition: '.3s',
+                        borderRadius: '22px'
+                      }}>
+                        <span style={{
+                          position: 'absolute', content: '""', height: '16px', width: '16px', left: (editForm.role === 'owner' || editForm.role === 'manager' || editForm.allowWfhPunch) ? '19px' : '3px', bottom: '3px',
+                          backgroundColor: 'white',
+                          transition: '.3s',
+                          borderRadius: '50%'
+                        }} />
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Information Notice (Strictly no emojis) */}

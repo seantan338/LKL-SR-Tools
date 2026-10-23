@@ -138,6 +138,13 @@ def verify_clockin_eligibility(
                 "message": "Work From Home (WFH) check-in is currently disabled by administrator / 管理员已关闭居家办公 (WFH) 打卡权限",
                 "client_ip": client_ip,
             }
+        if payload.get("userWfhAllowed") is False:
+            return {
+                "passed": False,
+                "code": "WFH_UNAUTHORIZED",
+                "message": "You do not have permission for WFH check-in. Please contact administrator / 您未获得居家办公 (WFH) 打卡权限，请联系管理员开通或在办公室打卡",
+                "client_ip": client_ip,
+            }
         return {
             "passed": True,
             "verify_method": "WFH",

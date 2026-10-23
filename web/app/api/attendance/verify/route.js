@@ -141,6 +141,17 @@ export async function POST(request) {
           }
         });
       }
+      if (payload.userWfhAllowed === false) {
+        return NextResponse.json({
+          status: 'rejected',
+          result: {
+            passed: false,
+            code: 'WFH_UNAUTHORIZED',
+            message: 'You do not have permission for WFH check-in. Please contact administrator / 您未获得居家办公 (WFH) 打卡权限，请联系管理员开通或在办公室打卡',
+            client_ip: clientIp
+          }
+        });
+      }
       return NextResponse.json({
         status: 'success',
         result: {

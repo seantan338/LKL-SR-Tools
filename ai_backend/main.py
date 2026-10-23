@@ -936,6 +936,9 @@ async def get_current_ip_endpoint(request: Request):
 
 class AttendanceVerifyPayload(BaseModel):
     teamId: Optional[str] = "default_team"
+    userId: Optional[str] = None
+    userRole: Optional[str] = None
+    userWfhAllowed: Optional[bool] = None
     type: Optional[str] = "CLOCK_IN"
     workMode: Optional[str] = "OFFICE"
     wfhNote: Optional[str] = ""
