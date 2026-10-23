@@ -20,7 +20,7 @@ const getApiUrl = (path) => {
 export default function AnalyticsPage() {
   const router = useRouter();
   const { teamId, role, isOwner, isManager, user, userProfile, isHqTeam } = useAuth();
-  const canWfh = Boolean(isOwner || isManager || userProfile?.allowWfhPunch);
+  const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
 

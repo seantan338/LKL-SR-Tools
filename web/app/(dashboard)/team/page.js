@@ -128,7 +128,9 @@ export default function TeamPage() {
       displayName: member.displayName || '',
       role: member.role || 'recruiter',
       teamId: member.teamId || 'default_team',
-      allowWfhPunch: member.role === 'owner' || member.role === 'manager' || Boolean(member.allowWfhPunch)
+      allowWfhPunch: member.allowWfhPunch !== undefined
+        ? Boolean(member.allowWfhPunch)
+        : (member.role === 'owner' || member.role === 'manager')
     });
   };
 
@@ -137,13 +139,19 @@ export default function TeamPage() {
     if (!editingMember) return;
     setIsSavingMember(true);
     try {
-      const isRoleAdmin = editForm.role === 'owner' || editForm.role === 'manager';
-      const roleToSave = (editingMember.id === userProfile?.uid && editingMember.role === 'owner') ? 'owner' : editForm.role;
+      let roleToSave = editForm.role;
+      if (editingMember.id === userProfile?.uid && editingMember.role === 'owner') {
+        roleToSave = 'owner';
+      } else if (!isOwner) {
+        roleToSave = editingMember.role || 'recruiter';
+      }
+      const teamIdToSave = !isOwner ? (editingMember.teamId || 'default_team') : editForm.teamId;
+
       await updateDoc(doc(db, 'users', editingMember.id), {
         displayName: editForm.displayName.trim(),
         role: roleToSave,
-        teamId: editForm.teamId,
-        allowWfhPunch: isRoleAdmin ? true : Boolean(editForm.allowWfhPunch)
+        teamId: teamIdToSave,
+        allowWfhPunch: Boolean(editForm.allowWfhPunch)
       });
       showToast(t('team.memberUpdatedSuccess', '成员信息与权限已成功更新'), 'success');
       setEditingMember(null);
@@ -631,7 +639,7 @@ export default function TeamPage() {
                         </span>
 
                         {/* WFH Permission Badge */}
-                        {(member.role === 'owner' || member.role === 'manager' || member.allowWfhPunch) && (
+                        {(member.allowWfhPunch !== undefined ? member.allowWfhPunch : (member.role === 'owner' || member.role === 'manager')) && (
                           <span className="badge" style={{
                             color: '#8b5cf6',
                             background: 'rgba(139, 92, 246, 0.12)',
@@ -647,7 +655,7 @@ export default function TeamPage() {
                           </span>
                         )}
                         
-                        {isOwner && (
+                        {(isOwner || (isManager && member.role === 'recruiter')) && (
                           <button 
                             className="btn btn-sm btn-secondary" 
                             style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
@@ -967,6 +975,7 @@ export default function TeamPage() {
                   </label>
                   <select
                     value={editForm.teamId}
+                    disabled={!isOwner}
                     onChange={(e) => setEditForm(prev => ({ ...prev, teamId: e.target.value }))}
                     style={{
                       width: '100%',
@@ -974,10 +983,10 @@ export default function TeamPage() {
                       background: 'var(--input-bg)',
                       border: '1px solid var(--border-interactive)',
                       borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-primary)',
+                      color: !isOwner ? 'var(--text-muted)' : 'var(--text-primary)',
                       fontSize: 'var(--text-sm)',
                       outline: 'none',
-                      cursor: 'pointer'
+                      cursor: !isOwner ? 'not-allowed' : 'pointer'
                     }}
                   >
                     <option value="default_team">{isEn ? "HQ Team" : "公司本部 (HQ)"}</option>
@@ -988,7 +997,9 @@ export default function TeamPage() {
                     ))}
                   </select>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    {isEn ? 'After reassignment, this member can only access the selected team data. Isolation rules take effect immediately.' : '调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。'}
+                    {!isOwner
+                      ? (isEn ? 'Only Owner can reassign member teams.' : '仅 Owner 可调配成员归属团队。')
+                      : (isEn ? 'After reassignment, this member can only access the selected team data. Isolation rules take effect immediately.' : '调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。')}
                   </span>
                 </div>
 
@@ -999,7 +1010,7 @@ export default function TeamPage() {
                   </label>
                   <select
                     value={editForm.role}
-                    disabled={editingMember.id === userProfile?.uid}
+                    disabled={!isOwner || editingMember.id === userProfile?.uid}
                     onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value }))}
                     style={{
                       width: '100%',
@@ -1007,10 +1018,10 @@ export default function TeamPage() {
                       background: 'var(--input-bg)',
                       border: '1px solid var(--border-interactive)',
                       borderRadius: 'var(--radius-md)',
-                      color: (editingMember.id === userProfile?.uid) ? 'var(--text-muted)' : 'var(--text-primary)',
+                      color: (!isOwner || editingMember.id === userProfile?.uid) ? 'var(--text-muted)' : 'var(--text-primary)',
                       fontSize: 'var(--text-sm)',
                       outline: 'none',
-                      cursor: (editingMember.id === userProfile?.uid) ? 'not-allowed' : 'pointer'
+                      cursor: (!isOwner || editingMember.id === userProfile?.uid) ? 'not-allowed' : 'pointer'
                     }}
                   >
                     <option value="owner">{t('team.ownerOpt', 'Owner (所有者)')}</option>
@@ -1020,6 +1031,11 @@ export default function TeamPage() {
                   {editingMember.id === userProfile?.uid && (
                     <span style={{ fontSize: '11px', color: 'var(--accent-amber)', marginTop: '4px', display: 'block' }}>
                       {isEn ? 'Cannot modify your own Owner role to prevent accidental lockout.' : '为防止误操作失去系统管理权限，不可修改自身账号的 Owner 角色。'}
+                    </span>
+                  )}
+                  {!isOwner && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      {isEn ? 'Only Owner can change member roles.' : '仅 Owner 可变更成员系统角色。'}
                     </span>
                   )}
                 </div>
@@ -1042,29 +1058,26 @@ export default function TeamPage() {
                           {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {editForm.role === 'owner' || editForm.role === 'manager'
-                            ? t('team.wfhAdminNotice', 'Owner / Manager 角色默认具备居家打卡权限')
-                            : t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「🏠 WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
+                          {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
                         </div>
                       </div>
                     </div>
-                    <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '22px', flexShrink: 0, cursor: (editForm.role === 'owner' || editForm.role === 'manager') ? 'not-allowed' : 'pointer' }}>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '22px', flexShrink: 0, cursor: 'pointer' }}>
                       <input
                         type="checkbox"
-                        checked={editForm.role === 'owner' || editForm.role === 'manager' || Boolean(editForm.allowWfhPunch)}
-                        disabled={editForm.role === 'owner' || editForm.role === 'manager'}
+                        checked={Boolean(editForm.allowWfhPunch)}
                         onChange={(e) => setEditForm(prev => ({ ...prev, allowWfhPunch: e.target.checked }))}
                         style={{ opacity: 0, width: 0, height: 0 }}
                       />
                       <span style={{
                         position: 'absolute',
                         top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: (editForm.role === 'owner' || editForm.role === 'manager' || editForm.allowWfhPunch) ? '#8b5cf6' : 'var(--border-subtle)',
+                        backgroundColor: editForm.allowWfhPunch ? '#8b5cf6' : 'var(--border-subtle)',
                         transition: '.3s',
                         borderRadius: '22px'
                       }}>
                         <span style={{
-                          position: 'absolute', content: '""', height: '16px', width: '16px', left: (editForm.role === 'owner' || editForm.role === 'manager' || editForm.allowWfhPunch) ? '19px' : '3px', bottom: '3px',
+                          position: 'absolute', content: '""', height: '16px', width: '16px', left: editForm.allowWfhPunch ? '19px' : '3px', bottom: '3px',
                           backgroundColor: 'white',
                           transition: '.3s',
                           borderRadius: '50%'

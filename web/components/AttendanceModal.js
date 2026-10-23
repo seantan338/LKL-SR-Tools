@@ -17,7 +17,7 @@ const ENABLE_LUNCH_PUNCH = false;
 
 export default function AttendanceModal() {
   const { user, userProfile, teamId, isOwner, isManager, isHqTeam } = useAuth();
-  const canWfh = Boolean(isOwner || isManager || userProfile?.allowWfhPunch);
+  const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
   const { t, lang } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
