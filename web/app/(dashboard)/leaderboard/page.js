@@ -757,7 +757,7 @@ export default function LeaderboardPage() {
                     <>
                       <th style={{ padding: '10px 12px', color: '#c084fc', fontWeight: '700' }}>{t('leaderboard.daysPresent', '出勤天数')}</th>
                       <th style={{ padding: '10px 12px' }}>{t('leaderboard.officeDays', '办公室出勤')}</th>
-                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.wfhDays', '居家办公 (WFH)')</th>
+                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.wfhDays', '居家办公 (WFH)')}</th>
                       <th style={{ padding: '10px 12px', color: 'var(--accent-amber)', fontWeight: '700' }}>{t('leaderboard.consistencyScore', '勤奋指数')}</th>
                     </>
                   )}
