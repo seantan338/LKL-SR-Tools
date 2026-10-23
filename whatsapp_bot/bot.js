@@ -128,6 +128,9 @@ const userMessageTracker = new Map(); // phone -> { lastText, sameCount, lastTim
 const PORT = parseInt(process.env.PORT || '8002', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const AI_BACKEND_URL = (process.env.AI_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+// 调用 AI 后端受保护接口的服务间密钥，需与 AI 后端的 INTERNAL_API_SECRET 一致
+const INTERNAL_API_SECRET = (process.env.INTERNAL_API_SECRET || '').trim();
+if (!INTERNAL_API_SECRET) console.warn('⚠️ 未设置 INTERNAL_API_SECRET，调用 AI 后端将返回 401');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -309,7 +312,7 @@ async function initializeSession(botId) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer talent-flow-internal-ai-agent-secret-2026'
+                    'Authorization': `Bearer ${INTERNAL_API_SECRET}`
                 },
                 body: JSON.stringify({
                     text: text,
