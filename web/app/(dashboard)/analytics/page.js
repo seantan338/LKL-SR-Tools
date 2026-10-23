@@ -60,6 +60,7 @@ export default function AnalyticsPage() {
   const [newIpInput, setNewIpInput] = useState('');
   const [pasteCoordsInput, setPasteCoordsInput] = useState('');
   const [coordsParseMsg, setCoordsParseMsg] = useState('');
+  const [coordsParseSuccess, setCoordsParseSuccess] = useState(false);
   const [isDetectingIp, setIsDetectingIp] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -764,7 +765,8 @@ export default function AnalyticsPage() {
     const val = inputVal !== undefined ? inputVal : pasteCoordsInput;
     const parsed = parseGoogleMapsCoords(val);
     if (!parsed) {
-      setCoordsParseMsg('未能识别坐标格式，支持 1°26\'25.7"N 103°37\'04.5"E 或 1.440472, 103.617917');
+      setCoordsParseMsg(t('analytics.coordsUnrecognized', '未能识别坐标格式，支持 1°26\'25.7"N 103°37\'04.5"E 或 1.440472, 103.617917'));
+      setCoordsParseSuccess(false);
       setTimeout(() => setCoordsParseMsg(''), 4000);
       return false;
     }
@@ -784,7 +786,8 @@ export default function AnalyticsPage() {
       ...editingRules,
       officeLocations: updatedOffices
     });
-    setCoordsParseMsg(`已成功解析并应用坐标：纬度 ${parsed.lat}，经度 ${parsed.lng}`);
+    setCoordsParseMsg(t('analytics.coordsApplied', { lat: parsed.lat, lng: parsed.lng }, `已成功解析并应用坐标：纬度 ${parsed.lat}，经度 ${parsed.lng}`));
+    setCoordsParseSuccess(true);
     setPasteCoordsInput('');
     setTimeout(() => setCoordsParseMsg(''), 4000);
     return true;
@@ -1657,7 +1660,7 @@ export default function AnalyticsPage() {
                       type="text"
                       className="input"
                       style={{ flex: 1, height: '32px', fontSize: '12px', fontFamily: 'monospace' }}
-                      placeholder="支持度分秒 (1°26'25.7&quot;N 103°37'04.5&quot;E) 或十进制 (1.440472, 103.617917)"
+                      placeholder={t('analytics.coordsPlaceholder', '支持度分秒 (1°26\'25.7"N 103°37\'04.5"E) 或十进制 (1.440472, 103.617917)')}
                       value={pasteCoordsInput}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1674,11 +1677,11 @@ export default function AnalyticsPage() {
                       style={{ height: '32px', fontSize: '12px' }}
                       onClick={() => handleApplyPastedCoords()}
                     >
-                      解析应用
+                      {t('analytics.applyCoordsBtn', '解析应用')}
                     </button>
                   </div>
                   {coordsParseMsg && (
-                    <div style={{ fontSize: '11px', color: coordsParseMsg.startsWith('已成功') ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: coordsParseSuccess ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
                       {coordsParseMsg}
                     </div>
                   )}

@@ -60,6 +60,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
   const { teamId, user, userProfile, isReadOnlyView } = useAuth();
   const { confirm, showToast: showGlobalToast } = useFeedback();
   const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   
   const [currentCandidate, setCurrentCandidate] = useState(candidate);
   const lastCandidateIdRef = useRef(candidate?.id);
@@ -285,12 +286,17 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         }
       }
 
+      const skillsLabel = isEn ? '[Skills]: ' : '【技能】: ';
+      const langsLabel = isEn ? '[Languages]: ' : '【语言】: ';
+      const salaryLabel = isEn ? '[Expected Salary]: ' : '【期望薪资】: ';
+      const availLabel = isEn ? '[Availability]: ' : '【到岗时间】: ';
+
       const notesParts = [
         raw.summary || '',
-        parsedCv.skills?.length ? `【技能】: ${parsedCv.skills.join(', ')}` : '',
-        parsedCv.languages?.length ? `【语言】: ${parsedCv.languages.join(', ')}` : '',
-        personal.expected_salary ? `【期望薪资】: ${personal.expected_salary}` : '',
-        personal.availability ? `【到岗时间】: ${personal.availability}` : ''
+        parsedCv.skills?.length ? `${skillsLabel}${parsedCv.skills.join(', ')}` : '',
+        parsedCv.languages?.length ? `${langsLabel}${parsedCv.languages.join(', ')}` : '',
+        personal.expected_salary ? `${salaryLabel}${personal.expected_salary}` : '',
+        personal.availability ? `${availLabel}${personal.availability}` : ''
       ].filter(Boolean).join('\n');
 
       setFormData(prev => ({
@@ -318,7 +324,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         workExperience: parsedCv.professional_history?.length ? parsedCv.professional_history : (prev.workExperience || []),
         notes: notesParts || prev.notes || '',
         picName: prev.picName || defaultPic,
-        source: prev.source || 'AI 简历解析录入'
+        source: prev.source || (isEn ? 'AI Resume Parsing' : 'AI 简历解析录入')
       }));
 
       setShowDrawerAiParser(false);
@@ -719,7 +725,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
       const newHistory = [...(currentCandidate.stageHistory || []), {
         stage: 'screening',
         movedAt: now,
-        note: '从淘汰状态重新激活'
+        note: isEn ? 'Reactivated from rejected/eliminated' : '从淘汰状态重新激活'
       }];
 
       const updatePayload = {
@@ -733,7 +739,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
 
       await FirestoreStore.updateCandidate(teamId, currentCandidate.id, updatePayload);
       SystemLogger.audit(teamId, user, 'RESTORE', 'CANDIDATE', currentCandidate.name, {
-        actionDetail: '重新激活已淘汰候选人'
+        actionDetail: isEn ? 'Reactivated eliminated candidate' : '重新激活已淘汰候选人'
       });
 
       setCurrentCandidate(prev => ({
@@ -1560,11 +1566,11 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                             <>
                               <div>
                                 <label className="form-label" style={{ fontSize: '11px' }}>{t('extraUi.companyNameLabel', '公司名称')}</label>
-                                <input type="text" className="form-input" value={job.company || ''} onChange={(e) => handleWorkExpChange(jIdx, 'company', e.target.value)} placeholder="如 Company Name" />
+                                <input type="text" className="form-input" value={job.company || ''} onChange={(e) => handleWorkExpChange(jIdx, 'company', e.target.value)} placeholder={t('candidates.drawer.placeholderWorkCompany', '如 Company Name')} />
                               </div>
                               <div>
                                 <label className="form-label" style={{ fontSize: '11px' }}>{t('extraUi.jobPositionLabel', '任职岗位')}</label>
-                                <input type="text" className="form-input" value={job.position || ''} onChange={(e) => handleWorkExpChange(jIdx, 'position', e.target.value)} placeholder="如 Position" />
+                                <input type="text" className="form-input" value={job.position || ''} onChange={(e) => handleWorkExpChange(jIdx, 'position', e.target.value)} placeholder={t('candidates.drawer.placeholderWorkPosition', '如 Position')} />
                               </div>
                               <div>
                                 <label className="form-label" style={{ fontSize: '11px' }}>{t('candidates.drawer.labelPeriod')}</label>

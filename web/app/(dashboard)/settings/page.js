@@ -19,7 +19,7 @@ import { authFetch } from '../../../lib/api-client';
 
 export default function SettingsPage() {
   const { teamId, user, isOwner, signInWithGoogleSheets } = useAuth();
-  const { showToast } = useFeedback();
+  const { showToast, confirm } = useFeedback();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
   const [importStatus, setImportStatus] = useState('');
@@ -269,7 +269,14 @@ function onEdit(e) {
   };
 
   const handleUnbindSheet = async () => {
-    if (!window.confirm('确定要解除当前 Google 表格的长期 Webhook 同步绑定吗？')) return;
+    const ok = await confirm(
+      t('sheetSync.confirmUnbindMsg', '确定要解除当前 Google 表格的长期 Webhook 同步绑定吗？'),
+      {
+        title: t('sheetSync.confirmUnbindTitle', '解除表格绑定'),
+        danger: true
+      }
+    );
+    if (!ok) return;
     try {
       await FirestoreStore.saveSheetSyncConfig(teamId, {
         isActive: false,

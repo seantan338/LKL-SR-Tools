@@ -45,7 +45,7 @@ function extractFilenameHints(filename) {
  * 将大模型提取出的简历原始 JSON 归一化为标准的候选人数据对象
  * 深度对齐 Sunrise 猎头全量画像（国籍、种族、现薪、期薪、到岗时间、离职原因履历等）
  */
-function normalizeExtractedCv(raw, filename = '', defaultPicName = '') {
+function normalizeExtractedCv(raw, filename = '', defaultPicName = '', isEn = false) {
   const parsedCv = raw.parsed_cv || {};
   const personal = parsedCv.personal_information || {};
   const prof = parsedCv.professional_history?.[0] || {};
@@ -86,12 +86,17 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '') {
   const allLanguages = Array.isArray(parsedCv.languages) ? parsedCv.languages : [];
   const workHistory = Array.isArray(parsedCv.professional_history) ? parsedCv.professional_history : [];
 
+  const skillsLabel = isEn ? '[Skills]: ' : '【技能专长】: ';
+  const langsLabel = isEn ? '[Languages]: ' : '【熟练语言】: ';
+  const salaryLabel = isEn ? '[Expected Salary]: ' : '【期望薪资】: ';
+  const availLabel = isEn ? '[Availability]: ' : '【到岗时间】: ';
+
   const notesParts = [
     raw.summary || '',
-    allSkills.length ? `【技能专长】: ${allSkills.join(', ')}` : '',
-    allLanguages.length ? `【熟练语言】: ${allLanguages.join(', ')}` : '',
-    personal.expected_salary ? `【期望薪资】: ${personal.expected_salary}` : '',
-    personal.availability ? `【到岗时间】: ${personal.availability}` : ''
+    allSkills.length ? `${skillsLabel}${allSkills.join(', ')}` : '',
+    allLanguages.length ? `${langsLabel}${allLanguages.join(', ')}` : '',
+    personal.expected_salary ? `${salaryLabel}${personal.expected_salary}` : '',
+    personal.availability ? `${availLabel}${personal.availability}` : ''
   ].filter(Boolean).join('\n');
 
   // 公司与职位推断：仅当文件名明确包含规范企业前缀时提取，普通简历绝不拿前雇主或 AI 揣测冒充意向客户
@@ -136,7 +141,7 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '') {
     picName: defaultPicName,
     stage: 'screening',
     status: 'active',
-    source: 'AI 简历解析导入',
+    source: isEn ? 'AI CV Parser Import' : 'AI 简历解析导入',
     rawResumeFilename: filename
   };
 }
@@ -144,7 +149,8 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '') {
 export default function CvImportModal({ isOpen, onClose, onSuccess }) {
   const { teamId, user, userProfile } = useAuth();
   const { showToast } = useFeedback();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   
   const [activeTab, setActiveTab] = useState('file'); // 'file' | 'text'
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -261,7 +267,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
               throw new Error(json?.message || `文件 ${file.name} 解析失败 (HTTP ${res.status})`);
             }
 
-            const candidate = normalizeExtractedCv(json.data || {}, file.name, defaultPicName);
+            const candidate = normalizeExtractedCv(json.data || {}, file.name, defaultPicName, isEn);
             results.push(candidate);
           } catch (fileErr) {
             console.warn(`解析文件 ${file.name} 错误:`, fileErr);
@@ -270,7 +276,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
               _id: Math.random().toString(36).substring(2, 9),
               name: file.name.replace(/\.[^/.]+$/, ""),
               company: '',
-              position: '待定',
+              position: isEn ? 'Pending' : '待定',
               phone: '',
               tags: [],
               parseFailed: true,
@@ -308,7 +314,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
           throw new Error(json?.message || `AI 文本简历解析失败 (HTTP ${res.status})`);
         }
 
-        const candidate = normalizeExtractedCv(json.data || {}, 'Pasted Text CV', defaultPicName);
+        const candidate = normalizeExtractedCv(json.data || {}, 'Pasted Text CV', defaultPicName, isEn);
         results.push(candidate);
       }
 
@@ -335,7 +341,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       : (item.languages || []);
 
     const payload = {
-      name: item.name?.trim() || '未命名候选人',
+      name: item.name?.trim() || (isEn ? 'Unnamed Candidate' : '未命名候选人'),
       phone: item.phone?.trim() || '',
       email: item.email?.trim() || '',
       location: item.location?.trim() || '',
@@ -350,7 +356,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       picName: item.picName?.trim() || defaultPicName,
       stage: item.stage || 'screening',
       status: item.status || 'active',
-      source: 'AI 简历解析导入',
+      source: isEn ? 'AI CV Parser Import' : 'AI 简历解析导入',
       
       // Sunrise CV 字段全量持久化
       nationality: item.nationality || 'Malaysian',
