@@ -37,7 +37,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
         <Script
           id="theme-initializer"

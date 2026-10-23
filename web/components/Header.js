@@ -68,6 +68,15 @@ const PAGE_TITLES = {
       '渠道效能统计：分析不同招聘渠道的投入产出与候选人质量'
     ]
   },
+  '/leaderboard': { 
+    title: 'Leaderboard', 
+    subtitle: '公司本部考勤与销售业绩数据排行',
+    docSlug: 'leaderboard',
+    helpGuide: [
+      '销售业绩排行：统计顾问成功入职、Offer 与面试等核心业务成单效能',
+      '考勤出勤排行：呈现出勤天数、出勤率及办公室与 WFH 出勤分布'
+    ]
+  },
   '/team': { 
     title: '团队与权限', 
     subtitle: '多用户团队协作与角色管理',

@@ -9,7 +9,7 @@ import { useI18n } from '../lib/i18n-context';
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { userProfile, signOut, isOwner } = useAuth();
+  const { userProfile, signOut, isOwner, isHqTeam } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const [theme, setTheme] = useState('dark');
 
@@ -58,6 +58,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     { path: '/pipeline', labelKey: 'nav.pipeline', fallback: '招聘看板', icon: 'ph-kanban' },
     { path: '/calendar', labelKey: 'nav.calendar', fallback: '面试日程', icon: 'ph-calendar-blank' },
     { path: '/analytics', labelKey: 'nav.analytics', fallback: '数据洞察', icon: 'ph-chart-pie-slice' },
+    { path: '/leaderboard', labelKey: 'nav.leaderboard', fallback: 'Leaderboard', icon: 'ph-trophy', hqOnly: true },
     // { path: '/whatsapp', labelKey: 'nav.whatsapp', fallback: 'WhatsApp 触达', icon: 'ph-whatsapp-logo' },
     { path: '/team', labelKey: 'nav.team', fallback: '团队与权限', icon: 'ph-users-three' },
     { path: '/feedback', labelKey: 'nav.feedback', fallback: '意见反馈', icon: 'ph-chat-circle-dots' },
@@ -65,6 +66,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
 
   const visibleNavItems = navItems.filter((item) => {
     if (item.ownerOnly && !isOwner) return false;
+    if (item.hqOnly && !isHqTeam) return false;
     return true;
   });
 

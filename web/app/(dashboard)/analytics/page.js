@@ -19,7 +19,8 @@ const getApiUrl = (path) => {
 
 export default function AnalyticsPage() {
   const router = useRouter();
-  const { teamId, role, isOwner, user, userProfile, isHqTeam } = useAuth();
+  const { teamId, role, isOwner, isManager, user, userProfile, isHqTeam } = useAuth();
+  const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
 
@@ -46,6 +47,7 @@ export default function AnalyticsPage() {
   // Attendance Rules & Settings Modal State
   const [attendanceRules, setAttendanceRules] = useState({
     enabled: true,
+    allowWfh: true,
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
@@ -58,6 +60,7 @@ export default function AnalyticsPage() {
   const [newIpInput, setNewIpInput] = useState('');
   const [pasteCoordsInput, setPasteCoordsInput] = useState('');
   const [coordsParseMsg, setCoordsParseMsg] = useState('');
+  const [coordsParseSuccess, setCoordsParseSuccess] = useState(false);
   const [isDetectingIp, setIsDetectingIp] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -132,6 +135,7 @@ export default function AnalyticsPage() {
       if (rules && typeof rules === 'object') {
         setAttendanceRules({
           enabled: rules.enabled ?? true,
+          allowWfh: rules.allowWfh ?? true,
           maxDistanceMeters: rules.maxDistanceMeters || 100,
           maxDriftCompensation: rules.maxDriftCompensation || 40,
           officeLocations: rules.officeLocations && rules.officeLocations.length > 0
@@ -523,15 +527,19 @@ export default function AnalyticsPage() {
     }
   };
 
-  const executeAttendanceCheckin = async (type = 'CLOCK_IN') => {
+  const executeAttendanceCheckin = async (type = 'CLOCK_IN', workMode = 'OFFICE') => {
     if (!teamId || !user) return;
+    if (workMode === 'WFH' && !canWfh) {
+      showToast(t('attendanceModal.errWfhUnauthorized', '您未获得居家办公 (WFH) 打卡权限，请在办公室打卡或联系管理员'), 'error');
+      return;
+    }
     setIsClockingIn(true);
-    setClockInStatusMsg(t('analytics.statusConnecting', '正在连接安全核验网关，校验 Wi-Fi 出口 IP...'));
+    setClockInStatusMsg(workMode === 'WFH' ? t('analytics.statusConnectingWfh', '正在提交居家办公 (WFH) 安全打卡...') : t('analytics.statusConnecting', '正在连接安全核验网关，校验 Wi-Fi 出口 IP...'));
 
     const picName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || t('analytics.defaultPicName', '顾问');
 
     try {
-      // Stage 1: Check Wi-Fi public IP (pass coords: null)
+      // Stage 1: Check Wi-Fi public IP / Stage 0 WFH check (pass coords: null)
       let stage1Res;
       try {
         const resp = await fetch(getApiUrl('/api/attendance/verify'), {
@@ -539,7 +547,11 @@ export default function AnalyticsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             teamId,
+            userId: user.uid,
+            userRole: userProfile?.role,
+            userWfhAllowed: canWfh,
             type,
+            workMode,
             rules: attendanceRules,
             coords: null
           })
@@ -551,12 +563,18 @@ export default function AnalyticsPage() {
 
       const r1 = stage1Res?.result;
 
-      // Case A: Rule disabled OR Stage 1 Wi-Fi IP verified!
+      // Case A: Rule disabled OR WFH passed OR Stage 1 Wi-Fi IP verified!
       if (r1?.passed) {
+        const isWfh = r1.verify_method === 'WFH';
         const isWifi = r1.verify_method === 'WIFI_IP';
+        const methodName = isWfh
+          ? t('analytics.methodWfh', '居家办公 (WFH)')
+          : isWifi
+            ? t('analytics.methodWifi', '公司 Wi-Fi')
+            : t('analytics.methodRuleDisabled', '规则未限制');
         const verifySnapshot = {
           method: r1.verify_method,
-          methodName: isWifi ? t('analytics.methodWifi', '公司 Wi-Fi') : t('analytics.methodRuleDisabled', '规则未限制'),
+          methodName,
           ip: r1.client_ip || r1.hit_ip || '',
           timestamp: new Date().toISOString()
         };
@@ -576,9 +594,11 @@ export default function AnalyticsPage() {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
         }
 
-        showToast(isWifi
-          ? (t('analytics.successWifiToast', '打卡成功！已连入公司 Wi-Fi（出口 IP: {ip}）')).replace('{ip}', r1.client_ip || '')
-          : t('analytics.checkinSuccess', '打卡成功！'));
+        showToast(isWfh
+          ? t('analytics.successWfhToast', '🏠 居家办公 (WFH) 打卡成功！')
+          : isWifi
+            ? (t('analytics.successWifiToast', '打卡成功！已连入公司 Wi-Fi（出口 IP: {ip}）')).replace('{ip}', r1.client_ip || '')
+            : t('analytics.checkinSuccess', '打卡成功！'));
         return;
       }
 
@@ -745,7 +765,8 @@ export default function AnalyticsPage() {
     const val = inputVal !== undefined ? inputVal : pasteCoordsInput;
     const parsed = parseGoogleMapsCoords(val);
     if (!parsed) {
-      setCoordsParseMsg('未能识别坐标格式，支持 1°26\'25.7"N 103°37\'04.5"E 或 1.440472, 103.617917');
+      setCoordsParseMsg(t('analytics.coordsUnrecognized', '未能识别坐标格式，支持 1°26\'25.7"N 103°37\'04.5"E 或 1.440472, 103.617917'));
+      setCoordsParseSuccess(false);
       setTimeout(() => setCoordsParseMsg(''), 4000);
       return false;
     }
@@ -765,7 +786,8 @@ export default function AnalyticsPage() {
       ...editingRules,
       officeLocations: updatedOffices
     });
-    setCoordsParseMsg(`已成功解析并应用坐标：纬度 ${parsed.lat}，经度 ${parsed.lng}`);
+    setCoordsParseMsg(t('analytics.coordsApplied', { lat: parsed.lat, lng: parsed.lng }, `已成功解析并应用坐标：纬度 ${parsed.lat}，经度 ${parsed.lng}`));
+    setCoordsParseSuccess(true);
     setPasteCoordsInput('');
     setTimeout(() => setCoordsParseMsg(''), 4000);
     return true;
@@ -957,6 +979,18 @@ export default function AnalyticsPage() {
               <i className="ph-bold ph-sign-in"></i>
               {isClockingIn ? t('analytics.clockInVerifying', '核验中...') : t('analytics.clockInBtn', '上班签到')}
             </button>
+            {attendanceRules.allowWfh !== false && canWfh && (
+              <button
+                className="btn btn-sm btn-outline"
+                style={{ border: '1px solid #c084fc', color: '#c084fc', background: 'rgba(168, 85, 247, 0.1)', gap: '5px', fontWeight: '600' }}
+                disabled={isClockingIn}
+                onClick={() => executeAttendanceCheckin('CLOCK_IN', 'WFH')}
+                title={t('analytics.wfhClockInTitle', '居家办公 (WFH) 远程打卡（无需 100 米地理围栏）')}
+              >
+                <i className="ph-bold ph-house-line"></i>
+                {t('analytics.wfhClockInBtn', 'WFH 签到')}
+              </button>
+            )}
             <button
               className="btn btn-sm btn-outline"
               style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px', fontWeight: '600' }}
@@ -1337,7 +1371,23 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              {item.verifyMethod === 'WIFI_IP' ? (
+                              {item.verifyMethod === 'WFH' ? (
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: '#c084fc',
+                                  background: 'rgba(168, 85, 247, 0.15)',
+                                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }} title={item.verifySnapshot?.wfhNote || `IP: ${item.verifySnapshot?.ip || 'Remote'}`}>
+                                  <i className="ph-bold ph-house-line"></i>
+                                  {t('analytics.methodWfh', '居家办公 (WFH)')}
+                                </span>
+                              ) : item.verifyMethod === 'WIFI_IP' ? (
                                 <span style={{
                                   padding: '2px 8px',
                                   borderRadius: '4px',
@@ -1536,6 +1586,36 @@ export default function AnalyticsPage() {
                 </label>
               </div>
 
+              {/* Allow WFH Check-in Switch */}
+              <div style={{ background: 'rgba(168, 85, 247, 0.06)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(168, 85, 247, 0.25)', marginBottom: 'var(--space-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px' }}>
+                    {t('analytics.wfhSwitchTitle', '允许居家办公 (WFH) 专属打卡')}
+                  </div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    {t('analytics.wfhSwitchDesc', '开启后员工可在打卡时选择「居家办公 (WFH)」模式，免除 100 米地理围栏限制并单独标记为 WFH 考勤')}
+                  </div>
+                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '24px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingRules.allowWfh !== false}
+                    onChange={(e) => setEditingRules({ ...editingRules, allowWfh: e.target.checked })}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    background: editingRules.allowWfh !== false ? '#a855f7' : 'rgba(255,255,255,0.15)',
+                    borderRadius: '24px', transition: '0.3s'
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: '""', height: '18px', width: '18px', left: editingRules.allowWfh !== false ? '26px' : '3px', bottom: '3px',
+                      background: '#fff', borderRadius: '50%', transition: '0.3s'
+                    }}></span>
+                  </span>
+                </label>
+              </div>
+
               {/* Section 1: Office Location & Geofence */}
               <div style={{ marginBottom: 'var(--space-6)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
@@ -1580,7 +1660,7 @@ export default function AnalyticsPage() {
                       type="text"
                       className="input"
                       style={{ flex: 1, height: '32px', fontSize: '12px', fontFamily: 'monospace' }}
-                      placeholder="支持度分秒 (1°26'25.7&quot;N 103°37'04.5&quot;E) 或十进制 (1.440472, 103.617917)"
+                      placeholder={t('analytics.coordsPlaceholder', '支持度分秒 (1°26\'25.7"N 103°37\'04.5"E) 或十进制 (1.440472, 103.617917)')}
                       value={pasteCoordsInput}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1597,11 +1677,11 @@ export default function AnalyticsPage() {
                       style={{ height: '32px', fontSize: '12px' }}
                       onClick={() => handleApplyPastedCoords()}
                     >
-                      解析应用
+                      {t('analytics.applyCoordsBtn', '解析应用')}
                     </button>
                   </div>
                   {coordsParseMsg && (
-                    <div style={{ fontSize: '11px', color: coordsParseMsg.startsWith('已成功') ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: coordsParseSuccess ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
                       {coordsParseMsg}
                     </div>
                   )}
@@ -1683,16 +1763,27 @@ export default function AnalyticsPage() {
                   <input
                     type="range"
                     min="50"
-                    max="500"
+                    max="1000"
                     step="10"
                     value={editingRules.maxDistanceMeters || 100}
-                    onChange={(e) => setEditingRules({ ...editingRules, maxDistanceMeters: parseInt(e.target.value) })}
+                    onChange={(e) => {
+                      const newRadius = parseInt(e.target.value, 10);
+                      const updatedLocs = (editingRules.officeLocations || []).map((loc, idx) =>
+                        idx === 0 ? { ...loc, radiusMeters: newRadius } : loc
+                      );
+                      setEditingRules({
+                        ...editingRules,
+                        maxDistanceMeters: newRadius,
+                        officeLocations: updatedLocs
+                      });
+                    }}
                     style={{ width: '100%', accentColor: 'var(--accent-blue)' }}
                   />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
                     <span>{t('analytics.radiusMark50', '50米 (极高严密)')}</span>
-                    <span>{t('analytics.radiusMark100', '100米 (企业标准推荐)')}</span>
-                    <span>{t('analytics.radiusMark500', '500米 (宽松园区)')}</span>
+                    <span>{t('analytics.radiusMark100', '100米 (企业推荐)')}</span>
+                    <span>{t('analytics.radiusMark500', '500米 (园区)')}</span>
+                    <span>{t('analytics.radiusMark1000', '1000米 (宽域)')}</span>
                   </div>
                 </div>
 
