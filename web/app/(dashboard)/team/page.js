@@ -138,9 +138,10 @@ export default function TeamPage() {
     setIsSavingMember(true);
     try {
       const isRoleAdmin = editForm.role === 'owner' || editForm.role === 'manager';
+      const roleToSave = (editingMember.id === userProfile?.uid && editingMember.role === 'owner') ? 'owner' : editForm.role;
       await updateDoc(doc(db, 'users', editingMember.id), {
         displayName: editForm.displayName.trim(),
-        role: editForm.role,
+        role: roleToSave,
         teamId: editForm.teamId,
         allowWfhPunch: isRoleAdmin ? true : Boolean(editForm.allowWfhPunch)
       });
@@ -646,27 +647,27 @@ export default function TeamPage() {
                           </span>
                         )}
                         
-                        {isOwner && member.id !== userProfile?.uid && (
-                          <>
-                            <button 
-                              className="btn btn-sm btn-secondary" 
-                              style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
-                              title={t('team.editMemberTitle', '编辑成员信息与权限')}
-                              onClick={() => openEditMemberModal(member)}
-                            >
-                              <i className="ph-light ph-note-pencil" style={{ fontSize: '13px' }}></i>
-                              <span>{t('team.editMemberBtn', '编辑')}</span>
-                            </button>
+                        {isOwner && (
+                          <button 
+                            className="btn btn-sm btn-secondary" 
+                            style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                            title={t('team.editMemberTitle', '编辑成员信息与权限')}
+                            onClick={() => openEditMemberModal(member)}
+                          >
+                            <i className="ph-light ph-note-pencil" style={{ fontSize: '13px' }}></i>
+                            <span>{t('team.editMemberBtn', '编辑')}</span>
+                          </button>
+                        )}
 
-                            <button 
-                              className="btn btn-sm btn-secondary" 
-                              style={{ color: 'var(--accent-rose)', padding: '4px 8px' }}
-                              title={t('team.removeMember', '移出团队')}
-                              onClick={() => handleReject(member.id)}
-                            >
-                              <i className="ph-light ph-trash"></i>
-                            </button>
-                          </>
+                        {isOwner && member.id !== userProfile?.uid && (
+                          <button 
+                            className="btn btn-sm btn-secondary" 
+                            style={{ color: 'var(--accent-rose)', padding: '4px 8px' }}
+                            title={t('team.removeMember', '移出团队')}
+                            onClick={() => handleReject(member.id)}
+                          >
+                            <i className="ph-light ph-trash"></i>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -998,6 +999,7 @@ export default function TeamPage() {
                   </label>
                   <select
                     value={editForm.role}
+                    disabled={editingMember.id === userProfile?.uid}
                     onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value }))}
                     style={{
                       width: '100%',
@@ -1005,16 +1007,21 @@ export default function TeamPage() {
                       background: 'var(--input-bg)',
                       border: '1px solid var(--border-interactive)',
                       borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-primary)',
+                      color: (editingMember.id === userProfile?.uid) ? 'var(--text-muted)' : 'var(--text-primary)',
                       fontSize: 'var(--text-sm)',
                       outline: 'none',
-                      cursor: 'pointer'
+                      cursor: (editingMember.id === userProfile?.uid) ? 'not-allowed' : 'pointer'
                     }}
                   >
                     <option value="owner">{t('team.ownerOpt', 'Owner (所有者)')}</option>
                     <option value="manager">{t('team.managerOpt', 'Manager (管理员)')}</option>
                     <option value="recruiter">{t('team.recruiterOpt', 'Recruiter (招聘员)')}</option>
                   </select>
+                  {editingMember.id === userProfile?.uid && (
+                    <span style={{ fontSize: '11px', color: 'var(--accent-amber)', marginTop: '4px', display: 'block' }}>
+                      {isEn ? 'Cannot modify your own Owner role to prevent accidental lockout.' : '为防止误操作失去系统管理权限，不可修改自身账号的 Owner 角色。'}
+                    </span>
+                  )}
                 </div>
 
                 {/* WFH Check-in Permission Toggle */}
