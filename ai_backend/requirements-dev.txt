@@ -1,0 +1,4 @@
+# 开发 / 测试依赖：pip install -r requirements-dev.txt，然后运行 python -m pytest tests
+-r requirements.txt
+pytest
+pytest-asyncio
