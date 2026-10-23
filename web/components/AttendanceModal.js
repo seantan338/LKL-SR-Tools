@@ -250,7 +250,11 @@ export default function AttendanceModal() {
   const handlePunch = async (punchType = 'CLOCK_IN') => {
     if (!teamId || !user) return;
     setIsVerifying(true);
-    setStatusMessage(t('attendanceModal.statusDetecting', '正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...'));
+    setStatusMessage(
+      workMode === 'WFH'
+        ? t('attendanceModal.statusConnectingWfh', '正在提交居家办公 (WFH) 安全打卡...')
+        : t('attendanceModal.statusDetecting', '正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...')
+    );
 
     const picName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || t('analytics.defaultPicName', '顾问');
 
@@ -860,7 +864,7 @@ export default function AttendanceModal() {
                 <span style={{ lineHeight: 1.4 }}>{statusMessage}</span>
               </div>
 
-              {appleHelpMsg && (
+              {appleHelpMsg && workMode !== 'WFH' && (
                 <div style={{
                   background: 'rgba(234, 179, 8, 0.12)',
                   border: '1px solid rgba(234, 179, 8, 0.35)',
@@ -877,7 +881,7 @@ export default function AttendanceModal() {
                 </div>
               )}
 
-              {!isVerifying && isOwner && detectedIp && (
+              {!isVerifying && isOwner && detectedIp && workMode !== 'WFH' && (
                 <button
                   type="button"
                   className="btn btn-outline"
