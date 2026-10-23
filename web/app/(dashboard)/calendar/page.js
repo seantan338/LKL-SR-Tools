@@ -13,7 +13,8 @@ import { db } from '../../../lib/firebase';
 export default function CalendarPage() {
   const { teamId, role, user, userProfile } = useAuth();
   const { candidates, candidatesLoading: loading } = useNotifications();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
@@ -106,22 +107,24 @@ export default function CalendarPage() {
     const dateStr = parsed.dateStr !== '-' ? parsed.dateStr : (c.parsedDate && c.parsedDate !== '-' ? c.parsedDate : Utils.formatDate(new Date()));
     const timeStr = parsed.timeStr || c.parsedTime || '10:00';
 
+    const notProvided = isEn ? 'Not provided' : '未提供';
+    const notSpecified = isEn ? 'Not specified' : '未指定';
     const details = [
-      `候选人：${c.name || '未提供'}`,
-      `联系电话：${c.phone || '未提供'}`,
-      `电子邮箱：${c.email || '未提供'}`,
-      `应聘企业：${c.company || '未指定'}`,
-      `应聘岗位：${c.position || '未指定'}${c.department ? ` (${c.department})` : ''}`,
-      `薪资待遇：${c.salary || c.offered || '未指定'}`,
-      `面试地点：${c.interviewLocation || c.location || '未指定'}`,
-      `经办顾问：${c.picName || '未指定'}`,
-      `出席状态：${c.interviewStatus || c.normalizedStatus || '待出席'}`,
-      c.remarks ? `出席说明：${c.remarks}` : '',
-      c.interviewNotes ? `面评备注：${c.interviewNotes}` : ''
+      `${isEn ? 'Candidate: ' : '候选人：'}${c.name || notProvided}`,
+      `${isEn ? 'Phone: ' : '联系电话：'}${c.phone || notProvided}`,
+      `${isEn ? 'Email: ' : '电子邮箱：'}${c.email || notProvided}`,
+      `${isEn ? 'Company: ' : '应聘企业：'}${c.company || notSpecified}`,
+      `${isEn ? 'Position: ' : '应聘岗位：'}${c.position || notSpecified}${c.department ? ` (${c.department})` : ''}`,
+      `${isEn ? 'Salary/Offered: ' : '薪资待遇：'}${c.salary || c.offered || notSpecified}`,
+      `${isEn ? 'Location: ' : '面试地点：'}${c.interviewLocation || c.location || notSpecified}`,
+      `${isEn ? 'PIC: ' : '经办顾问：'}${c.picName || notSpecified}`,
+      `${isEn ? 'Attendance Status: ' : '出席状态：'}${c.interviewStatus || c.normalizedStatus || (isEn ? 'Pending' : '待出席')}`,
+      c.remarks ? `${isEn ? 'Remarks: ' : '出席说明：'}${c.remarks}` : '',
+      c.interviewNotes ? `${isEn ? 'Notes: ' : '面评备注：'}${c.interviewNotes}` : ''
     ].filter(Boolean).join('\n');
 
     Utils.openGoogleCalendar({
-      title: `面试：${c.name} - ${c.position || '岗位'} (${c.company || '用人企业'})`,
+      title: `${isEn ? 'Interview: ' : '面试：'}${c.name || (isEn ? 'Candidate' : '候选人')} - ${c.position || (isEn ? 'Role' : '岗位')} (${c.company || (isEn ? 'Company' : '用人企业')})`,
       date: dateStr,
       time: timeStr,
       durationMinutes: 60,

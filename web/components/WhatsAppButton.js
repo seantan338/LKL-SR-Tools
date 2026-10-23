@@ -1,5 +1,6 @@
 import React from 'react';
 import { getWhatsAppUrl, normalizeToWhatsApp } from '../lib/whatsapp';
+import { useI18n } from '../lib/i18n-context';
 
 export default function WhatsAppButton({ 
   phone, 
@@ -8,6 +9,7 @@ export default function WhatsAppButton({
   style = {},
   className = ''
 }) {
+  const { t } = useI18n();
   const url = getWhatsAppUrl(phone, { name: candidateName });
   const isValid = !!normalizeToWhatsApp(phone);
 
@@ -23,7 +25,7 @@ export default function WhatsAppButton({
     return (
       <span 
         onClick={handleClick}
-        title={isValid ? '在 WhatsApp 中发起对话' : '无效的电话号码'}
+        title={isValid ? t('extraUi.whatsappStartChat', '在 WhatsApp 中发起对话') : t('extraUi.whatsappInvalidPhone', '无效的电话号码')}
         style={{ 
           cursor: isValid ? 'pointer' : 'not-allowed', 
           display: 'inline-flex', 
@@ -74,7 +76,7 @@ export default function WhatsAppButton({
         }}
       >
         <i className="ph ph-whatsapp-logo" style={{ fontSize: '1rem' }}></i>
-        WhatsApp 联系
+        {t('extraUi.whatsappContact', 'WhatsApp 联系')}
       </button>
     );
   }
@@ -85,7 +87,7 @@ export default function WhatsAppButton({
       type="button"
       onClick={handleClick}
       disabled={!isValid}
-      title={isValid ? '在 WhatsApp 中发起对话' : '无效的电话号码'}
+      title={isValid ? t('extraUi.whatsappStartChat', '在 WhatsApp 中发起对话') : t('extraUi.whatsappInvalidPhone', '无效的电话号码')}
       className={className}
       style={{
         display: 'inline-flex',

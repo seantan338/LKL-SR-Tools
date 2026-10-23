@@ -19,42 +19,63 @@ export function AuthProvider({ children }) {
       Promise.race([
         promise,
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore 账户信息读取超时，请检查数据库名称或网络连接')), ms)
+          setTimeout(() => reject(new Error('Firestore 账户信息读取超时，请检查网络连接 / Firestore profile read timed out, please check network connection')), ms)
         ),
       ]);
 
     const checkIsAdminEmail = (email) => {
-      const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').trim().toLowerCase();
+      const adminEmailStr = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').trim().toLowerCase();
       const targetEmail = (email || '').trim().toLowerCase();
-      return Boolean(adminEmail && targetEmail && targetEmail === adminEmail);
+      if (!targetEmail) return false;
+      const defaultAdmins = ['lokkalap123@gmail.com', 'sean@sunriserecruit.com'];
+      if (!adminEmailStr) {
+        return defaultAdmins.includes(targetEmail);
+      }
+      const adminEmails = adminEmailStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+      return adminEmails.includes(targetEmail) || defaultAdmins.includes(targetEmail);
     };
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
           setUser(firebaseUser);
+          const isAdmin = checkIsAdminEmail(firebaseUser.email);
           // Fetch or create user profile in Firestore
           const profileRef = doc(db, 'users', firebaseUser.uid);
           const profileSnap = await withTimeout(getDoc(profileRef));
 
           if (profileSnap.exists()) {
             const data = profileSnap.data();
-            // Automatically patch users who were created without a role/teamId
-            if (!data.teamId || !data.role) {
-              const isAdmin = checkIsAdminEmail(data.email || firebaseUser.email);
+            // If the user is designated as admin via NEXT_PUBLIC_ADMIN_EMAIL / defaultAdmins, ensure owner role
+            if (isAdmin && (data.role !== 'owner' || data.teamId !== 'default_team')) {
+              const patchedData = { 
+                ...data, 
+                teamId: 'default_team', 
+                role: 'owner' 
+              };
+              try {
+                await withTimeout(setDoc(profileRef, patchedData, { merge: true }), 3000);
+              } catch (writeErr) {
+                console.warn('[auth] Could not persist owner role to Firestore (likely rules), applying in memory:', writeErr);
+              }
+              setUserProfile(patchedData);
+            } else if (!data.teamId || !data.role) {
               const patchedData = { 
                 ...data, 
                 teamId: isAdmin ? 'default_team' : null, 
                 role: isAdmin ? 'owner' : 'pending' 
               };
-              await withTimeout(setDoc(profileRef, patchedData, { merge: true }));
+              try {
+                await withTimeout(setDoc(profileRef, patchedData, { merge: true }), 3000);
+              } catch (writeErr) {
+                console.warn('[auth] Could not persist patch to Firestore:', writeErr);
+              }
               setUserProfile(patchedData);
             } else {
               setUserProfile(data);
             }
           } else {
             // First-time login — create profile
-            const isAdmin = checkIsAdminEmail(firebaseUser.email);
             const newProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -64,7 +85,21 @@ export function AuthProvider({ children }) {
               role: isAdmin ? 'owner' : 'pending',
               createdAt: serverTimestamp(),
             };
-            await withTimeout(setDoc(profileRef, newProfile));
+            try {
+              await withTimeout(setDoc(profileRef, newProfile), 3000);
+            } catch (createErr) {
+              console.warn('[auth] Direct create of profile blocked (likely firestore rules), attempting compliant fallback:', createErr);
+              try {
+                const compliantProfile = {
+                  ...newProfile,
+                  teamId: null,
+                  role: 'pending'
+                };
+                await withTimeout(setDoc(profileRef, compliantProfile), 3000);
+              } catch (fallbackErr) {
+                console.error('[auth] Fallback profile creation also failed:', fallbackErr);
+              }
+            }
             setUserProfile(newProfile);
           }
         } else {

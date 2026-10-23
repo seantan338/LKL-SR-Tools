@@ -33,7 +33,7 @@ async def match_candidates_for_order(order: dict, filters: dict = None, top_k: i
         # 向量库所有团队共用一个 collection，必须按团队隔离
         where_filter["teamId"] = team_id
         if not collection.get(where={"teamId": team_id}, limit=1).get("ids"):
-            raise ValueError("向量库中还没有本团队的候选人，请先在「招聘订单」页点击「同步向量库」")
+            raise ValueError("向量库中还没有本团队的候选人，请先点击「同步向量库」 / No candidates in vector DB for this team, please click 'Sync Vector DB' first")
 
     if filters:
         if filters.get("location"):
@@ -99,7 +99,7 @@ async def match_candidates_for_order(order: dict, filters: dict = None, top_k: i
         matches = safe_json_parse(result_text, '[', ']')
     except ValueError as e:
         logger.error(f"Failed to parse LLM match response: {e}\nResponse: {result_text}")
-        raise ValueError("AI 精排结果解析失败，请重试")
+        raise ValueError("AI 精排结果解析失败，请重试 / Failed to parse AI reranking results, please retry")
 
     if isinstance(matches, dict) and "matches" in matches:
         matches = matches["matches"]

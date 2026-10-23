@@ -277,8 +277,9 @@ export function NotificationProvider({ children }) {
       // Sound chime
       playReminderChime();
 
-      // Trigger WhatsApp Bot notification for each due reminder (if the user has bound their phone)
-      if (userProfile?.whatsappNumber) {
+      // Trigger WhatsApp Bot notification only when NEXT_PUBLIC_WA_BOT_URL is explicitly configured (WhatsApp module is currently ON HOLD)
+      const waBotBaseUrl = (process.env.NEXT_PUBLIC_WA_BOT_URL || '').trim().replace(/\/$/, '');
+      if (waBotBaseUrl && userProfile?.whatsappNumber) {
         newlyDue.forEach(notif => {
           let msgBody = '*Talent Flow 跟进提醒*\n\n*候选人:* {{候选人名字}}\n*提醒内容:* {{提醒内容}}\n*时间:* {{时间}}';
           if (userProfile.waReminderTemplate) {
@@ -289,7 +290,7 @@ export function NotificationProvider({ children }) {
                            .replace(/\{\{提醒内容\}\}/g, notif.content || '')
                            .replace(/\{\{时间\}\}/g, `${notif.date || ''} ${notif.time || ''}`.trim());
 
-          fetch('http://localhost:8002/api/send-whatsapp', {
+          fetch(`${waBotBaseUrl}/api/send-whatsapp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

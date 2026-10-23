@@ -6,16 +6,7 @@ import { useFeedback } from '../../../lib/feedback-context';
 import { useI18n } from '../../../lib/i18n-context';
 import { FirestoreStore } from '../../../lib/firestore-store';
 import { SystemLogger } from '../../../lib/logger';
-
-// Helper for direct backend communication (bypasses Next.js Turbopack proxy timeout & multipart drops)
-const getAiBackendUrl = (path) => {
-  const custom = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-  if (custom) return `${custom}${path}`;
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return `http://localhost:8000${path}`;
-  }
-  return path;
-};
+import { authFetch, getAiBackendUrl } from '../../../lib/api-client';
 
 export default function CvAutofillPage() {
   const { teamId, user, userProfile } = useAuth();
@@ -105,7 +96,7 @@ export default function CvAutofillPage() {
         }
         const formDataPayload = new FormData();
         formDataPayload.append('file', aiFile);
-        res = await fetch(getAiBackendUrl('/api/parse/file/cv'), {
+        res = await authFetch('/api/parse/file/cv', {
           method: 'POST',
           body: formDataPayload
         });
@@ -115,7 +106,7 @@ export default function CvAutofillPage() {
           setIsAiParsing(false);
           return;
         }
-        res = await fetch(getAiBackendUrl('/api/parse/cv'), {
+        res = await authFetch('/api/parse/cv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: aiText })
@@ -128,11 +119,11 @@ export default function CvAutofillPage() {
         json = await res.json().catch(() => null);
       } else {
         const textErr = await res.text().catch(() => '');
-        throw new Error(`AI 微服务响应异常 (HTTP ${res.status}): ${textErr.slice(0, 160) || '服务器未返回有效内容，请稍后重试'}`);
+        throw new Error(t('extraUi.aiServiceHttpError', { status: res.status, detail: textErr.slice(0, 160) || t('extraUi.noValidResult', '未返回有效结果') }, `AI 服务异常 (HTTP ${res.status})`));
       }
 
       if (!res.ok || !json || json.status === 'error') {
-        throw new Error(json?.message || `AI 解析失败 (HTTP ${res.status})，请重试`);
+        throw new Error(json?.message || t('extraUi.aiServiceHttpError', { status: res.status, detail: 'Failed' }, `AI 解析失败 (HTTP ${res.status})`));
       }
 
       const raw = json.data?.parsed_cv || {};
@@ -693,7 +684,7 @@ export default function CvAutofillPage() {
         }
       };
 
-      const res = await fetch(getAiBackendUrl('/api/export/cv-docx'), {
+      const res = await authFetch('/api/export/cv-docx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parsed_data: docxPayload })
@@ -701,12 +692,12 @@ export default function CvAutofillPage() {
       
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        let errMsg = '导出失败，请检查网络或后端服务';
+        let errMsg = t('extraUi.exportFailedNetwork', '导出失败，请检查网络或后端服务');
         try {
           const parsed = JSON.parse(text);
           if (parsed?.message) errMsg = parsed.message;
         } catch (_) {
-          if (text) errMsg = `导出异常 (HTTP ${res.status}): ${text.slice(0, 150)}`;
+          if (text) errMsg = t('extraUi.exportErrorHttp', { status: res.status, detail: text.slice(0, 150) }, `导出异常 (HTTP ${res.status}): ${text.slice(0, 150)}`);
         }
         throw new Error(errMsg);
       }

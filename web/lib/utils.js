@@ -38,6 +38,64 @@ export const Utils = {
   },
 
   /**
+   * Normalize candidate notes to a clean string, safely handling both String and legacy Array formats.
+   */
+  normalizeCandidateNotes(notes) {
+    if (!notes) return '';
+    if (typeof notes === 'string') return notes.trim();
+    if (Array.isArray(notes)) {
+      return notes
+        .map(item => {
+          if (!item) return '';
+          if (typeof item === 'string') return item.trim();
+          if (typeof item === 'object') {
+            const content = String(item.content || item.note || '').trim();
+            if (!content) return '';
+            const author = item.author ? `${String(item.author).trim()}: ` : '';
+            const datePrefix = item.createdAt ? `[${String(item.createdAt).slice(0, 16).replace('T', ' ')}] ` : '';
+            return `${datePrefix}${author}${content}`;
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+    return String(notes).trim();
+  },
+
+  /**
+   * Normalize phone number to its core digits (stripping non-digits and leading MY '60' or '0' prefix).
+   */
+  normalizePhoneCore(phone) {
+    if (!phone) return '';
+    const clean = String(phone).replace(/\D/g, '');
+    if (!clean || clean.length < 7) return '';
+    if (clean.startsWith('60') && clean.length >= 9) return clean.slice(2);
+    if (clean.startsWith('0') && clean.length >= 8) return clean.slice(1);
+    return clean;
+  },
+
+  /**
+   * Generate common phone format variants for Firestore 'in' queries (max 10 items).
+   */
+  getPhoneVariants(phone) {
+    if (!phone) return [];
+    const rawTrimmed = String(phone).trim();
+    const clean = rawTrimmed.replace(/\D/g, '');
+    const core = this.normalizePhoneCore(clean);
+    const variants = new Set();
+    if (rawTrimmed) variants.add(rawTrimmed);
+    if (clean) variants.add(clean);
+    if (core && core.length >= 7) {
+      variants.add(core);
+      variants.add(`0${core}`);
+      variants.add(`60${core}`);
+      variants.add(`+60${core}`);
+    }
+    return Array.from(variants).filter(Boolean).slice(0, 10);
+  },
+
+  /**
    * Robust parser for interview dates and times from tables/inputs.
    * Handles DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, times like 10am, 2:30pm, 14:00, weekdays etc.
    * Returns { dateStr: 'YYYY-MM-DD' | '-', timeStr: 'HH:mm' | '' }
@@ -514,14 +572,14 @@ export const Utils = {
       } else if (rawInput && typeof rawInput === 'object') {
         parsed = rawInput;
       } else {
-        return { valid: false, error: '无效的数据格式', candidates: [], jobOrders: [], sanitizedCount: 0 };
+        return { valid: false, error: '无效的数据格式 / Invalid data format', candidates: [], jobOrders: [], sanitizedCount: 0 };
       }
     } catch (e) {
-      return { valid: false, error: 'JSON 解析错误: ' + e.message, candidates: [], jobOrders: [], sanitizedCount: 0 };
+      return { valid: false, error: 'JSON 解析错误 / JSON parse error: ' + e.message, candidates: [], jobOrders: [], sanitizedCount: 0 };
     }
 
     if (!parsed || typeof parsed !== 'object') {
-      return { valid: false, error: '数据必须为有效的 JSON 对象或数组', candidates: [], jobOrders: [], sanitizedCount: 0 };
+      return { valid: false, error: '数据必须为有效的 JSON 对象或数组 / Data must be a valid JSON object or array', candidates: [], jobOrders: [], sanitizedCount: 0 };
     }
 
     let rawCandidates = [];
@@ -556,7 +614,7 @@ export const Utils = {
             sanitizedCount,
             hasPollutionAttempt: true,
             isPureProbe: true,
-            message: '🛡️ 第一层安全防御已生效：已成功拦截并清除原型链污染攻击，未检测到有效候选人数据。系统安全无污染。'
+            message: '🛡️ 第一层安全防御已生效：已拦截并清除原型链污染攻击，未检测到有效候选人数据 / Security Layer 1 active: Prototype pollution blocked, no valid candidate records found.'
           };
         } else if (nonProtoKeys.length > 0) {
           // Single candidate object, auto-wrap
@@ -578,10 +636,10 @@ export const Utils = {
           sanitizedCount,
           hasPollutionAttempt: true,
           isPureProbe: true,
-          message: '🛡️ 第一层安全防御已生效：已成功拦截并清除原型链污染攻击，系统安全无污染。'
+          message: '🛡️ 第一层安全防御已生效：已拦截并清除原型链污染攻击，系统安全无污染 / Security Layer 1 active: Prototype pollution blocked, system is clean.'
         };
       }
-      return { valid: false, error: '未找到候选人记录（支持标准备份对象或直接数组 [...]）', candidates: [], jobOrders: [], sanitizedCount: 0 };
+      return { valid: false, error: '未找到候选人记录（支持标准备份对象或直接数组 [...]） / No candidate records found (supports backup object or array [...])', candidates: [], jobOrders: [], sanitizedCount: 0 };
     }
 
     const cleanCandidates = [];
@@ -684,18 +742,8 @@ export const Utils = {
           }).filter(Boolean)
         : [];
 
-      // Notes list sanitizer
-      pure.notes = Array.isArray(raw.notes)
-        ? raw.notes.slice(0, 200).map(n => {
-            if (!n || typeof n !== 'object') return null;
-            const nPure = Object.create(null);
-            nPure.id = typeof n.id === 'string' ? n.id : this.generateId();
-            nPure.author = safeStr(n.author, 50);
-            nPure.content = safeStr(n.content, 1000);
-            nPure.createdAt = safeStr(n.createdAt, 40) || new Date().toISOString();
-            return Object.assign({}, nPure);
-          }).filter(Boolean)
-        : [];
+      // Notes sanitizer (compatible with both String and legacy Array)
+      pure.notes = safeStr(this.normalizeCandidateNotes(raw.notes), 5000);
 
       // Stage history sanitizer
       pure.stageHistory = Array.isArray(raw.stageHistory)

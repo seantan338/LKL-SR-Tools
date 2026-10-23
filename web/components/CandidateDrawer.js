@@ -12,6 +12,7 @@ import { SystemLogger } from '../lib/logger';
 import WhatsAppButton from './WhatsAppButton';
 import { useI18n } from '../lib/i18n-context';
 import { resolveCanonicalPic } from '../lib/identity.mjs';
+import { authFetch } from '../lib/api-client';
 import {
   buildInterviewReminder,
   isIsoDate,
@@ -44,14 +45,6 @@ const scrollToInterviewSection = (sectionRef, inputRef) => setTimeout(() => {
   inputRef.current?.focus({ preventScroll: true });
 }, 350);
 
-const getAiBackendUrl = (path) => {
-  const custom = process.env.NEXT_PUBLIC_PYTHON_API_URL;
-  if (custom) return `${custom}${path}`;
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return `http://localhost:8000${path}`;
-  }
-  return path;
-};
 
 const getInitialCandidateFormData = () => ({
   name: '', phone: '', email: '', school: '', major: '', 
@@ -214,7 +207,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         }
         const formDataPayload = new FormData();
         formDataPayload.append('file', aiFile);
-        res = await fetch(getAiBackendUrl('/api/parse/file/cv'), {
+        res = await authFetch('/api/parse/file/cv', {
           method: 'POST',
           body: formDataPayload
         });
@@ -224,7 +217,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
           setIsAiParsing(false);
           return;
         }
-        res = await fetch(getAiBackendUrl('/api/parse/cv'), {
+        res = await authFetch('/api/parse/cv', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: aiText })
@@ -237,7 +230,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         json = await res.json().catch(() => null);
       } else {
         const textErr = await res.text().catch(() => '');
-        throw new Error(`AI 服务异常 (HTTP ${res.status}): ${textErr.slice(0, 150) || '未返回有效结果'}`);
+        throw new Error(t('extraUi.aiServiceHttpError', { status: res.status, detail: textErr.slice(0, 150) || t('extraUi.noValidResult', '未返回有效结果') }, `AI 服务异常 (HTTP ${res.status})`));
       }
 
       if (!res.ok || !json || json.status === 'error') {
@@ -479,7 +472,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
           SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', formData.name, {
             actionDetail: `抽屉录入检测到同电话候选人 (${formData.phone})，已自动合并更新档案并追加重新投递记录`
           });
-          showToast(`🎉 检测到已存在同电话候选人 (${formData.phone})，已智能合并档案并追加重投记录！`);
+          showToast(t('extraUi.duplicatePhoneMergedToast', { phone: formData.phone }, `🎉 检测到已存在同电话候选人 (${formData.phone})，已智能合并档案并追加重投记录！`));
         } else {
           SystemLogger.audit(teamId, user, 'CREATE', 'CANDIDATE', formData.name);
           showToast(t('candidates.drawer.saveSuccess', '候选人录入成功'));
@@ -1354,11 +1347,11 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           type="button" 
                           className="btn btn-secondary btn-sm" 
                           onClick={() => setIsCustomPic(false)}
-                          title="从在册团队成员中选择"
+                          title={t('extraUi.selectFromTeamTip', '从在册团队成员中选择')}
                           style={{ padding: '0 10px', whiteSpace: 'nowrap', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
                           <i className="ph-bold ph-list"></i>
-                          <span>列表</span>
+                          <span>{t('extraUi.listShort', '列表')}</span>
                         </button>
                       </div>
                     ) : (
@@ -1391,10 +1384,10 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           })}
                           {formData.picName && !teamMembers.some(m => (m.displayName || m.name || m.email?.split('@')[0]) === formData.picName) && (
                             <option value={formData.picName}>
-                              {formData.picName} (现有/历史)
+                              {formData.picName} {t('extraUi.existingOrHistorical', '(现有/历史)')}
                             </option>
                           )}
-                          <option value="__custom__">➕ 手动输入其他顾问...</option>
+                          <option value="__custom__">{t('extraUi.customAdvisorOption', '➕ 手动输入其他顾问...')}</option>
                         </select>
                       </div>
                     )}
@@ -1555,7 +1548,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                             onClick={() => handleRemoveWorkExp(jIdx)}
                             className="btn-icon"
                             style={{ position: 'absolute', top: '10px', right: '10px', color: 'var(--accent-rose)', width: '24px', height: '24px' }}
-                            title="删除此段履历"
+                            title={t('extraUi.deleteWorkExpTip', '删除此段履历')}
                           >
                             <i className="ph ph-trash" style={{ fontSize: '13px' }}></i>
                           </button>
@@ -1566,11 +1559,11 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           {isEditing ? (
                             <>
                               <div>
-                                <label className="form-label" style={{ fontSize: '11px' }}>公司名称</label>
+                                <label className="form-label" style={{ fontSize: '11px' }}>{t('extraUi.companyNameLabel', '公司名称')}</label>
                                 <input type="text" className="form-input" value={job.company || ''} onChange={(e) => handleWorkExpChange(jIdx, 'company', e.target.value)} placeholder="如 Company Name" />
                               </div>
                               <div>
-                                <label className="form-label" style={{ fontSize: '11px' }}>任职岗位</label>
+                                <label className="form-label" style={{ fontSize: '11px' }}>{t('extraUi.jobPositionLabel', '任职岗位')}</label>
                                 <input type="text" className="form-input" value={job.position || ''} onChange={(e) => handleWorkExpChange(jIdx, 'position', e.target.value)} placeholder="如 Position" />
                               </div>
                               <div>
@@ -1581,16 +1574,16 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           ) : (
                             <>
                               <div>
-                                <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>{job.company || '未注明公司'}</span>
-                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>{job.position || '未注明岗位'}</div>
+                                <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>{job.company || t('extraUi.unspecifiedCompany', '未注明公司')}</span>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '2px' }}>{job.position || t('extraUi.unspecifiedPosition', '未注明岗位')}</div>
                               </div>
                               <div style={{ textAlign: 'left' }}>
                                 {job.last_drawn_salary && (
-                                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>薪资: {job.last_drawn_salary}</span>
+                                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('extraUi.salaryPrefix', '薪资: ')}{job.last_drawn_salary}</span>
                                 )}
                               </div>
                               <span className="tag-pill" style={{ background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)', fontSize: '11px', padding: '2px 8px' }}>
-                                {job.period || '时间待补充'}
+                                {job.period || t('extraUi.periodPending', '时间待补充')}
                               </span>
                             </>
                           )}

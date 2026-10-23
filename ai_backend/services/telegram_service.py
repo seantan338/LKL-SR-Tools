@@ -210,6 +210,46 @@ def clean_phone_number(raw_phone: Optional[str]) -> str:
         return ""
     return "".join(c for c in str(raw_phone) if c.isdigit())
 
+def normalize_phone_core(raw_phone: Optional[str]) -> str:
+    clean = clean_phone_number(raw_phone)
+    if not clean or len(clean) < 7:
+        return ""
+    if clean.startswith("60") and len(clean) >= 9:
+        return clean[2:]
+    if clean.startswith("0") and len(clean) >= 8:
+        return clean[1:]
+    return clean
+
+def get_phone_variants(raw_phone: Optional[str]) -> List[str]:
+    if not raw_phone:
+        return []
+    raw_str = str(raw_phone).strip()
+    clean = clean_phone_number(raw_str)
+    core = normalize_phone_core(clean)
+    variants = []
+    for v in (raw_str, clean, core, f"0{core}" if core else "", f"60{core}" if core else "", f"+60{core}" if core else ""):
+        if v and len(v) >= 7 and v not in variants:
+            variants.append(v)
+    return variants[:10]
+
+def normalize_notes_str(notes_val: Any) -> str:
+    if not notes_val:
+        return ""
+    if isinstance(notes_val, str):
+        return notes_val.strip()
+    if isinstance(notes_val, list):
+        parts = []
+        for item in notes_val:
+            if isinstance(item, str) and item.strip():
+                parts.append(item.strip())
+            elif isinstance(item, dict):
+                content = str(item.get("content") or item.get("note") or "").strip()
+                if content:
+                    author = f"{item.get('author')}: " if item.get("author") else ""
+                    parts.append(f"{author}{content}")
+        return "\n".join(parts)
+    return str(notes_val).strip()
+
 async def upsert_candidate_to_firestore(
     parsed_data: dict,
     resume_url: str,
@@ -268,10 +308,18 @@ async def upsert_candidate_to_firestore(
 
     candidates_ref = db.collection("teams").document(team_id).collection("candidates")
 
-    # 1. Deduplication check by phone or email
+    from firebase_admin import firestore as fb_firestore
+    phone_norm = normalize_phone_core(raw_phone)
+    phone_variants = get_phone_variants(raw_phone)
+
+    # 1. Deduplication check by phone (normalized + variants) or email
     existing_doc = None
-    if clean_phone and len(clean_phone) >= 7:
-        snaps = candidates_ref.where("phone", "==", clean_phone).limit(1).get()
+    if phone_norm:
+        snaps = candidates_ref.where("phoneNormalized", "==", phone_norm).limit(1).get()
+        if snaps:
+            existing_doc = snaps[0]
+    if not existing_doc and phone_variants:
+        snaps = candidates_ref.where("phone", "in", phone_variants).limit(1).get()
         if snaps:
             existing_doc = snaps[0]
 
@@ -293,9 +341,11 @@ async def upsert_candidate_to_firestore(
         existing_data = existing_doc.to_dict() or {}
         
         # Merge update
+        merged_phone = clean_phone or existing_data.get("phone", "")
         update_payload = {
             "name": name if name != "未命名候选人" else existing_data.get("name", name),
-            "phone": clean_phone or existing_data.get("phone", ""),
+            "phone": merged_phone,
+            "phoneNormalized": normalize_phone_core(merged_phone),
             "email": email or existing_data.get("email", ""),
             "position": position or existing_data.get("position", ""),
             "salary": expected_salary or salary or existing_data.get("salary", ""),
@@ -321,7 +371,7 @@ async def upsert_candidate_to_firestore(
             "parsedCvData": parsed_data,
             "missingFields": missing_fields,
             "suggestedQuestions": suggested_questions,
-            "updatedAt": now_iso,
+            "updatedAt": fb_firestore.SERVER_TIMESTAMP,
             "lastSource": "Telegram Update",
         }
         
@@ -330,9 +380,9 @@ async def upsert_candidate_to_firestore(
         if not existing_data.get("assignedTo"):
             update_payload["assignedTo"] = canonical_assigned_to
 
-        # Append to notes or history
+        # Append to notes safely (handles both string and legacy list)
         note_entry = f"[{now_iso[:16]}] 顾问 {pic_display_name} (@{sender_name}) 重新投递/更新了简历 ({original_filename})"
-        existing_notes = existing_data.get("notes", "")
+        existing_notes = normalize_notes_str(existing_data.get("notes", ""))
         update_payload["notes"] = f"{existing_notes}\n{note_entry}".strip() if existing_notes else note_entry
 
         candidates_ref.document(candidate_id).set(update_payload, merge=True)
@@ -358,6 +408,7 @@ async def upsert_candidate_to_firestore(
             "id": candidate_id,
             "name": name,
             "phone": clean_phone or raw_phone,
+            "phoneNormalized": phone_norm,
             "email": email,
             "school": school,
             "major": major,
@@ -394,8 +445,8 @@ async def upsert_candidate_to_firestore(
             "picName": pic_display_name,
             "assignedTo": canonical_assigned_to,
             "notes": f"[{now_iso[:16]}] 由顾问 {pic_display_name} (@{sender_name}) 上传解析入库",
-            "createdAt": now_iso,
-            "updatedAt": now_iso
+            "createdAt": fb_firestore.SERVER_TIMESTAMP,
+            "updatedAt": fb_firestore.SERVER_TIMESTAMP
         }
         candidates_ref.document(candidate_id).set(candidate_payload)
         logger.info(f"Created new candidate {candidate_id} ({name}) from Telegram")
@@ -469,7 +520,7 @@ def format_telegram_reply(candidate_res: dict, is_group: bool = False) -> str:
     # Group mode: Clean, high-density, professional card without emojis
     if is_group:
         is_new = candidate_res.get("is_new", True)
-        status_tag = "<b>[简历已入库]</b>" if is_new else "<b>[档案已更新]</b>"
+        status_tag = "<b>[简历已入库 / CV Saved]</b>" if is_new else "<b>[档案已更新 / Profile Updated]</b>"
         lines = [
             f"{status_tag} <b>{name}</b>",
             f"岗位: {position}" + (f" ({company})" if company else ""),
@@ -485,7 +536,7 @@ def format_telegram_reply(candidate_res: dict, is_group: bool = False) -> str:
 
     # Private chat: Detailed card without emojis
     is_new = candidate_res.get("is_new", True)
-    title = "<b>[新简历录入成功]</b>" if is_new else "<b>[候选人档案已更新]</b>"
+    title = "<b>[新简历录入成功 / New CV Imported]</b>" if is_new else "<b>[候选人档案已更新 / Candidate Profile Updated]</b>"
 
     lines = [
         title,
@@ -542,7 +593,7 @@ async def handle_telegram_update(update: dict) -> None:
             logger.warning(f"Unauthorized Telegram access attempt by user: {from_user}")
             await send_telegram_message(
                 chat_id,
-                "[访问被拒绝] 抱歉，您未在 Talent Flow 授权顾问白名单中。",
+                "[访问被拒绝 / Access Denied] 您未在 Talent Flow 授权顾问白名单中 / You are not in the authorized consultant whitelist.",
                 reply_to_message_id=msg_id
             )
         return
@@ -636,7 +687,7 @@ async def handle_telegram_update(update: dict) -> None:
         if not TELEGRAM_SILENT_MODE:
             await send_telegram_message(
                 chat_id,
-                f"[处理失败] 无法解析文件 {original_filename}: {str(err)}",
+                f"[处理失败 / Processing Failed] 无法解析文件 / Failed to parse {original_filename}: {str(err)}",
                 reply_to_message_id=msg_id
             )
         return {"status": "error", "message": str(err)}

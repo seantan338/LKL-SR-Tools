@@ -37,6 +37,8 @@ function sanitizeFirestoreData(obj) {
   return res;
 }
 
+const _candidatesCache = new Map(); // teamId -> Array<Candidate>
+
 export const FirestoreStore = {
   // --- Candidates ---
 
@@ -59,6 +61,9 @@ export const FirestoreStore = {
           candidates.push(item);
         }
       }
+      // Sort on client using unified millisecond timestamp to bridge legacy ISO string vs Firestore Timestamp split
+      candidates.sort((a, b) => Utils.getCandidateTimestamp(b) - Utils.getCandidateTimestamp(a));
+      _candidatesCache.set(teamId, candidates);
       callback(candidates);
     }, (error) => {
       console.error("Error fetching candidates:", error);
@@ -81,9 +86,12 @@ export const FirestoreStore = {
     const docRef = doc(db, 'teams', safeTeamId, 'candidates', candidateId);
     
     const now = new Date().toISOString();
+    const phoneNormalized = Utils.normalizePhoneCore(data.phone);
     const candidate = sanitizeFirestoreData({
       ...data,
       id: candidateId,
+      phoneNormalized: phoneNormalized || '',
+      notes: Utils.normalizeCandidateNotes(data.notes),
       assignedTo: data.assignedTo || userId || 'system',
       stage: data.stage || 'screening',
       stageHistory: [{ stage: data.stage || 'screening', movedAt: now }],
@@ -93,6 +101,11 @@ export const FirestoreStore = {
     });
 
     await setDoc(docRef, candidate);
+    // Keep in-memory cache immediately consistent for rapid batch imports
+    const cached = _candidatesCache.get(safeTeamId);
+    if (Array.isArray(cached)) {
+      _candidatesCache.set(safeTeamId, [{ ...candidate, createdAt: now, updatedAt: now }, ...cached]);
+    }
     return candidate;
   },
 
@@ -101,49 +114,47 @@ export const FirestoreStore = {
     const safeTeamId = teamId || 'default_team';
     const cleanTarget = String(phone).replace(/\D/g, '');
     if (!cleanTarget || cleanTarget.length < 7) return null;
+    const normTarget = Utils.normalizePhoneCore(cleanTarget);
+
+    // 1. O(1) zero-read in-memory lookup from active team subscription cache (covers 100% of legacy phone formats)
+    const cachedList = _candidatesCache.get(safeTeamId);
+    if (Array.isArray(cachedList) && cachedList.length > 0) {
+      for (const item of cachedList) {
+        if (!item?.phone) continue;
+        const cleanExisting = String(item.phone).replace(/\D/g, '');
+        if (!cleanExisting) continue;
+        if (cleanExisting === cleanTarget) return item;
+        const normExisting = item.phoneNormalized || Utils.normalizePhoneCore(cleanExisting);
+        if (normTarget && normExisting === normTarget && normTarget.length >= 7) {
+          return item;
+        }
+      }
+      return null;
+    }
 
     const candidatesRef = collection(db, 'teams', safeTeamId, 'candidates');
 
-    // 1. 尝试直接查询原格式电话
+    // 2. Indexed lookup by phoneNormalized or common phone variants when memory cache is cold
     try {
-      const exactQ = query(candidatesRef, where('phone', '==', String(phone).trim()));
-      const exactSnap = await getDocs(exactQ);
-      if (!exactSnap.empty) {
-        const first = exactSnap.docs[0];
-        return { ...first.data(), id: first.id };
+      if (normTarget && normTarget.length >= 7) {
+        const normQ = query(candidatesRef, where('phoneNormalized', '==', normTarget));
+        const normSnap = await getDocs(normQ);
+        if (!normSnap.empty) {
+          const first = normSnap.docs[0];
+          return { ...first.data(), id: first.id };
+        }
       }
-    } catch (e) {
-      // ignore
-    }
-
-    // 2. 遍历团队候选人，进行纯数字与马籍/中籍区号归一化比对
-    try {
-      const allSnap = await getDocs(candidatesRef);
-      const normTarget = cleanTarget.startsWith('60') 
-        ? cleanTarget.slice(2) 
-        : (cleanTarget.startsWith('0') ? cleanTarget.slice(1) : cleanTarget);
-
-      for (const docSnap of allSnap.docs) {
-        const data = docSnap.data();
-        if (data.phone) {
-          const cleanExisting = String(data.phone).replace(/\D/g, '');
-          if (!cleanExisting) continue;
-
-          if (cleanExisting === cleanTarget) {
-            return { ...data, id: docSnap.id };
-          }
-
-          const normExisting = cleanExisting.startsWith('60')
-            ? cleanExisting.slice(2)
-            : (cleanExisting.startsWith('0') ? cleanExisting.slice(1) : cleanExisting);
-
-          if (normExisting === normTarget && normTarget.length >= 7) {
-            return { ...data, id: docSnap.id };
-          }
+      const variants = Utils.getPhoneVariants(phone);
+      if (variants.length > 0) {
+        const varQ = query(candidatesRef, where('phone', 'in', variants));
+        const varSnap = await getDocs(varQ);
+        if (!varSnap.empty) {
+          const first = varSnap.docs[0];
+          return { ...first.data(), id: first.id };
         }
       }
     } catch (e) {
-      console.warn("findCandidateByPhone error:", e);
+      console.warn("findCandidateByPhone indexed query error:", e);
     }
     return null;
   },
@@ -169,21 +180,24 @@ export const FirestoreStore = {
       const fileLabel = rawFilename || data.rawResumeFilename || '最新简历';
       const reapplyNote = `[${nowStr}] 重新投递/更新了简历 (${fileLabel})`;
 
-      const existingNotes = existingCandidate.notes?.trim() || '';
-      const mergedNotes = existingNotes 
-        ? `${existingNotes}\n${reapplyNote}` 
+      const existingNotes = Utils.normalizeCandidateNotes(existingCandidate.notes);
+      const incomingNotes = Utils.normalizeCandidateNotes(data.notes);
+      const baseNotes = existingNotes || incomingNotes;
+      const mergedNotes = baseNotes 
+        ? `${baseNotes}\n${reapplyNote}` 
         : reapplyNote;
 
       // 合并更新字段：保留原阶段、原状态、原创建时间与负责人
       const updatePayload = {
         ...data,
         id: candidateId,
+        phoneNormalized: Utils.normalizePhoneCore(data.phone || existingCandidate.phone) || '',
         // 保留原阶段与流转历史
         stage: existingCandidate.stage || data.stage || 'screening',
         stageHistory: existingCandidate.stageHistory || [{ stage: existingCandidate.stage || 'screening', movedAt: now.toISOString() }],
         status: existingCandidate.status || 'active',
         assignedTo: existingCandidate.assignedTo || userId || 'system',
-        createdAt: existingCandidate.createdAt || now.toISOString(),
+        createdAt: existingCandidate.createdAt || serverTimestamp(),
         notes: mergedNotes,
         reappliedAt: now.toISOString(),
       };
@@ -199,11 +213,25 @@ export const FirestoreStore = {
   async updateCandidate(teamId, candidateId, updateData) {
     const safeTeamId = teamId || 'default_team';
     const docRef = doc(db, 'teams', safeTeamId, 'candidates', candidateId);
-    const cleaned = sanitizeFirestoreData(updateData);
+    const payload = { ...updateData };
+    if (payload.phone !== undefined) {
+      payload.phoneNormalized = Utils.normalizePhoneCore(payload.phone) || '';
+    }
+    if (payload.notes !== undefined) {
+      payload.notes = Utils.normalizeCandidateNotes(payload.notes);
+    }
+    const cleaned = sanitizeFirestoreData(payload);
     await updateDoc(docRef, {
       ...cleaned,
       updatedAt: serverTimestamp()
     });
+    const cached = _candidatesCache.get(safeTeamId);
+    if (Array.isArray(cached)) {
+      _candidatesCache.set(
+        safeTeamId,
+        cached.map(c => (c.id === candidateId ? { ...c, ...cleaned } : c))
+      );
+    }
   },
 
   async deleteCandidate(teamId, candidateId) {
@@ -513,11 +541,23 @@ export const FirestoreStore = {
 
   subscribeToAttendanceRules(teamId, callback) {
     if (!teamId) return () => {};
+    const healRules = (r) => {
+      if (!r || !r.officeLocations) return r;
+      const healed = r.officeLocations.map(loc => {
+        if (Math.abs((parseFloat(loc.latitude) || 0) - 3.139) < 0.001 && Math.abs((parseFloat(loc.longitude) || 0) - 101.6869) < 0.001) {
+          return { ...loc, name: loc.name || '公司总部', latitude: 1.440472, longitude: 103.617917 };
+        }
+        return loc;
+      });
+      return { ...r, officeLocations: healed };
+    };
     const defaultRules = {
       enabled: true,
       maxDistanceMeters: 100,
       maxDriftCompensation: 40,
-      officeLocations: [],
+      officeLocations: [
+        { name: '公司总部', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
+      ],
       officeWifi: { allowedIps: [], ddnsDomain: '' }
     };
 
@@ -531,21 +571,21 @@ export const FirestoreStore = {
     const docRef = doc(db, 'teams', teamId, 'attendance_rules', 'current');
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        callback({ ...defaultRules, ...snap.data() });
+        callback(healRules({ ...defaultRules, ...snap.data() }));
       } else {
-        callback(localRules || defaultRules);
+        callback(healRules(localRules || defaultRules));
       }
     }, (err) => {
       // If permission-denied (rules pending deployment), try reading team doc's attendanceRules
       console.warn("Notice: Subscribing to attendance_rules collection fallback to team document / local:", err?.message || err);
       getDoc(doc(db, 'teams', teamId)).then((teamSnap) => {
         if (teamSnap.exists() && teamSnap.data()?.attendanceRules) {
-          callback({ ...defaultRules, ...teamSnap.data().attendanceRules });
+          callback(healRules({ ...defaultRules, ...teamSnap.data().attendanceRules }));
         } else {
-          callback(localRules || defaultRules);
+        callback(healRules(localRules || defaultRules));
         }
       }).catch(() => {
-        callback(localRules || defaultRules);
+        callback(healRules(localRules || defaultRules));
       });
     });
 

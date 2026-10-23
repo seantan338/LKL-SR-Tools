@@ -66,7 +66,9 @@ try {
         if (!getApps().length) {
             initializeApp({ credential: cred });
         }
-        const databaseId = (process.env.FIREBASE_DATABASE_ID || '(default)').trim();
+        const projId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        const defaultDbId = projId === 'omnirecruitmanagement' ? 'default' : '(default)';
+        const databaseId = (process.env.FIREBASE_DATABASE_ID || process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || defaultDbId).trim();
         db = databaseId === '(default)' ? getFirestore() : getFirestore(databaseId);
         console.log(`✅ [Firebase Admin] Firestore 初始化成功 (来源: ${sourceDesc}, 数据库: ${databaseId})`);
     } else {

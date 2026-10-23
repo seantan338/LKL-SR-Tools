@@ -72,7 +72,7 @@ def get_sheet_values(
         
     except HttpError as he:
         logger.error(f"Google Sheets API HTTP Error: {he}", exc_info=True)
-        raise RuntimeError(f"Google Sheets API 访问失败: {he.reason or str(he)}")
+        raise RuntimeError(f"Google Sheets API 访问失败 / Google Sheets API error: {he.reason or str(he)}")
     except Exception as e:
         logger.error(f"Error fetching sheet values: {str(e)}", exc_info=True)
         raise

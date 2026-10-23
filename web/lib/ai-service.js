@@ -103,7 +103,7 @@ ${rawText.substring(0, 8000)} // Truncate if too long
       throw new Error("No JSON object found in response");
     } catch (e) {
       console.error("Failed to parse AI response as JSON", text);
-      throw new Error("AI 返回的数据格式无法解析。请重试。");
+      throw new Error("AI 返回的数据格式无法解析，请重试 / Failed to parse AI response format, please retry.");
     }
   }
 
@@ -118,7 +118,7 @@ ${rawText.substring(0, 8000)} // Truncate if too long
       throw new Error("No JSON array found in response");
     } catch (e) {
       console.error("Failed to parse AI response as JSON Array", text);
-      throw new Error("AI 返回的数据格式无法解析。请重试。");
+      throw new Error("AI 返回的数据格式无法解析，请重试 / Failed to parse AI response format, please retry.");
     }
   }
 
@@ -301,7 +301,7 @@ ${rawText.substring(0, 8000)}
       }
       return JSON.parse(textOutput);
     } catch (e) {
-      throw new Error("AI 返回的数据格式无法解析。");
+      throw new Error("AI 返回的数据格式无法解析，请重试 / Failed to parse AI response format, please retry.");
     }
   }
 }

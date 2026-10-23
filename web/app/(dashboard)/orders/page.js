@@ -8,6 +8,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
 import { SystemLogger } from '../../../lib/logger';
 import { MatchService } from '../../../lib/match-service';
+import { authFetch } from '../../../lib/api-client';
 import OrderDrawer from '../../../components/OrderDrawer';
 import { useI18n } from '../../../lib/i18n-context';
 
@@ -39,6 +40,8 @@ export default function OrdersPage() {
   const [showAiImport, setShowAiImport] = useState(false);
   const [aiImportText, setAiImportText] = useState('');
   const [isAiImporting, setIsAiImporting] = useState(false);
+  const [batchPreviewOrders, setBatchPreviewOrders] = useState([]);
+  const [isBatchSaving, setIsBatchSaving] = useState(false);
 
   // Drawer State for Viewing
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -84,6 +87,8 @@ export default function OrdersPage() {
     setFormErrors({});
     setShowAiImport(false);
     setAiImportText('');
+    setBatchPreviewOrders([]);
+    setIsBatchSaving(false);
     setIsDuplicateModalOpen(false);
     setDuplicateMatch(null);
     setPendingSaveData(null);
@@ -115,33 +120,60 @@ export default function OrdersPage() {
     if (!aiImportText.trim()) return;
     setIsAiImporting(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${baseUrl}/api/parse/sheet`, {
+      const response = await authFetch('/api/parse/sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: aiImportText, targetType: 'job_order' })
       });
       const resData = await response.json();
       
-      if (resData.status === 'success' && resData.data && resData.data.length > 0) {
-        const orderData = resData.data[0];
-        setFormData(prev => ({
-          ...prev,
-          company: orderData.company || prev.company || '',
-          position: orderData.position || prev.position || '',
-          salary: orderData.salary || prev.salary || '',
-          location: orderData.location || prev.location || '',
-          workHours: orderData.workHours || prev.workHours || '',
-          requirements: orderData.requirements || prev.requirements || '',
-          benefits: orderData.benefits || prev.benefits || '',
-          notes: orderData.notes || prev.notes || ''
-        }));
-        setShowAiImport(false);
-        setAiImportText('');
-        SystemLogger.audit(teamId, user, 'AI_PARSE', 'JOB_ORDER', orderData.position || t('orders.unnamedPosition'), {
-          actionDetail: t('orders.importFromOrder'),
-          company: orderData.company
-        });
+      if (resData.status === 'success' && Array.isArray(resData.data) && resData.data.length > 0) {
+        if (resData.data.length === 1) {
+          const orderData = resData.data[0];
+          setFormData(prev => ({
+            ...prev,
+            company: orderData.company || prev.company || '',
+            position: orderData.position || prev.position || '',
+            salary: orderData.salary || prev.salary || 'Negotiable',
+            location: orderData.location || prev.location || 'TBD',
+            workHours: orderData.workHours || prev.workHours || 'TBD',
+            requirements: orderData.requirements || prev.requirements || 'TBD',
+            benefits: orderData.benefits || prev.benefits || '',
+            notes: orderData.notes || prev.notes || '',
+            headcount: parseInt(orderData.headcount) || prev.headcount || 1
+          }));
+          setBatchPreviewOrders([]);
+          setShowAiImport(false);
+          setAiImportText('');
+          SystemLogger.audit(teamId, user, 'AI_PARSE', 'JOB_ORDER', orderData.position || t('orders.unnamedPosition'), {
+            actionDetail: t('orders.importFromOrder'),
+            company: orderData.company
+          });
+        } else {
+          // 多岗位模式：构建可编辑批量预览队列
+          const fallbackCompany = resData.data.find(d => d.company && d.company.trim())?.company?.trim() || formData.company || '';
+          const prepared = resData.data.map((item, idx) => ({
+            _tempId: `batch_${Date.now()}_${idx}`,
+            _selected: true,
+            company: (item.company || fallbackCompany || '').trim(),
+            position: (item.position || '').trim(),
+            salary: (item.salary || 'Negotiable').trim(),
+            location: (item.location || 'TBD').trim(),
+            workHours: (item.workHours || 'TBD').trim(),
+            requirements: (item.requirements || 'TBD').trim(),
+            benefits: (item.benefits || '').trim(),
+            notes: (item.notes || '').trim(),
+            headcount: parseInt(item.headcount) || 1,
+            status: 'open'
+          }));
+          setBatchPreviewOrders(prepared);
+          setShowAiImport(false);
+          setAiImportText('');
+          SystemLogger.audit(teamId, user, 'AI_PARSE', 'JOB_ORDER', `${prepared.length} positions`, {
+            actionDetail: t('orders.importFromOrder'),
+            company: fallbackCompany
+          });
+        }
       } else {
         showToast(resData.message || t('orders.aiParseFailed'), 'error');
       }
@@ -149,6 +181,74 @@ export default function OrdersPage() {
       showToast(t('orders.networkError') + err.message, 'error');
     } finally {
       setIsAiImporting(false);
+    }
+  };
+
+  const handleBatchItemChange = (tempId, field, value) => {
+    setBatchPreviewOrders(prev => prev.map(item =>
+      item._tempId === tempId ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const handleBatchSharedCompanyChange = (newCompany) => {
+    setBatchPreviewOrders(prev => prev.map(item => ({ ...item, company: newCompany })));
+  };
+
+  const handleBatchSave = async () => {
+    const selected = batchPreviewOrders.filter(item => item._selected && item.position.trim());
+    if (selected.length === 0) return;
+
+    const missingCompany = selected.some(item => !item.company || !item.company.trim());
+    if (missingCompany) {
+      showToast(`${t('orders.company')} ${t('orders.isRequired')}`, 'error');
+      return;
+    }
+
+    setIsBatchSaving(true);
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    try {
+      for (const item of selected) {
+        const payload = {
+          company: item.company.trim(),
+          position: item.position.trim(),
+          salary: (item.salary || 'Negotiable').trim(),
+          location: (item.location || 'TBD').trim(),
+          workHours: (item.workHours || 'TBD').trim(),
+          requirements: (item.requirements || 'TBD').trim(),
+          benefits: (item.benefits || '').trim(),
+          notes: (item.notes || '').trim(),
+          headcount: Math.max(1, parseInt(item.headcount) || 1),
+          status: item.status || 'open'
+        };
+
+        const normComp = payload.company.toLowerCase();
+        const normPos = payload.position.toLowerCase();
+        const existing = orders.find(o =>
+          (o.company || '').trim().toLowerCase() === normComp &&
+          (o.position || '').trim().toLowerCase() === normPos
+        );
+
+        if (existing) {
+          await FirestoreStore.updateJobOrder(teamId, existing.id, payload);
+          updatedCount++;
+        } else {
+          await FirestoreStore.addJobOrder(teamId, user.uid, payload);
+          createdCount++;
+        }
+      }
+
+      SystemLogger.audit(teamId, user, 'CREATE', 'JOB_ORDER', `Batch Import (${createdCount} new, ${updatedCount} updated)`);
+      showToast(
+        t('orders.batchImportSuccess', { created: createdCount, updated: updatedCount }, `成功批量导入 ${createdCount} 个新岗位，更新 ${updatedCount} 个已有岗位！`),
+        'success'
+      );
+      closeModal();
+    } catch (error) {
+      showToast(t('orders.saveFailed') + error.message, 'error');
+    } finally {
+      setIsBatchSaving(false);
     }
   };
 
@@ -411,7 +511,7 @@ export default function OrdersPage() {
               fontWeight: '600'
             }}>
               <i className="ph-bold ph-lock-key"></i>
-              <span>{t('team.readOnlyBadge', '单向只读')} · 合作人数据</span>
+              <span>{t('team.readOnlyBadge', '单向只读')} · {t('extraUi.partnerDataBadge', '合作人数据')}</span>
             </div>
           )}
         </div>
@@ -519,7 +619,7 @@ export default function OrdersPage() {
           background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
         }}>
-          <div className="bezel-shell modal-bezel" style={{ width: '600px', maxWidth: '95vw', animation: 'modalEnter 0.3s cubic-bezier(0.32, 0.72, 0, 1)' }}>
+          <div className="bezel-shell modal-bezel" style={{ width: batchPreviewOrders.length > 0 ? '780px' : '600px', maxWidth: '95vw', animation: 'modalEnter 0.3s cubic-bezier(0.32, 0.72, 0, 1)' }}>
             <form className="bezel-core modal-core" onSubmit={(e) => e.preventDefault()} style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', maxHeight: '90vh', overflowY: 'auto' }}>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -532,14 +632,25 @@ export default function OrdersPage() {
               {!editingOrder && (
                 <div style={{ marginBottom: 'var(--space-2)' }}>
                   {!showAiImport ? (
-                    <button 
-                      type="button" 
-                      className="btn btn-secondary btn-sm" 
-                      onClick={() => setShowAiImport(true)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
-                    >
-                      <i className="ph-light ph-magic-wand" style={{ color: 'var(--accent-purple)' }}></i> {t('orders.smartImport')}
-                    </button>
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => setShowAiImport(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+                      >
+                        <i className="ph-light ph-magic-wand" style={{ color: 'var(--accent-purple)' }}></i> {t('orders.smartImport')}
+                      </button>
+                      {batchPreviewOrders.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setBatchPreviewOrders([])}
+                        >
+                          <i className="ph-light ph-arrow-counter-clockwise"></i> {t('orders.batchBackToSingle', '清空并退回单条录入')}
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div style={{ padding: 'var(--space-4)', background: 'var(--empty-icon-bg, rgba(0,0,0,0.2))', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
                       <textarea
@@ -579,79 +690,239 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-                <div className="form-group">
-                  <label className="form-label">{t('orders.company')} <span className="required">*</span></label>
-                  <input type="text" className={`form-input ${formErrors.company ? 'form-input-error' : ''}`} name="company" value={formData.company || ''} onChange={handleChange} placeholder={t('orders.requiredPlaceholder')} />
-                  {formErrors.company && <span className="form-error-text">{formErrors.company}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('orders.position')} <span className="required">*</span></label>
-                  <input type="text" className={`form-input ${formErrors.position ? 'form-input-error' : ''}`} name="position" value={formData.position || ''} onChange={handleChange} placeholder={t('orders.requiredPlaceholder')} />
-                  {formErrors.position && <span className="form-error-text">{formErrors.position}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('orders.salary')} <span className="required">*</span></label>
-                  <input type="text" className={`form-input ${formErrors.salary ? 'form-input-error' : ''}`} name="salary" value={formData.salary || ''} onChange={handleChange} placeholder={t('orders.salaryExample')} />
-                  {formErrors.salary && <span className="form-error-text">{formErrors.salary}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('orders.location')} <span className="required">*</span></label>
-                  <input type="text" className={`form-input ${formErrors.location ? 'form-input-error' : ''}`} name="location" value={formData.location || ''} onChange={handleChange} placeholder={t('orders.requiredPlaceholder')} />
-                  {formErrors.location && <span className="form-error-text">{formErrors.location}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('orders.workHours')} <span className="required">*</span></label>
-                  <input type="text" className={`form-input ${formErrors.workHours ? 'form-input-error' : ''}`} name="workHours" value={formData.workHours || ''} onChange={handleChange} placeholder={t('orders.hoursExample')} />
-                  {formErrors.workHours && <span className="form-error-text">{formErrors.workHours}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('orders.headcount')} <span className="required">*</span></label>
-                  <input type="number" min="1" className="form-input" name="headcount" value={formData.headcount || 1} onChange={handleChange} />
-                </div>
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">{t('orders.currentStatus')}</label>
-                  <select className="form-select" name="status" value={formData.status || 'open'} onChange={handleChange}>
-                    <option value="open">{t('orders.statusOpen')}</option>
-                    <option value="urgent">{t('orders.statusUrgent')}</option>
-                    <option value="paused">{t('orders.statusPaused')}</option>
-                    <option value="filled">{t('orders.statusFilled')}</option>
-                    <option value="closed">{t('orders.statusClosed')}</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">{t('orders.requirements')} <span className="required">*</span></label>
-                  <textarea className={`form-input ${formErrors.requirements ? 'form-input-error' : ''}`} name="requirements" value={formData.requirements || ''} onChange={handleChange} rows={3} placeholder={t('orders.reqsPlaceholder')}></textarea>
-                  {formErrors.requirements && <span className="form-error-text">{formErrors.requirements}</span>}
-                </div>
+              {batchPreviewOrders.length > 0 ? (
+                <>
+                  <div style={{
+                    padding: 'var(--space-3) var(--space-4)',
+                    background: 'rgba(139, 92, 246, 0.08)',
+                    border: '1px solid rgba(139, 92, 246, 0.28)',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 'var(--space-3)'
+                  }}>
+                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ph-fill ph-stack" style={{ color: 'var(--accent-purple)' }}></i>
+                      {t('orders.batchPreviewTitle', { count: batchPreviewOrders.length }, `已从文本中拆出 ${batchPreviewOrders.length} 个独立岗位，请核对后批量入库`)}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        style={{ width: '200px', height: '30px', fontSize: 'var(--text-xs)' }}
+                        placeholder={t('orders.batchSharedCompany', '统一归属企业')}
+                        value={batchPreviewOrders[0]?.company || ''}
+                        onChange={(e) => handleBatchSharedCompanyChange(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          const allChecked = batchPreviewOrders.every(i => i._selected);
+                          setBatchPreviewOrders(prev => prev.map(i => ({ ...i, _selected: !allChecked })));
+                        }}
+                      >
+                        {t('orders.batchSelectAll', '全选 / 取消全选')}
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">{t('orders.benefits')}</label>
-                  <input type="text" className="form-input" name="benefits" value={formData.benefits || ''} onChange={handleChange} placeholder={t('orders.benefitsExample')} />
-                </div>
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">{t('orders.publicNotes')}</label>
-                  <input type="text" className="form-input" name="notes" value={formData.notes || ''} onChange={handleChange} placeholder={t('orders.notesPlaceholder')} />
-                </div>
-              </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', maxHeight: '52vh', overflowY: 'auto', paddingRight: '4px' }}>
+                    {batchPreviewOrders.map((item, idx) => {
+                      const isDup = orders.some(o =>
+                        (o.company || '').trim().toLowerCase() === (item.company || '').trim().toLowerCase() &&
+                        (o.position || '').trim().toLowerCase() === (item.position || '').trim().toLowerCase()
+                      );
+                      return (
+                        <div
+                          key={item._tempId}
+                          style={{
+                            padding: 'var(--space-4)',
+                            borderRadius: 'var(--radius-md)',
+                            border: item._selected ? '1px solid var(--border-interactive)' : '1px solid var(--border-subtle)',
+                            background: item._selected ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)',
+                            opacity: item._selected ? 1 : 0.55,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 'var(--space-3)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-2)' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>
+                              <input
+                                type="checkbox"
+                                checked={item._selected}
+                                onChange={(e) => handleBatchItemChange(item._tempId, '_selected', e.target.checked)}
+                              />
+                              <span>#{idx + 1} · {item.position || t('orders.unnamedPosition')}</span>
+                            </label>
+                            <span className="badge" style={{
+                              fontSize: '11px',
+                              color: isDup ? 'var(--accent-amber)' : 'var(--accent-emerald)',
+                              borderColor: isDup ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'
+                            }}>
+                              {isDup ? t('orders.batchDuplicateBadge', '已有同名岗位 (保存时将自动更新)') : t('orders.batchNewBadge', '新岗位')}
+                            </span>
+                          </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
-                {Object.keys(formErrors).length > 0 && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--accent-rose)', marginRight: 'auto' }}>
-                    <i className="ph-fill ph-warning-circle"></i>
-                    {t('orders.fillAllRequired')}
-                  </span>
-                )}
-                {editingOrder && (
-                  <button className="btn btn-secondary" style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }} onClick={() => handleDelete(editingOrder.id, editingOrder.position)}>
-                    <i className="ph-light ph-trash"></i> {t('orders.deleteOrder')}
-                  </button>
-                )}
-                <button className="btn btn-secondary" onClick={closeModal}>{t('orders.cancel')}</button>
-                <button className="btn btn-primary" onClick={handleSave}>
-                  <i className="ph-light ph-floppy-disk"></i> {t('orders.save')}
-                </button>
-              </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-2)' }}>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.company')} *</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={item.company}
+                                onChange={(e) => handleBatchItemChange(item._tempId, 'company', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.position')} *</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={item.position}
+                                onChange={(e) => handleBatchItemChange(item._tempId, 'position', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.salary')}</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={item.salary}
+                                onChange={(e) => handleBatchItemChange(item._tempId, 'salary', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.location')}</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={item.location}
+                                onChange={(e) => handleBatchItemChange(item._tempId, 'location', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.requirements')}</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={item.requirements}
+                                onChange={(e) => handleBatchItemChange(item._tempId, 'requirements', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.benefits')}</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={item.benefits}
+                                onChange={(e) => handleBatchItemChange(item._tempId, 'benefits', e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                    <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={isBatchSaving}>
+                      {t('orders.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleBatchSave}
+                      disabled={isBatchSaving || batchPreviewOrders.filter(i => i._selected && i.position.trim()).length === 0}
+                    >
+                      {isBatchSaving ? (
+                        <><i className="ph-light ph-spinner ph-spin"></i> {t('orders.batchImporting', '正在批量写入...')}</>
+                      ) : (
+                        <><i className="ph-light ph-floppy-disk"></i> {t('orders.batchImportBtn', { count: batchPreviewOrders.filter(i => i._selected && i.position.trim()).length }, `一键批量入库 (${batchPreviewOrders.filter(i => i._selected && i.position.trim()).length} 个岗位)`)}</>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+                    <div className="form-group">
+                      <label className="form-label">{t('orders.company')} <span className="required">*</span></label>
+                      <input type="text" className={`form-input ${formErrors.company ? 'form-input-error' : ''}`} name="company" value={formData.company || ''} onChange={handleChange} placeholder={t('orders.requiredPlaceholder')} />
+                      {formErrors.company && <span className="form-error-text">{formErrors.company}</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('orders.position')} <span className="required">*</span></label>
+                      <input type="text" className={`form-input ${formErrors.position ? 'form-input-error' : ''}`} name="position" value={formData.position || ''} onChange={handleChange} placeholder={t('orders.requiredPlaceholder')} />
+                      {formErrors.position && <span className="form-error-text">{formErrors.position}</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('orders.salary')} <span className="required">*</span></label>
+                      <input type="text" className={`form-input ${formErrors.salary ? 'form-input-error' : ''}`} name="salary" value={formData.salary || ''} onChange={handleChange} placeholder={t('orders.salaryExample')} />
+                      {formErrors.salary && <span className="form-error-text">{formErrors.salary}</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('orders.location')} <span className="required">*</span></label>
+                      <input type="text" className={`form-input ${formErrors.location ? 'form-input-error' : ''}`} name="location" value={formData.location || ''} onChange={handleChange} placeholder={t('orders.requiredPlaceholder')} />
+                      {formErrors.location && <span className="form-error-text">{formErrors.location}</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('orders.workHours')} <span className="required">*</span></label>
+                      <input type="text" className={`form-input ${formErrors.workHours ? 'form-input-error' : ''}`} name="workHours" value={formData.workHours || ''} onChange={handleChange} placeholder={t('orders.hoursExample')} />
+                      {formErrors.workHours && <span className="form-error-text">{formErrors.workHours}</span>}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">{t('orders.headcount')} <span className="required">*</span></label>
+                      <input type="number" min="1" className="form-input" name="headcount" value={formData.headcount || 1} onChange={handleChange} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">{t('orders.currentStatus')}</label>
+                      <select className="form-select" name="status" value={formData.status || 'open'} onChange={handleChange}>
+                        <option value="open">{t('orders.statusOpen')}</option>
+                        <option value="urgent">{t('orders.statusUrgent')}</option>
+                        <option value="paused">{t('orders.statusPaused')}</option>
+                        <option value="filled">{t('orders.statusFilled')}</option>
+                        <option value="closed">{t('orders.statusClosed')}</option>
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">{t('orders.requirements')} <span className="required">*</span></label>
+                      <textarea className={`form-input ${formErrors.requirements ? 'form-input-error' : ''}`} name="requirements" value={formData.requirements || ''} onChange={handleChange} rows={3} placeholder={t('orders.reqsPlaceholder')}></textarea>
+                      {formErrors.requirements && <span className="form-error-text">{formErrors.requirements}</span>}
+                    </div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">{t('orders.benefits')}</label>
+                      <input type="text" className="form-input" name="benefits" value={formData.benefits || ''} onChange={handleChange} placeholder={t('orders.benefitsExample')} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">{t('orders.publicNotes')}</label>
+                      <input type="text" className="form-input" name="notes" value={formData.notes || ''} onChange={handleChange} placeholder={t('orders.notesPlaceholder')} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                    {Object.keys(formErrors).length > 0 && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--accent-rose)', marginRight: 'auto' }}>
+                        <i className="ph-fill ph-warning-circle"></i>
+                        {t('orders.fillAllRequired')}
+                      </span>
+                    )}
+                    {editingOrder && (
+                      <button className="btn btn-secondary" style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244, 63, 94, 0.3)' }} onClick={() => handleDelete(editingOrder.id, editingOrder.position)}>
+                        <i className="ph-light ph-trash"></i> {t('orders.deleteOrder')}
+                      </button>
+                    )}
+                    <button className="btn btn-secondary" onClick={closeModal}>{t('orders.cancel')}</button>
+                    <button className="btn btn-primary" onClick={handleSave}>
+                      <i className="ph-light ph-floppy-disk"></i> {t('orders.save')}
+                    </button>
+                  </div>
+                </>
+              )}
 
             </form>
           </div>

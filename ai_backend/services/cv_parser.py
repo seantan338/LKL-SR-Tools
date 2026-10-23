@@ -210,7 +210,7 @@ async def parse_cv(cv_text: str) -> dict:
 
     except Exception as e:
         logger.error(f"Exception in parse_cv: {str(e)}", exc_info=True)
-        raise ValueError(f"简历解析失败: {str(e)}")
+        raise ValueError(f"简历解析失败 / CV parsing failed: {str(e)}")
 
 
 async def parse_cv_from_images(base64_images: list[str]) -> dict:
@@ -266,4 +266,4 @@ async def parse_cv_from_images(base64_images: list[str]) -> dict:
 
     except Exception as e:
         logger.error(f"Exception in parse_cv_from_images: {str(e)}", exc_info=True)
-        raise ValueError(f"图片简历解析失败: {str(e)}")
+        raise ValueError(f"图片简历解析失败 / Image CV parsing failed: {str(e)}")

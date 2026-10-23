@@ -49,13 +49,15 @@ export default function AnalyticsPage() {
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
-      { name: t('analytics.defaultOfficeName', '公司总部'), latitude: 3.1390, longitude: 101.6869, radiusMeters: 100 }
+      { name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
     ],
     officeWifi: { allowedIps: ['127.0.0.1'], ddnsDomain: '' }
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingRules, setEditingRules] = useState(null);
   const [newIpInput, setNewIpInput] = useState('');
+  const [pasteCoordsInput, setPasteCoordsInput] = useState('');
+  const [coordsParseMsg, setCoordsParseMsg] = useState('');
   const [isDetectingIp, setIsDetectingIp] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
@@ -134,7 +136,7 @@ export default function AnalyticsPage() {
           maxDriftCompensation: rules.maxDriftCompensation || 40,
           officeLocations: rules.officeLocations && rules.officeLocations.length > 0
             ? rules.officeLocations
-            : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 3.1390, longitude: 101.6869, radiusMeters: 100 }],
+            : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }],
           officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' }
         });
       }
@@ -274,6 +276,8 @@ export default function AnalyticsPage() {
           lastActionTime: dateObj,
           actionCount: 0,
           manualClockIn: null,
+          manualLunchOut: null,
+          manualLunchIn: null,
           manualClockOut: null,
           verifyMethod: meta.verifyMethod || null,
           verifySnapshot: meta.verifySnapshot || null,
@@ -292,6 +296,10 @@ export default function AnalyticsPage() {
           rec.verifyMethod = meta.verifyMethod;
           rec.verifySnapshot = meta.verifySnapshot;
         }
+      } else if (actionType === 'LUNCH_OUT') {
+        rec.manualLunchOut = dateObj;
+      } else if (actionType === 'LUNCH_IN') {
+        rec.manualLunchIn = dateObj;
       } else if (actionType === 'CLOCK_OUT') {
         rec.manualClockOut = dateObj;
         if (meta.verifyMethod && !rec.verifyMethod) {
@@ -347,15 +355,21 @@ export default function AnalyticsPage() {
       let statusColor = 'var(--accent-emerald)';
 
       if (isToday) {
-        // If last action was within 2 hours, they are currently online/active
-        const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
-        if (minutesSinceLast < 120) {
-          status = 'online';
-          statusLabel = t('analytics.statusOnDuty', '工作中 (活跃)');
-          statusColor = 'var(--accent-blue)';
+        // If employee has clocked lunch out and not yet clocked lunch in
+        if (r.manualLunchOut && !r.manualLunchIn) {
+          status = 'lunch';
+          statusLabel = t('analytics.statusOnLunch', '午休中 (离岗)');
+          statusColor = 'var(--accent-amber)';
         } else {
-          statusLabel = t('analytics.statusJustClockedIn', '今日已打卡');
-          statusColor = 'var(--accent-emerald)';
+          const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
+          if (minutesSinceLast < 120) {
+            status = 'online';
+            statusLabel = r.manualLunchIn ? t('analytics.statusAfternoonDuty', '工作中 (下午)') : t('analytics.statusOnDuty', '工作中 (活跃)');
+            statusColor = 'var(--accent-blue)';
+          } else {
+            statusLabel = t('analytics.statusJustClockedIn', '今日已打卡');
+            statusColor = 'var(--accent-emerald)';
+          }
         }
       }
 
@@ -499,6 +513,16 @@ export default function AnalyticsPage() {
   // -------------------------------------------------------------
   // Progressive Zero-Trust Attendance Clock-in (2-Stage Verification)
   // -------------------------------------------------------------
+  const getPunchTypeLabel = (pType) => {
+    switch (pType) {
+      case 'CLOCK_IN': return t('analytics.clockInBtn', '上班签到');
+      case 'LUNCH_OUT': return t('analytics.lunchOutBtn', '午休离开');
+      case 'LUNCH_IN': return t('analytics.lunchInBtn', '午休返回');
+      case 'CLOCK_OUT': return t('analytics.clockOutBtn', '下班签退');
+      default: return pType;
+    }
+  };
+
   const executeAttendanceCheckin = async (type = 'CLOCK_IN') => {
     if (!teamId || !user) return;
     setIsClockingIn(true);
@@ -546,7 +570,7 @@ export default function AnalyticsPage() {
             type,
             verifyMethod: r1.verify_method,
             verifySnapshot,
-            note: `[${verifySnapshot.methodName}] ${type === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
+            note: `[${verifySnapshot.methodName}] ${getPunchTypeLabel(type)}`
           });
         } catch (storeErr) {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
@@ -625,7 +649,7 @@ export default function AnalyticsPage() {
               type,
               verifyMethod: 'GPS_GEOFENCE',
               verifySnapshot,
-              note: `[100m / ${Math.round(r2.effective_distance)}m] ${type === 'CLOCK_IN' ? t('analytics.clockInBtn', '上班签到') : t('analytics.clockOutBtn', '下班签退')}`
+              note: `[100m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(type)}`
             });
           } catch (storeErr) {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
@@ -679,6 +703,72 @@ export default function AnalyticsPage() {
     } finally {
       setIsDetectingIp(false);
     }
+  };
+
+  // Smart Parse Google Maps Coordinates (DMS like 1°26'25.7"N 103°37'04.5"E or Decimal pair 1.440472, 103.617917)
+  const parseGoogleMapsCoords = (str) => {
+    if (!str) return null;
+    const s = str.trim();
+    const dmsFullRegex = /(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([NSns])[\s,]+(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([EWew])/i;
+    const m = s.match(dmsFullRegex);
+    if (m) {
+      let lat = parseInt(m[1], 10) + parseInt(m[2], 10) / 60 + parseFloat(m[3]) / 3600;
+      if (m[4].toUpperCase() === 'S') lat = -lat;
+      let lng = parseInt(m[5], 10) + parseInt(m[6], 10) / 60 + parseFloat(m[7]) / 3600;
+      if (m[8].toUpperCase() === 'W') lng = -lng;
+      return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+    }
+    const decPairRegex = /([+-]?\d+\.?\d*)[\s,]+([+-]?\d+\.?\d*)/;
+    const md = s.match(decPairRegex);
+    if (md && !isNaN(parseFloat(md[1])) && !isNaN(parseFloat(md[2]))) {
+      return { lat: Number(parseFloat(md[1]).toFixed(6)), lng: Number(parseFloat(md[2]).toFixed(6)) };
+    }
+    return null;
+  };
+
+  const parseSingleCoord = (str) => {
+    if (!str) return '';
+    const s = String(str).trim();
+    const dmsSingleRegex = /(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([NSEWnsew]?)/i;
+    const m = s.match(dmsSingleRegex);
+    if (m) {
+      let val = parseInt(m[1], 10) + parseInt(m[2], 10) / 60 + parseFloat(m[3]) / 3600;
+      const dir = m[4] ? m[4].toUpperCase() : '';
+      if (dir === 'S' || dir === 'W') val = -val;
+      return Number(val.toFixed(6));
+    }
+    const f = parseFloat(s);
+    return isNaN(f) ? s : f;
+  };
+
+  const handleApplyPastedCoords = (inputVal) => {
+    const val = inputVal !== undefined ? inputVal : pasteCoordsInput;
+    const parsed = parseGoogleMapsCoords(val);
+    if (!parsed) {
+      setCoordsParseMsg('未能识别坐标格式，支持 1°26\'25.7"N 103°37\'04.5"E 或 1.440472, 103.617917');
+      setTimeout(() => setCoordsParseMsg(''), 4000);
+      return false;
+    }
+    const currentOffices = editingRules?.officeLocations || [];
+    const defaultOffice = t('analytics.defaultOfficeName', '公司总部');
+    const primary = currentOffices[0] || { name: defaultOffice, radiusMeters: editingRules?.maxDistanceMeters || 100 };
+    const updatedOffices = [
+      {
+        ...primary,
+        latitude: parsed.lat,
+        longitude: parsed.lng,
+        name: primary.name || defaultOffice
+      },
+      ...currentOffices.slice(1)
+    ];
+    setEditingRules({
+      ...editingRules,
+      officeLocations: updatedOffices
+    });
+    setCoordsParseMsg(`已成功解析并应用坐标：纬度 ${parsed.lat}，经度 ${parsed.lng}`);
+    setPasteCoordsInput('');
+    setTimeout(() => setCoordsParseMsg(''), 4000);
+    return true;
   };
 
   // 1-Click Adopt Current GPS as Office Center
@@ -869,7 +959,7 @@ export default function AnalyticsPage() {
             </button>
             <button
               className="btn btn-sm btn-outline"
-              style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px' }}
+              style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px', fontWeight: '600' }}
               disabled={isClockingIn}
               onClick={() => executeAttendanceCheckin('CLOCK_OUT')}
               title={t('analytics.clockOutTitle', '下班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
@@ -1322,11 +1412,13 @@ export default function AnalyticsPage() {
                                 gap: '4px'
                               }}>
                                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
-                                {item.status === 'online'
-                                  ? t('analytics.statusOnDuty', '工作中 (活跃)')
-                                  : item.isToday
-                                    ? t('analytics.statusJustClockedIn', '今日已打卡')
-                                    : t('analytics.statusFullShift', '正常完成')}
+                                {item.statusLabel || (
+                                  item.status === 'online'
+                                    ? t('analytics.statusOnDuty', '工作中 (活跃)')
+                                    : item.isToday
+                                      ? t('analytics.statusJustClockedIn', '今日已打卡')
+                                      : t('analytics.statusFullShift', '正常完成')
+                                )}
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
@@ -1446,7 +1538,7 @@ export default function AnalyticsPage() {
 
               {/* Section 1: Office Location & Geofence */}
               <div style={{ marginBottom: 'var(--space-6)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
                   <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <i className="ph-bold ph-map-pin" style={{ color: 'var(--accent-blue)' }}></i>
                     {t('analytics.secGeofenceTitle', '办公地点与 100 米弹性地理围栏')}
@@ -1460,6 +1552,59 @@ export default function AnalyticsPage() {
                     <i className={`ph-bold ${isDetectingGps ? 'ph-spinner-gap' : 'ph-crosshair'}`} style={isDetectingGps ? { animation: 'spin 1s linear infinite' } : {}}></i>
                     {isDetectingGps ? t('analytics.detectingGps', '读取中...') : t('analytics.adoptGpsBtn', '将我当前位置设为公司中心')}
                   </button>
+                </div>
+
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', lineHeight: 1.4 }}>
+                  💡 {t('analytics.gpsNotice', '电脑端无 GPS 硬件芯片，常因运营商出口 IP 位于雪兰莪导致定位偏移。建议使用下方快捷框直接粘贴 Google 地图真实坐标！')}
+                </div>
+
+                {/* Quick Paste Google Maps Coordinates Box */}
+                <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px dashed rgba(59, 130, 246, 0.3)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 'var(--space-4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="ph-bold ph-clipboard-text"></i>
+                      {t('analytics.quickPasteCoords', 'Google 地图坐标智能解析 / 粘贴')}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      style={{ fontSize: '11px', padding: '2px 8px', borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)', background: 'rgba(16, 185, 129, 0.08)' }}
+                      onClick={() => handleApplyPastedCoords('1°26\'25.7"N 103°37\'04.5"E')}
+                    >
+                      <i className="ph-bold ph-check"></i>
+                      {t('analytics.useJohorCoords', '一键填入柔佛总部 (1°26\'25.7"N 103°37\'04.5"E)')}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="input"
+                      style={{ flex: 1, height: '32px', fontSize: '12px', fontFamily: 'monospace' }}
+                      placeholder="支持度分秒 (1°26'25.7&quot;N 103°37'04.5&quot;E) 或十进制 (1.440472, 103.617917)"
+                      value={pasteCoordsInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPasteCoordsInput(val);
+                        if (val.includes('N') || val.includes(',') || val.includes('°')) {
+                          handleApplyPastedCoords(val);
+                        }
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleApplyPastedCoords()}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      style={{ height: '32px', fontSize: '12px' }}
+                      onClick={() => handleApplyPastedCoords()}
+                    >
+                      解析应用
+                    </button>
+                  </div>
+                  {coordsParseMsg && (
+                    <div style={{ fontSize: '11px', color: coordsParseMsg.startsWith('已成功') ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
+                      {coordsParseMsg}
+                    </div>
+                  )}
                 </div>
 
                 {/* Office Info Inputs */}
@@ -1482,15 +1627,23 @@ export default function AnalyticsPage() {
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{t('analytics.latLabel', '中心纬度 (Latitude)')}</label>
                     <input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="input"
                       style={{ width: '100%', height: '36px', fontSize: '13px', fontFamily: 'monospace' }}
-                      value={editingRules.officeLocations?.[0]?.latitude || ''}
-                      placeholder={t('analytics.latPlaceholder', '例如：3.1390')}
+                      value={editingRules.officeLocations?.[0]?.latitude ?? ''}
+                      placeholder={t('analytics.latPlaceholder', '例如：1.440472')}
                       onChange={(e) => {
+                        const val = e.target.value;
+                        const fullParsed = parseGoogleMapsCoords(val);
+                        if (fullParsed) {
+                          const locs = [...(editingRules.officeLocations || [])];
+                          locs[0] = { ...(locs[0] || {}), latitude: fullParsed.lat, longitude: fullParsed.lng };
+                          setEditingRules({ ...editingRules, officeLocations: locs });
+                          return;
+                        }
+                        const singleParsed = parseSingleCoord(val);
                         const locs = [...(editingRules.officeLocations || [])];
-                        locs[0] = { ...(locs[0] || {}), latitude: parseFloat(e.target.value) || 0 };
+                        locs[0] = { ...(locs[0] || {}), latitude: typeof singleParsed === 'number' ? singleParsed : (parseFloat(val) || 0) };
                         setEditingRules({ ...editingRules, officeLocations: locs });
                       }}
                     />
@@ -1498,15 +1651,23 @@ export default function AnalyticsPage() {
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{t('analytics.lngLabel', '中心经度 (Longitude)')}</label>
                     <input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="input"
                       style={{ width: '100%', height: '36px', fontSize: '13px', fontFamily: 'monospace' }}
-                      value={editingRules.officeLocations?.[0]?.longitude || ''}
-                      placeholder={t('analytics.lngPlaceholder', '例如：101.6869')}
+                      value={editingRules.officeLocations?.[0]?.longitude ?? ''}
+                      placeholder={t('analytics.lngPlaceholder', '例如：103.617917')}
                       onChange={(e) => {
+                        const val = e.target.value;
+                        const fullParsed = parseGoogleMapsCoords(val);
+                        if (fullParsed) {
+                          const locs = [...(editingRules.officeLocations || [])];
+                          locs[0] = { ...(locs[0] || {}), latitude: fullParsed.lat, longitude: fullParsed.lng };
+                          setEditingRules({ ...editingRules, officeLocations: locs });
+                          return;
+                        }
+                        const singleParsed = parseSingleCoord(val);
                         const locs = [...(editingRules.officeLocations || [])];
-                        locs[0] = { ...(locs[0] || {}), longitude: parseFloat(e.target.value) || 0 };
+                        locs[0] = { ...(locs[0] || {}), longitude: typeof singleParsed === 'number' ? singleParsed : (parseFloat(val) || 0) };
                         setEditingRules({ ...editingRules, officeLocations: locs });
                       }}
                     />

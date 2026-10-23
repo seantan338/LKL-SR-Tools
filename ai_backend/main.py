@@ -1,6 +1,7 @@
 import uvicorn
 
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Request, Header
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Request, Header, Depends
+from auth_guard import verify_user_or_internal_token, verify_optional_webhook_secret
 
 from fastapi.responses import JSONResponse
 
@@ -64,6 +65,17 @@ from logger import logger
 
 app = FastAPI(title="Talent Flow AI API")
 
+# Max upload size limit (25MB) to prevent memory exhaustion (OOM) Denial of Service attacks
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB
+
+def check_file_size(file_bytes: bytes, max_size: int = MAX_UPLOAD_SIZE):
+    if len(file_bytes) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件体积过大（已超过 {max_size // (1024 * 1024)}MB 限制），拒绝处理以保护服务器内存 / File size exceeds {max_size // (1024 * 1024)}MB limit"
+        )
+
+
 # Mount static uploads directory for resume attachments & previews
 uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
@@ -97,17 +109,22 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     err_lower = err_str.lower()
 
-    if "429" in err_str or "resource_exhausted" in err_lower or "quota" in err_lower:
+    from services.core_llm import IS_OPENROUTER
 
-        msg = f"AI 提供商 (Gemini API) 配额或频率超限 (HTTP 429)，请稍后重试，或前往 https://aistudio.google.com 检查用量与计费: {err_str}"
-
+    if "429" in err_str or "resource_exhausted" in err_lower or "quota" in err_lower or "rate limit" in err_lower:
+        if IS_OPENROUTER:
+            msg = f"AI 提供商 (OpenRouter) 配额或频率超限 (HTTP 429) / OpenRouter quota or rate limit exceeded: {err_str}"
+        else:
+            msg = f"AI 提供商 (Gemini API) 配额或频率超限 (HTTP 429)，请稍后重试 / Gemini API rate limit exceeded, please retry later: {err_str}"
+    elif "402" in err_str or "credits" in err_lower or "insufficient_quota" in err_lower:
+        msg = f"AI 提供商账户余额不足 (HTTP 402)，请充值后重试 / AI provider insufficient balance (HTTP 402): {err_str}"
     elif "api key" in err_lower or "api_key_invalid" in err_lower or "permission_denied" in err_lower:
-
-        msg = f"Gemini API 密钥无效或无权限，请检查 ai_backend/.env 中的 GEMINI_API_KEY: {err_str}"
-
+        if IS_OPENROUTER:
+            msg = f"OpenRouter API 密钥无效或无权限 / Invalid OpenRouter API key: {err_str}"
+        else:
+            msg = f"Gemini API 密钥无效或无权限 / Invalid Gemini API key: {err_str}"
     else:
-
-        msg = f"服务器内部处理异常: {err_str}"
+        msg = f"服务器内部处理异常 / Internal server error: {err_str}"
 
     return JSONResponse(
 
@@ -189,7 +206,7 @@ def health_check():
 
 @app.post("/api/parse/text")
 
-async def parse_text_endpoint(req: TextParseRequest):
+async def parse_text_endpoint(req: TextParseRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info("Received request at /api/parse/text")
 
@@ -197,7 +214,7 @@ async def parse_text_endpoint(req: TextParseRequest):
 
         logger.warning("Empty text received in /api/parse/text")
 
-        raise HTTPException(status_code=400, detail="文本不能为空")
+        raise HTTPException(status_code=400, detail="文本不能为空 / Text cannot be empty")
 
     try:
 
@@ -215,7 +232,7 @@ async def parse_text_endpoint(req: TextParseRequest):
 
 @app.post("/api/parse/sheet")
 
-async def parse_sheet_endpoint(req: SheetParseRequest):
+async def parse_sheet_endpoint(req: SheetParseRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/parse/sheet with targetType: {req.targetType}, sourceTab: {req.sourceTab}")
 
@@ -223,7 +240,7 @@ async def parse_sheet_endpoint(req: SheetParseRequest):
 
         logger.warning("Empty data received in /api/parse/sheet")
 
-        raise HTTPException(status_code=400, detail="解析数据不能为空")
+        raise HTTPException(status_code=400, detail="解析数据不能为空 / Data to parse cannot be empty")
 
     try:
 
@@ -241,13 +258,13 @@ async def parse_sheet_endpoint(req: SheetParseRequest):
 
 @app.get("/api/sheets/tabs")
 
-async def get_sheet_tabs_endpoint(spreadsheetId: str):
+async def get_sheet_tabs_endpoint(spreadsheetId: str, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/sheets/tabs for spreadsheetId: {spreadsheetId}")
 
     if not spreadsheetId:
 
-        raise HTTPException(status_code=400, detail="spreadsheetId 不能为空")
+        raise HTTPException(status_code=400, detail="spreadsheetId 不能为空 / spreadsheetId cannot be empty")
 
     try:
 
@@ -267,7 +284,7 @@ async def get_sheet_tabs_endpoint(spreadsheetId: str):
 
 @app.post("/api/sheets/fetch")
 
-async def fetch_sheet_endpoint(req: FetchSheetRequest):
+async def fetch_sheet_endpoint(req: FetchSheetRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/sheets/fetch for sheet: {req.sheetName}")
 
@@ -289,7 +306,7 @@ async def fetch_sheet_endpoint(req: FetchSheetRequest):
 
 @app.post("/api/sheets/normalize-interview")
 
-async def normalize_interview_endpoint(req: NormalizeInterviewRequest):
+async def normalize_interview_endpoint(req: NormalizeInterviewRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     """
 
@@ -311,11 +328,11 @@ async def normalize_interview_endpoint(req: NormalizeInterviewRequest):
 
         except Exception as e:
 
-            return {"status": "error", "message": f"拉取表格失败: {str(e)}"}
+            return {"status": "error", "message": f"拉取表格失败 / Failed to fetch sheet: {str(e)}"}
 
     if not rows:
 
-        raise HTTPException(status_code=400, detail="必须提供 rawRows 或合法的 spreadsheetId + sheetName")
+        raise HTTPException(status_code=400, detail="必须提供 rawRows 或合法的 spreadsheetId + sheetName / Must provide rawRows or valid spreadsheetId + sheetName")
 
     try:
 
@@ -332,13 +349,10 @@ async def normalize_interview_endpoint(req: NormalizeInterviewRequest):
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/parse/file")
-
 async def parse_file_endpoint(
-
-    file: UploadFile = File(...), 
-
-    text: Optional[str] = Form(None)
-
+    file: UploadFile = File(...),
+    text: Optional[str] = Form(None),
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
 
     logger.info(f"Received request at /api/parse/file for filename: {file.filename}")
@@ -348,6 +362,7 @@ async def parse_file_endpoint(
         # Read file bytes
 
         file_bytes = await file.read()
+        check_file_size(file_bytes)
 
         filename = file.filename
 
@@ -369,7 +384,7 @@ async def parse_file_endpoint(
 
             logger.warning(f"No valid text extracted from file {filename}")
 
-            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本")
+            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本 / Unable to extract valid text from file")
 
         # Call LLM
 
@@ -391,14 +406,12 @@ async def parse_file_endpoint(
 
         logger.error(f"Error in /api/parse/file: {str(e)}", exc_info=True)
 
-        return {"status": "error", "message": f"文件解析或AI生成失败: {str(e)}"}
+        return {"status": "error", "message": f"文件解析或AI生成失败 / File parsing or AI generation failed: {str(e)}"}
 
 @app.post("/api/parse/file/job_order")
-
 async def parse_file_job_order_endpoint(
-
-    file: UploadFile = File(...)
-
+    file: UploadFile = File(...),
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
 
     logger.info(f"Received request at /api/parse/file/job_order for filename: {file.filename}")
@@ -408,6 +421,7 @@ async def parse_file_job_order_endpoint(
         # Read file bytes
 
         file_bytes = await file.read()
+        check_file_size(file_bytes)
 
         filename = file.filename
 
@@ -421,7 +435,7 @@ async def parse_file_job_order_endpoint(
 
             logger.warning(f"No valid text extracted from {filename} in job order parse")
 
-            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本")
+            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本 / Unable to extract valid text from file")
 
         # Call LLM for job_order
 
@@ -443,11 +457,11 @@ async def parse_file_job_order_endpoint(
 
         logger.error(f"Error in /api/parse/file/job_order: {str(e)}", exc_info=True)
 
-        return {"status": "error", "message": f"文件解析或AI生成失败: {str(e)}"}
+        return {"status": "error", "message": f"文件解析或AI生成失败 / File parsing or AI generation failed: {str(e)}"}
 
 @app.post("/api/parse/cv")
 
-async def parse_cv_endpoint(req: TextParseRequest):
+async def parse_cv_endpoint(req: TextParseRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info("Received request at /api/parse/cv")
 
@@ -455,7 +469,7 @@ async def parse_cv_endpoint(req: TextParseRequest):
 
         logger.warning("Empty text received in /api/parse/cv")
 
-        raise HTTPException(status_code=400, detail="文本不能为空")
+        raise HTTPException(status_code=400, detail="文本不能为空 / Text cannot be empty")
 
     try:
 
@@ -472,11 +486,9 @@ async def parse_cv_endpoint(req: TextParseRequest):
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/parse/file/cv")
-
 async def parse_file_cv_endpoint(
-
-    file: UploadFile = File(...)
-
+    file: UploadFile = File(...),
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
 
     logger.info(f"Received request at /api/parse/file/cv for filename: {file.filename}")
@@ -484,6 +496,7 @@ async def parse_file_cv_endpoint(
     try:
 
         file_bytes = await file.read()
+        check_file_size(file_bytes)
 
         filename = file.filename
 
@@ -508,14 +521,14 @@ async def parse_file_cv_endpoint(
             from services.cv_parser import parse_cv_from_images
             base64_images = extract_images_from_pdf(file_bytes)
             if not base64_images:
-                raise HTTPException(status_code=400, detail="PDF没有任何页面，无法解析。")
+                raise HTTPException(status_code=400, detail="PDF没有任何页面，无法解析 / PDF has no pages and cannot be parsed")
             results = await parse_cv_from_images(base64_images)
             logger.info(f"Successfully parsed CV from images for file {filename}")
             return {"status": "success", "data": results}
 
         if not extracted_text.strip():
             logger.warning(f"No valid text extracted from {filename} in CV parse")
-            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本，或者非PDF格式的扫描件不支持。")
+            raise HTTPException(status_code=400, detail="无法从文件中提取到有效文本，或非PDF扫描件不支持 / Unable to extract text from file, or unsupported non-PDF scan")
 
         logger.info(f"Calling parse_cv for {filename}...")
         results = await parse_cv(extracted_text)
@@ -534,11 +547,11 @@ async def parse_file_cv_endpoint(
 
         logger.error(f"Error in /api/parse/file/cv: {str(e)}", exc_info=True)
 
-        return {"status": "error", "message": f"简历解析失? {str(e)}"}
+        return {"status": "error", "message": f"简历解析失败 / Resume parsing failed: {str(e)}"}
 
 @app.post("/api/match/candidates")
 
-async def match_candidates_endpoint(req: MatchCandidatesRequest):
+async def match_candidates_endpoint(req: MatchCandidatesRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/match/candidates")
 
@@ -568,7 +581,7 @@ async def match_candidates_endpoint(req: MatchCandidatesRequest):
 
 @app.post("/api/embeddings/sync")
 
-async def sync_embeddings_endpoint(req: SyncRequest):
+async def sync_embeddings_endpoint(req: SyncRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
 
     logger.info(f"Received request at /api/embeddings/sync for teamId: {req.teamId}")
 
@@ -642,41 +655,22 @@ class AgentChatRequest(BaseModel):
 @app.post("/api/agent/chat")
 async def agent_chat_endpoint(
     req: AgentChatRequest, 
-    request: Request,
-    authorization: str = Header(None)
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
     logger.info("Received request at /api/agent/chat")
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
+    if auth_user.get("auth_type") == "internal_secret":
+        uid = req.senderUid or "system_bot"
+        email = req.senderEmail or "bot@talentflow.internal"
+        name = req.senderName or "WhatsApp Bot"
+    else:
+        uid = auth_user.get("uid") or "unknown"
+        email = auth_user.get("email") or "未知邮箱"
+        name = auth_user.get("name") or "未知用户"
 
-    token = authorization.split("Bearer ")[1]
-
-    # Server-to-Server 身份校验 (供 whatsapp_bot 内部调用)
-    INTERNAL_SERVER_SECRET = "talent-flow-internal-ai-agent-secret-2026"
-    
-    uid = req.senderUid or "system_bot"
-    email = req.senderEmail or "bot@talentflow.internal"
-    name = req.senderName or "WhatsApp Bot"
-
-    if token != INTERNAL_SERVER_SECRET:
-        try:
-            import firebase_admin.auth
-            decoded_token = firebase_admin.auth.verify_id_token(token)
-            uid = decoded_token.get("uid")
-            email = decoded_token.get("email", "未知邮箱")
-            name = decoded_token.get("name", "未知用户")
-        except Exception as e:
-            logger.error(f"Token verification failed in agent chat: {e}")
-            raise HTTPException(status_code=401, detail="Unauthorized: Token invalid")
-        
     from services.agent_service import process_agent_message
-    
+
     result = await process_agent_message(req.text, req.teamId, uid, name, email)
     return result
-
-if __name__ == "__main__":
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 from pydantic import Field
 
@@ -701,51 +695,18 @@ class AuditLogRequest(BaseModel):
     details: Optional[Any] = None
 
 @app.post("/api/audit-log")
-
 async def write_audit_log(
-
     req: AuditLogRequest, 
-
     request: Request,
-
-    authorization: str = Header(None)
-
+    auth_user: dict = Depends(verify_user_or_internal_token)
 ):
-
-    uid = "anonymous"
-    email = "未知邮箱"
-    name = "未知用户"
-
-    if authorization and authorization.startswith("Bearer "):
-        id_token = authorization.split("Bearer ")[1].strip()
-        if id_token:
-            try:
-                decoded_token = firebase_admin.auth.verify_id_token(id_token, clock_skew_seconds=60)
-                uid = decoded_token.get("uid", uid)
-                email = decoded_token.get("email", email)
-                name = decoded_token.get("name", name)
-            except Exception as e:
-                logger.warning(f"Audit token verification fallback: {e}")
-                try:
-                    import base64
-                    import json
-                    parts = id_token.split(".")
-                    if len(parts) >= 2:
-                        payload_b64 = parts[1]
-                        payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-                        claims = json.loads(base64.urlsafe_b64decode(payload_b64.encode('utf-8')).decode('utf-8'))
-                        uid = claims.get("user_id") or claims.get("sub", uid)
-                        email = claims.get("email", email)
-                        name = claims.get("name", name)
-                except Exception as decode_err:
-                    logger.warning(f"Audit token payload decode fallback failed: {decode_err}")
+    uid = auth_user.get("uid") or "anonymous"
+    email = auth_user.get("email") or "未知邮箱"
+    name = auth_user.get("name") or "未知用户"
 
     from firebase_admin_init import get_firestore_client
-
     db = get_firestore_client()
-
     if not db:
-
         raise HTTPException(status_code=500, detail="Firestore not initialized")
 
     client_ip = request.client.host
@@ -806,7 +767,7 @@ class ExportDocxRequest(BaseModel):
     parsed_data: dict
 
 @app.post("/api/export/cv-docx")
-async def export_cv_docx_endpoint(req: ExportDocxRequest):
+async def export_cv_docx_endpoint(req: ExportDocxRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
     try:
         from services.docx_exporter import export_cv_to_docx
         from fastapi.responses import StreamingResponse
@@ -883,23 +844,21 @@ async def process_webhook_in_background(req: SheetsWebhookRequest):
             # If for some reason it's missing, fallback to UUID
             candidate_id = req.uid if req.uid else str(uuid.uuid4())
             candidate_data['id'] = candidate_id
-            
-            candidate_data['updatedAt'] = now_iso
-            # We don't overwrite createdAt if it exists, so we let merge=True handle it gracefully.
-            if 'createdAt' not in candidate_data:
-                candidate_data['createdAt'] = now_iso
-                
+            candidate_data['updatedAt'] = firestore.SERVER_TIMESTAMP
             candidate_data['source'] = 'Google Sheets Webhook'
-            
-            # Safe defaults only for new creations
-            if 'status' not in candidate_data:
-                candidate_data['status'] = 'active'
-            if 'stage' not in candidate_data:
-                candidate_data['stage'] = 'new'
-            
-            # MERGE=TRUE is critical! It updates the parsed fields (like salary, phone) 
-            # WITHOUT wiping out the candidate's existing notes, reminders, or stage inside the web app.
-            db.collection('teams').document(safe_team_id).collection('candidates').document(candidate_id).set(candidate_data, merge=True)
+
+            doc_ref = db.collection('teams').document(safe_team_id).collection('candidates').document(candidate_id)
+            existing_snap = doc_ref.get()
+
+            if not existing_snap.exists:
+                # Safe defaults strictly for brand-new creations
+                candidate_data['createdAt'] = firestore.SERVER_TIMESTAMP
+                candidate_data.setdefault('status', 'active')
+                candidate_data.setdefault('stage', 'screening')
+                candidate_data.setdefault('stageHistory', [{'stage': candidate_data['stage'], 'movedAt': now_iso}])
+
+            # MERGE=TRUE updates parsed fields without wiping existing notes, reminders, or web stage
+            doc_ref.set(candidate_data, merge=True)
             saved_count += 1
 
         logger.info(f"Background webhook parsed and UPSERTED {saved_count} candidates for team '{safe_team_id}' with UID: {req.uid}")
@@ -907,14 +866,14 @@ async def process_webhook_in_background(req: SheetsWebhookRequest):
         logger.error(f"Background Webhook error: {e}", exc_info=True)
 
 @app.post("/api/sheets/webhook")
-async def sheets_webhook_endpoint(req: SheetsWebhookRequest, background_tasks: BackgroundTasks):
+async def sheets_webhook_endpoint(req: SheetsWebhookRequest, background_tasks: BackgroundTasks, _webhook_ok: bool = Depends(verify_optional_webhook_secret)):
     logger.info(f"Received Sheets Webhook from {req.spreadsheetId} - {req.sheetName}. Pushing to background task.")
     # 异步解耦：立即返回 HTTP 200 防止 Google Sheets 超时卡顿，耗时的 AI 解析和数据库写入放入后台队列
     background_tasks.add_task(process_webhook_in_background, req)
     return {"status": "processing", "message": "Webhook received, processing AI parsing in background"}
 
 @app.post("/api/telegram/webhook")
-async def telegram_webhook_endpoint(request: Request, background_tasks: BackgroundTasks, sync: bool = False):
+async def telegram_webhook_endpoint(request: Request, background_tasks: BackgroundTasks, sync: bool = False, _webhook_ok: bool = Depends(verify_optional_webhook_secret)):
     """
     Direct Telegram Webhook / n8n Ingest endpoint.
     If sync=True, awaits processing and returns the parsed candidate data for n8n visualization.
@@ -936,7 +895,8 @@ async def telegram_webhook_endpoint(request: Request, background_tasks: Backgrou
 async def ingest_candidate_file_endpoint(
     file: UploadFile = File(...),
     teamId: Optional[str] = Form("default_team"),
-    senderName: Optional[str] = Form("n8n_workflow")
+    senderName: Optional[str] = Form("n8n_workflow"),
+    _webhook_ok: bool = Depends(verify_optional_webhook_secret)
 ):
     """
     Universal Candidate File Ingest Endpoint (Ideal for n8n, Zapier, Make, or Webhooks).
@@ -944,6 +904,7 @@ async def ingest_candidate_file_endpoint(
     """
     try:
         file_bytes = await file.read()
+        check_file_size(file_bytes)
         filename = file.filename or "resume.pdf"
         
         # 1. Save file to cloud/local storage

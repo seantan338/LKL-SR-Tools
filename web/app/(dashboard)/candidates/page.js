@@ -446,7 +446,7 @@ export default function CandidatesPage() {
                 fontWeight: '600'
               }}>
                 <i className="ph-bold ph-lock-key"></i>
-                <span>{t('team.readOnlyBadge', '单向只读')} · 合作人数据</span>
+                <span>{t('team.readOnlyBadge', '单向只读')} · {t('extraUi.partnerDataBadge', '合作人数据')}</span>
               </div>
             )}
           </div>
@@ -1054,11 +1054,11 @@ export default function CandidatesPage() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>{t('candidates.mergePreviewExp', '工作履历')}: </span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{fusedCandidatePreview.workExperience?.length || 0} 段经历 (已去重合并)</strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>{t('extraUi.mergedExpCount', { count: fusedCandidatePreview.workExperience?.length || 0 }, `${fusedCandidatePreview.workExperience?.length || 0} 段经历 (已去重合并)`)}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>技能标签: </span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{fusedCandidatePreview.tags?.length || 0} 个标签</strong>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('extraUi.skillTagsLabel', '技能标签: ')}</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{t('extraUi.skillTagsCount', { count: fusedCandidatePreview.tags?.length || 0 }, `${fusedCandidatePreview.tags?.length || 0} 个标签`)}</strong>
                   </div>
                 </div>
 

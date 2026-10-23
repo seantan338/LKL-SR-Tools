@@ -3,10 +3,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
+import { useI18n } from '../../../lib/i18n-context';
 import CachePrefetchEngine from '../../../components/CachePrefetchEngine';
 
 export default function LoginPage() {
   const { signInWithGoogle, loading, user } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const [error, setError] = useState('');
   const [infoNotice, setInfoNotice] = useState('');
@@ -37,7 +39,7 @@ export default function LoginPage() {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setIsSigningIn(false);
-      setInfoNotice('登录等待超时或授权窗口已关闭。请重新点击登录。');
+      setInfoNotice(t('authPages.loginTimeoutNotice', '登录等待超时或授权窗口已关闭。请重新点击登录。'));
     }, 10000);
 
     try {
@@ -56,15 +58,15 @@ export default function LoginPage() {
 
       const code = err?.code || '';
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        setInfoNotice('已取消 Google 授权登录。如需进入系统，请重新点击登录。');
+        setInfoNotice(t('authPages.loginCancelledNotice', '已取消 Google 授权登录。如需进入系统，请重新点击登录。'));
       } else if (code === 'auth/popup-blocked') {
-        setError('登录弹窗被浏览器拦截，请在地址栏允许弹出窗口后重试。');
+        setError(t('authPages.loginPopupBlocked', '登录弹窗被浏览器拦截，请在地址栏允许弹出窗口后重试。'));
       } else if (code === 'auth/unauthorized-domain') {
-        setError('当前网址未在 Firebase 授权网域白名单中，请联系管理员配置。');
+        setError(t('authPages.loginUnauthorizedDomain', '当前网址未在 Firebase 授权网域白名单中，请联系管理员配置。'));
       } else if (code === 'auth/network-request-failed') {
-        setError('网络连接中断，请检查网络后重试。');
+        setError(t('authPages.loginNetworkError', '网络连接中断，请检查网络后重试。'));
       } else {
-        setError(err?.message || '登录失败，请重试。');
+        setError(err?.message || t('authPages.loginFailedDefault', '登录失败，请重试。'));
       }
     }
   };
@@ -186,7 +188,7 @@ export default function LoginPage() {
                 transition: 'color 0.2s'
               }}
             >
-              取消等待并重新尝试
+              {t('authPages.cancelWaitRetry', '取消等待并重新尝试')}
             </button>
           )}
         </div>

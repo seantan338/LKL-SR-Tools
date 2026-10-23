@@ -2,23 +2,37 @@ from .core_llm import get_client, ensure_api_key, safe_json_parse, AI_MODEL_NAME
 
 
 JOB_ORDER_SYSTEM_PROMPT = """You are a professional headhunter/HR processing business Job Orders.
-Please extract the unstructured text or raw table data into a strict JSON object.
+Please extract ALL job positions from the unstructured text, chat message, or raw table data into a strict JSON ARRAY of objects (`[...]`).
 Extract information as accurately as possible. For missing fields, use empty string "".
 
-JSON Schema:
-{
-  "company": "Client / Company Name (e.g. IPE Automation)",
-  "position": "Job Title",
-  "headcount": "Number of vacancies (number or string)",
-  "location": "Work Location",
-  "workHours": "Working Hours / Shifts",
-  "salary": "Salary Range",
-  "requirements": "String combining all requirements",
-  "responsibilities": "String combining all responsibilities",
-  "benefits": "String combining all benefits",
-  "notes": "Any other remarks"
-}
-Output ONLY valid JSON. All extracted/summarized content should be in ENGLISH.
+CRITICAL MULTI-JOB & SPLITTING RULES:
+1. SHARED COMPANY INHERITANCE:
+   - If a company/client name is mentioned once at the top, bottom, or header (e.g., "acompany is hiring:", "Client: XYZ Sdn Bhd"), inherit and populate that exact `company` name into EVERY extracted job order in the array.
+2. COMPOUND / SLASHED POSITIONS MUST BE SPLIT:
+   - If a single block lists multiple positions combined with "/" or "and" (e.g., "Refining Chemist / Refining Manager")—especially when they have distinct salary ranges like "Salary: Refining Chemist (3.5k - 5k) Refining Manager (8k - 10k)"—you MUST split them into SEPARATE JSON objects in the array, assigning each position its own specific title and corresponding salary range, while inheriting shared fields (company, gender/requirements, location).
+3. INLINE CLUES EXTRACTION:
+   - If a job title contains a location in parentheses, e.g., "Business development executive (Johor/KL)", set `position` to "Business development executive" and `location` to "Johor/KL".
+   - If salary contains commission/allowance perks, e.g., "3.5k - 4.5k (have commission)", keep `salary` as "3.5k - 4.5k (have commission)" and also extract "Commission" into `benefits`.
+   - Include any stated attributes such as "Gender: Male" or "Gender: Open" inside `requirements`.
+4. DEFAULT HEADCOUNT:
+   - If headcount is not specified, set `headcount` to 1.
+
+Each object in the JSON array MUST follow this schema:
+[
+  {
+    "company": "Client / Company Name (e.g. acompany)",
+    "position": "Single Clean Job Title",
+    "headcount": 1,
+    "location": "Work Location (or empty string if not mentioned)",
+    "workHours": "Working Hours / Shifts (or empty string if not mentioned)",
+    "salary": "Salary Range for this specific position",
+    "requirements": "String combining all requirements (including Gender, experience, qualifications, etc.)",
+    "responsibilities": "String combining all responsibilities",
+    "benefits": "String combining all benefits / commission / allowances",
+    "notes": "Any other remarks"
+  }
+]
+Output ONLY a valid JSON array `[...]`. All extracted/summarized content should be in ENGLISH.
 """
 
 async def parse_job_orders(raw_text: str) -> list:
@@ -73,4 +87,4 @@ async def parse_job_orders(raw_text: str) -> list:
 
     except Exception as e:
         logger.error(f"Exception in parse_job_orders: {str(e)}", exc_info=True)
-        raise ValueError(f"招聘需求解析失败: {str(e)}")
+        raise ValueError(f"招聘需求解析失败 / Job order parsing failed: {str(e)}")

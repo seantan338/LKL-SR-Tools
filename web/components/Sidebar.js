@@ -150,11 +150,11 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 className="sidebar-action-btn" 
                 onClick={toggleTheme}
                 style={{ justifyContent: 'center', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-sm)' }}
-                title="切换主题"
+                title={t('extraUi.switchTheme', '切换主题')}
               >
-                {theme === 'dark' && <><i className="ph-light ph-moon"></i><span>深色</span></>}
-                {theme === 'gemini' && <><i className="ph-fill ph-sparkle" style={{ color: '#c084fc' }}></i><span>宇宙</span></>}
-                {theme === 'light' && <><i className="ph-light ph-sun" style={{ color: '#d97706' }}></i><span>浅色</span></>}
+                {theme === 'dark' && <><i className="ph-light ph-moon"></i><span>{t('extraUi.themeDark', '深色')}</span></>}
+                {theme === 'gemini' && <><i className="ph-fill ph-sparkle" style={{ color: '#c084fc' }}></i><span>{t('extraUi.themeGemini', '宇宙')}</span></>}
+                {theme === 'light' && <><i className="ph-light ph-sun" style={{ color: '#d97706' }}></i><span>{t('extraUi.themeLight', '浅色')}</span></>}
               </button>
             </div>
 
