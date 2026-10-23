@@ -23,16 +23,13 @@ export function AuthProvider({ children }) {
         ),
       ]);
 
+    // 初始管理员只由环境变量 NEXT_PUBLIC_ADMIN_EMAIL 指定（可用逗号分隔多个），不在代码里写死邮箱
     const checkIsAdminEmail = (email) => {
-      const adminEmailStr = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').trim().toLowerCase();
       const targetEmail = (email || '').trim().toLowerCase();
       if (!targetEmail) return false;
-      const defaultAdmins = ['lokkalap123@gmail.com', 'sean@sunriserecruit.com'];
-      if (!adminEmailStr) {
-        return defaultAdmins.includes(targetEmail);
-      }
-      const adminEmails = adminEmailStr.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-      return adminEmails.includes(targetEmail) || defaultAdmins.includes(targetEmail);
+      const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '')
+        .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+      return adminEmails.includes(targetEmail);
     };
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -44,33 +41,30 @@ export function AuthProvider({ children }) {
           const profileRef = doc(db, 'users', firebaseUser.uid);
           const profileSnap = await withTimeout(getDoc(profileRef));
 
+          // 只把真正写入 Firestore 成功的身份放进界面：Firestore rules 不允许自己升为 owner，
+          // 若写入失败仍在内存里当 owner，界面会出现管理功能、实际操作却全部被拒绝
+          const persistProfile = async (profile, fallback) => {
+            try {
+              await withTimeout(setDoc(profileRef, profile, { merge: true }), 3000);
+              return profile;
+            } catch (writeErr) {
+              console.warn('[auth] Could not persist profile to Firestore (likely rules), keeping stored role:', writeErr);
+              return fallback;
+            }
+          };
+
           if (profileSnap.exists()) {
             const data = profileSnap.data();
-            // If the user is designated as admin via NEXT_PUBLIC_ADMIN_EMAIL / defaultAdmins, ensure owner role
+            // If the user is designated as admin via NEXT_PUBLIC_ADMIN_EMAIL, try to ensure owner role
             if (isAdmin && (data.role !== 'owner' || data.teamId !== 'default_team')) {
-              const patchedData = { 
-                ...data, 
-                teamId: 'default_team', 
-                role: 'owner' 
-              };
-              try {
-                await withTimeout(setDoc(profileRef, patchedData, { merge: true }), 3000);
-              } catch (writeErr) {
-                console.warn('[auth] Could not persist owner role to Firestore (likely rules), applying in memory:', writeErr);
-              }
-              setUserProfile(patchedData);
+              setUserProfile(await persistProfile({ ...data, teamId: 'default_team', role: 'owner' }, data));
             } else if (!data.teamId || !data.role) {
-              const patchedData = { 
-                ...data, 
-                teamId: isAdmin ? 'default_team' : null, 
-                role: isAdmin ? 'owner' : 'pending' 
+              const patchedData = {
+                ...data,
+                teamId: isAdmin ? 'default_team' : null,
+                role: isAdmin ? 'owner' : 'pending'
               };
-              try {
-                await withTimeout(setDoc(profileRef, patchedData, { merge: true }), 3000);
-              } catch (writeErr) {
-                console.warn('[auth] Could not persist patch to Firestore:', writeErr);
-              }
-              setUserProfile(patchedData);
+              setUserProfile(await persistProfile(patchedData, { ...data, teamId: null, role: 'pending' }));
             } else {
               setUserProfile(data);
             }
@@ -85,22 +79,19 @@ export function AuthProvider({ children }) {
               role: isAdmin ? 'owner' : 'pending',
               createdAt: serverTimestamp(),
             };
+            let savedProfile = newProfile;
             try {
               await withTimeout(setDoc(profileRef, newProfile), 3000);
             } catch (createErr) {
               console.warn('[auth] Direct create of profile blocked (likely firestore rules), attempting compliant fallback:', createErr);
+              savedProfile = { ...newProfile, teamId: null, role: 'pending' };
               try {
-                const compliantProfile = {
-                  ...newProfile,
-                  teamId: null,
-                  role: 'pending'
-                };
-                await withTimeout(setDoc(profileRef, compliantProfile), 3000);
+                await withTimeout(setDoc(profileRef, savedProfile), 3000);
               } catch (fallbackErr) {
                 console.error('[auth] Fallback profile creation also failed:', fallbackErr);
               }
             }
-            setUserProfile(newProfile);
+            setUserProfile(savedProfile);
           }
         } else {
           setUser(null);

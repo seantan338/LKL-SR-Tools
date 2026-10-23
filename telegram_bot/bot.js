@@ -47,6 +47,9 @@ if (fs.existsSync(serviceAccountPath)) {
 // --- Configuration ---
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const AI_BACKEND_URL = process.env.AI_BACKEND_URL || 'http://127.0.0.1:8000';
+// 调用 AI 后端受保护接口的服务间密钥，需与 AI 后端的 INTERNAL_API_SECRET 一致
+const INTERNAL_API_SECRET = (process.env.INTERNAL_API_SECRET || '').trim();
+if (!INTERNAL_API_SECRET) console.warn('⚠️ 未设置 INTERNAL_API_SECRET，调用 AI 后端将返回 401');
 const DEFAULT_TEAM_ID = process.env.TELEGRAM_DEFAULT_TEAM || 'default_team';
 const WEB_APP_BASE_URL = (process.env.WEB_APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 const SILENT_MODE = process.env.TELEGRAM_SILENT_MODE !== 'false';
@@ -117,7 +120,7 @@ async function sendFileToAiBackend(fileBuffer, filename) {
     const res = await fetch(targetUrl, {
         method: 'POST',
         body: form,
-        headers: form.getHeaders(),
+        headers: { ...form.getHeaders(), 'X-API-Key': INTERNAL_API_SECRET },
         timeout: 90000 // 90 seconds timeout for large OCR/LLM
     });
 
