@@ -28,10 +28,13 @@ export default function AttendanceModal() {
     enabled: true,
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
-    officeLocations: [],
+    officeLocations: [
+      { name: '公司总部', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
+    ],
     officeWifi: { allowedIps: [] }
   });
   const [toastMsg, setToastMsg] = useState('');
+  const [appleHelpMsg, setAppleHelpMsg] = useState('');
   const autoPopupCheckedRef = useRef(false);
 
   const showToast = (msg) => {
@@ -263,6 +266,11 @@ export default function AttendanceModal() {
       if (r1?.client_ip) {
         setDetectedIp(r1.client_ip);
       }
+      if (r1?.apple_help) {
+        setAppleHelpMsg(r1.apple_help);
+      } else if (r1?.passed) {
+        setAppleHelpMsg('');
+      }
 
       // Case 1: Rule disabled OR Wi-Fi IP passed!
       if (r1?.passed) {
@@ -321,7 +329,7 @@ export default function AttendanceModal() {
           pos = await getPos();
         } catch (geoErr) {
           let reason = t('analytics.geoErrDefault', '定位授权或信号异常');
-          if (geoErr.code === 1) reason = t('analytics.geoErrDenied', '您拒绝了浏览器地理定位授权。请在浏览器地址栏允许定位权限，或连接公司 Wi-Fi 直接打卡。');
+          if (geoErr.code === 1) reason = t('analytics.geoErrDenied', '浏览器定位权限被拒绝。苹果手机请至「设置 -> 隐私与安全性 -> 定位服务 -> Safari」开启定位并打开「精确位置」，或在当前 Wi-Fi 设置中关闭「限制 IP 地址跟踪」！');
           else if (geoErr.code === 2) reason = t('analytics.geoErrFailed', '位置获取失败，请确保设备开启了高精度定位服务。');
           else if (geoErr.code === 3) reason = t('analytics.geoErrTimeout', 'GPS 定位获取超时，请移至窗边或连接公司 Wi-Fi 重试。');
           throw new Error(reason);
@@ -752,6 +760,23 @@ export default function AttendanceModal() {
                 <i className={`ph-bold ${isVerifying ? 'ph-spinner-gap' : 'ph-warning-circle'}`} style={{ animation: isVerifying ? 'spin 1s linear infinite' : 'none', fontSize: '16px', flexShrink: 0 }}></i>
                 <span style={{ lineHeight: 1.4 }}>{statusMessage}</span>
               </div>
+
+              {appleHelpMsg && (
+                <div style={{
+                  background: 'rgba(234, 179, 8, 0.12)',
+                  border: '1px solid rgba(234, 179, 8, 0.35)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '8px 10px',
+                  fontSize: '11px',
+                  color: 'var(--accent-amber)',
+                  lineHeight: 1.45,
+                  display: 'flex',
+                  gap: '6px'
+                }}>
+                  <i className="ph-bold ph-apple-logo" style={{ fontSize: '14px', flexShrink: 0, marginTop: '2px' }}></i>
+                  <span>{appleHelpMsg}</span>
+                </div>
+              )}
 
               {!isVerifying && isOwner && detectedIp && (
                 <button

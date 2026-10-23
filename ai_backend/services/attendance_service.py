@@ -1,6 +1,7 @@
 import math
 import time
 import socket
+import ipaddress
 from typing import Optional, Dict, Any, List
 from fastapi import Request
 
@@ -81,6 +82,30 @@ def resolve_ddns_domain(domain: str) -> Optional[str]:
         return None
 
 
+
+def is_ip_matched(client_ip: str, allowed_ips: List[str]) -> bool:
+    if client_ip in allowed_ips:
+        return True
+    try:
+        c_ip = ipaddress.ip_address(client_ip)
+        for allowed in allowed_ips:
+            try:
+                if "/" in allowed:
+                    if c_ip in ipaddress.ip_network(allowed, strict=False):
+                        return True
+                else:
+                    a_ip = ipaddress.ip_address(allowed)
+                    if c_ip.version == 6 and a_ip.version == 6:
+                        c_net = ipaddress.IPv6Network(f"{c_ip}/64", strict=False)
+                        a_net = ipaddress.IPv6Network(f"{a_ip}/64", strict=False)
+                        if c_net == a_net:
+                            return True
+            except ValueError:
+                continue
+    except ValueError:
+        pass
+    return False
+
 def verify_clockin_eligibility(
     client_ip: str,
     coords: Optional[Dict[str, Any]],
@@ -114,7 +139,7 @@ def verify_clockin_eligibility(
             allowed_ips.append(resolved_ip)
 
     # In local development environments, treat localhost / private IPs as matching if configured or matching
-    if client_ip in allowed_ips or (client_ip in ("127.0.0.1", "localhost", "::1") and ("127.0.0.1" in allowed_ips or not allowed_ips)):
+    if is_ip_matched(client_ip, allowed_ips) or (client_ip in ("127.0.0.1", "localhost", "::1") and ("127.0.0.1" in allowed_ips or not allowed_ips)):
         return {
             "passed": True,
             "verify_method": "WIFI_IP",

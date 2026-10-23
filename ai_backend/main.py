@@ -65,6 +65,17 @@ from logger import logger
 
 app = FastAPI(title="Talent Flow AI API")
 
+# Max upload size limit (25MB) to prevent memory exhaustion (OOM) Denial of Service attacks
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB
+
+def check_file_size(file_bytes: bytes, max_size: int = MAX_UPLOAD_SIZE):
+    if len(file_bytes) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件体积过大（已超过 {max_size // (1024 * 1024)}MB 限制），拒绝处理以保护服务器内存 / File size exceeds {max_size // (1024 * 1024)}MB limit"
+        )
+
+
 # Mount static uploads directory for resume attachments & previews
 uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
@@ -351,6 +362,7 @@ async def parse_file_endpoint(
         # Read file bytes
 
         file_bytes = await file.read()
+        check_file_size(file_bytes)
 
         filename = file.filename
 
@@ -409,6 +421,7 @@ async def parse_file_job_order_endpoint(
         # Read file bytes
 
         file_bytes = await file.read()
+        check_file_size(file_bytes)
 
         filename = file.filename
 
@@ -483,6 +496,7 @@ async def parse_file_cv_endpoint(
     try:
 
         file_bytes = await file.read()
+        check_file_size(file_bytes)
 
         filename = file.filename
 
@@ -890,6 +904,7 @@ async def ingest_candidate_file_endpoint(
     """
     try:
         file_bytes = await file.read()
+        check_file_size(file_bytes)
         filename = file.filename or "resume.pdf"
         
         # 1. Save file to cloud/local storage

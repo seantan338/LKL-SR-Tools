@@ -2,11 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装必要的系统库 (供 PDF 解析与基础工具运行)
+# 安装必要的系统库与最新根证书 (防止 eMudhra 泄漏中间 CA 中间人攻击)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    ca-certificates \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# 升级 pip 与 certifi 至安全修补版本 (pip>=26.2.2, certifi>=2026.10.19)
+RUN pip install --no-cache-dir --upgrade pip certifi
 
 # 复制依赖文件并安装
 COPY requirements.txt .

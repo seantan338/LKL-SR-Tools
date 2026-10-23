@@ -9,6 +9,29 @@ function normalizeIp(ip) {
   return clean;
 }
 
+function expandIpv6(ip) {
+  if (!ip || !ip.includes(':')) return null;
+  const clean = ip.split('/')[0].trim().toLowerCase();
+  const parts = clean.split('::');
+  const left = parts[0] ? parts[0].split(':').filter(Boolean) : [];
+  const right = parts[1] ? parts[1].split(':').filter(Boolean) : [];
+  const missing = 8 - (left.length + right.length);
+  if (missing < 0) return null;
+  const middle = Array(missing).fill('0');
+  return [...left, ...middle, ...right].map(p => p.padStart(4, '0'));
+}
+
+function matchIpv6Prefix(ip1, ip2, blocks = 4) {
+  const exp1 = expandIpv6(ip1);
+  const exp2 = expandIpv6(ip2);
+  if (!exp1 || !exp2) return false;
+  for (let i = 0; i < blocks; i++) {
+    if (exp1[i] !== exp2[i]) return false;
+  }
+  return true;
+}
+
+
 function getClientIp(request) {
   const cfIp = request.headers.get('cf-connecting-ip');
   if (cfIp && cfIp.trim()) return normalizeIp(cfIp);
@@ -83,7 +106,15 @@ export async function POST(request) {
 
     // Local / Match check
     const isLocal = ['127.0.0.1', 'localhost', '::1'].includes(clientIp);
-    const ipMatched = allowedIps.includes(clientIp) || (isLocal && (realAllowedIps.length === 0 || allowedIps.includes('127.0.0.1')));
+    let ipMatched = allowedIps.includes(clientIp) || (isLocal && (realAllowedIps.length === 0 || allowedIps.includes('127.0.0.1')));
+    if (!ipMatched && clientIp.includes(':')) {
+      for (const allowed of allowedIps) {
+        if (allowed.includes(':') && matchIpv6Prefix(clientIp, allowed, 4)) {
+          ipMatched = true;
+          break;
+        }
+      }
+    }
 
     if (ipMatched) {
       return NextResponse.json({
@@ -115,13 +146,20 @@ export async function POST(request) {
 
     // Wi-Fi not matched -> check if coords provided for Stage 2
     if (!coords || coords.latitude === undefined || coords.longitude === undefined || coords.latitude === null) {
+      const ua = request.headers.get('user-agent') || '';
+      const isApple = /iPhone|iPad|iPod|Macintosh/i.test(ua);
+      const appleHelp = isApple
+        ? '【苹果手机排查】若已连公司 Wi-Fi，请在 iPhone「设置 -> Wi-Fi -> (i)」关闭「限制 IP 地址跟踪」或关闭「iCloud 专用代理」，避免公网 IP 被苹果中继代理拦截！'
+        : '';
       return NextResponse.json({
         status: 'rejected',
         result: {
           passed: false,
           code: 'NEED_GPS',
-          message: `未检测到公司 Wi-Fi（当前 IP: ${clientIp}），请允许定位或联系管理员将该 IP 加入白名单 / Not on Office Wi-Fi (IP: ${clientIp}), allow GPS or ask admin to whitelist IP`,
-          client_ip: clientIp
+          message: `未检测到公司 Wi-Fi（当前识别 IP: ${clientIp}），请允许定位打卡${isApple ? '，或参考下方苹果 Wi-Fi 提示' : ''}`,
+          apple_help: appleHelp,
+          client_ip: clientIp,
+          is_ipv6: clientIp.includes(':')
         }
       });
     }
@@ -177,8 +215,12 @@ export async function POST(request) {
     let minEffectiveDistance = Infinity;
 
     for (const office of officeLocations) {
-      const oLat = parseFloat(office.latitude);
-      const oLon = parseFloat(office.longitude);
+      let oLat = parseFloat(office.latitude);
+      let oLon = parseFloat(office.longitude);
+      if (Math.abs(oLat - 3.139) < 0.001 && Math.abs(oLon - 101.6869) < 0.001) {
+        oLat = 1.440472;
+        oLon = 103.617917;
+      }
       const oRadius = parseFloat(office.radiusMeters || defaultMaxRadius);
       const oName = office.name || '公司办公室';
 

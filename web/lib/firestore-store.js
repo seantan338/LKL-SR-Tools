@@ -541,11 +541,23 @@ export const FirestoreStore = {
 
   subscribeToAttendanceRules(teamId, callback) {
     if (!teamId) return () => {};
+    const healRules = (r) => {
+      if (!r || !r.officeLocations) return r;
+      const healed = r.officeLocations.map(loc => {
+        if (Math.abs((parseFloat(loc.latitude) || 0) - 3.139) < 0.001 && Math.abs((parseFloat(loc.longitude) || 0) - 101.6869) < 0.001) {
+          return { ...loc, name: loc.name || '公司总部', latitude: 1.440472, longitude: 103.617917 };
+        }
+        return loc;
+      });
+      return { ...r, officeLocations: healed };
+    };
     const defaultRules = {
       enabled: true,
       maxDistanceMeters: 100,
       maxDriftCompensation: 40,
-      officeLocations: [],
+      officeLocations: [
+        { name: '公司总部', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
+      ],
       officeWifi: { allowedIps: [], ddnsDomain: '' }
     };
 
@@ -559,21 +571,21 @@ export const FirestoreStore = {
     const docRef = doc(db, 'teams', teamId, 'attendance_rules', 'current');
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        callback({ ...defaultRules, ...snap.data() });
+        callback(healRules({ ...defaultRules, ...snap.data() }));
       } else {
-        callback(localRules || defaultRules);
+        callback(healRules(localRules || defaultRules));
       }
     }, (err) => {
       // If permission-denied (rules pending deployment), try reading team doc's attendanceRules
       console.warn("Notice: Subscribing to attendance_rules collection fallback to team document / local:", err?.message || err);
       getDoc(doc(db, 'teams', teamId)).then((teamSnap) => {
         if (teamSnap.exists() && teamSnap.data()?.attendanceRules) {
-          callback({ ...defaultRules, ...teamSnap.data().attendanceRules });
+          callback(healRules({ ...defaultRules, ...teamSnap.data().attendanceRules }));
         } else {
-          callback(localRules || defaultRules);
+        callback(healRules(localRules || defaultRules));
         }
       }).catch(() => {
-        callback(localRules || defaultRules);
+        callback(healRules(localRules || defaultRules));
       });
     });
 
