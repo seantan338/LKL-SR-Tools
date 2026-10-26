@@ -97,20 +97,29 @@ export class CascadeShiftEngine {
    */
   static matchShift(firstIn, customConfig) {
     const config = this.getEffectiveConfig(customConfig);
-    if (!firstIn || isNaN(firstIn.getTime())) {
+    const firstInDate = this.toSafeDate(firstIn);
+    const lastShift = (config.shifts && config.shifts.length > 0)
+      ? config.shifts[config.shifts.length - 1]
+      : { id: 'shift_d', name: 'Shift D (9:00am - 6:00pm)', startTime: '09:00', endTime: '18:00' };
+    const lastEndMin = this.parseTimeToMinutes(lastShift.endTime);
+
+    // 未能解析合法时间戳：安全回退至最迟班次并标记迟到
+    if (!firstInDate) {
       return {
-        id: 'SHIFT_UNKNOWN',
-        name: '未打卡班次',
-        startTime: '09:00',
-        endTime: '18:00',
-        endMinutes: 1080,
-        endStr: '18:00:00',
-        isLateArrival: true
+        id: lastShift.id,
+        name: lastShift.name,
+        baseName: lastShift.name,
+        startTime: lastShift.startTime,
+        endTime: lastShift.endTime,
+        endMinutes: lastEndMin,
+        endStr: `${lastShift.endTime}:00`,
+        isLateArrival: true,
+        isFallback: true
       };
     }
 
     // 精确到秒级整分钟包含制（Minute-inclusive Window: 包含目标分钟的 00~59 秒）
-    const inSeconds = firstIn.getHours() * 3600 + firstIn.getMinutes() * 60 + firstIn.getSeconds();
+    const inSeconds = firstInDate.getHours() * 3600 + firstInDate.getMinutes() * 60 + firstInDate.getSeconds();
     const grace = config.graceMinutes || 0;
 
     for (const s of config.shifts) {
@@ -127,6 +136,7 @@ export class CascadeShiftEngine {
         return {
           id: s.id,
           name: s.name,
+          baseName: s.name,
           startTime: s.startTime,
           endTime: s.endTime,
           endMinutes: endMin,
@@ -136,18 +146,15 @@ export class CascadeShiftEngine {
       }
     }
 
-    // 超过所有允许班次：归入严重迟到档
-    const lastShift = config.shifts[config.shifts.length - 1];
-    const lastEndMin = lastShift ? this.parseTimeToMinutes(lastShift.endTime) : 1080;
-    const lastEndTimeStr = lastShift ? lastShift.endTime : '18:00';
-
+    // 超过所有允许班次（严重迟到对不上任何班次）：直接指派归入最迟班次（如 Shift D），继承最迟班次的下班达标底线（如 18:00），同时标记迟到
     return {
-      id: 'SHIFT_LATE',
-      name: `Shift Late (>${config.shifts[config.shifts.length - 1]?.startTime || '09:00'}am 迟到)`,
-      startTime: config.shifts[config.shifts.length - 1]?.startTime || '09:00',
-      endTime: lastEndTimeStr,
+      id: lastShift.id,
+      name: `${lastShift.name} (迟到)`,
+      baseName: lastShift.name,
+      startTime: lastShift.startTime,
+      endTime: lastShift.endTime,
       endMinutes: lastEndMin,
-      endStr: `${lastEndTimeStr}:00`,
+      endStr: `${lastShift.endTime}:00`,
       isLateArrival: true
     };
   }

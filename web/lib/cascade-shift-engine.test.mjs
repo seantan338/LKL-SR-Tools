@@ -91,3 +91,26 @@ test('7. 正常全勤完成：08:30 签到，17:31 签退应判定为 COMPLIANT'
   assert.equal(typeof res.durationHours, 'number');
   assert.ok(res.durationHours >= 9.0);
 });
+
+test('8. 超过所有班次归入最迟班次（如 9:01 或下午 13:45 打卡指派至 Shift D 并标记迟到）', () => {
+  const t0905 = makeDate('09:05:00');
+  const shift1 = CascadeShiftEngine.matchShift(t0905, DEFAULT_SHIFT_CONFIG);
+  assert.equal(shift1.id, 'shift_d');
+  assert.equal(shift1.endTime, '18:00');
+  assert.equal(shift1.endStr, '18:00:00');
+  assert.equal(shift1.isLateArrival, true);
+
+  const t1345 = makeDate('13:45:00');
+  const shift2 = CascadeShiftEngine.matchShift(t1345, DEFAULT_SHIFT_CONFIG);
+  assert.equal(shift2.id, 'shift_d');
+  assert.equal(shift2.endTime, '18:00');
+  assert.equal(shift2.endStr, '18:00:00');
+  assert.equal(shift2.isLateArrival, true);
+});
+
+test('9. 畸形配置与空参数安全兜底：无班次或残缺参数时自动回退默认班次不崩溃', () => {
+  const malformedShift = CascadeShiftEngine.matchShift(null, {});
+  assert.equal(malformedShift.id, 'shift_d');
+  assert.equal(malformedShift.endTime, '18:00');
+  assert.equal(malformedShift.isLateArrival, true);
+});
