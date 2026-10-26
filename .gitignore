@@ -34,6 +34,8 @@ candidate_data.json
 !**/USER_MANUAL.md
 !USER_MANUAL_EN.md
 !**/USER_MANUAL_EN.md
+!CASCADE_ATTENDANCE_SPEC.md
+!**/CASCADE_ATTENDANCE_SPEC.md
 
 # Internal Documentation & Deployment Guides
 CHANGELOG.md

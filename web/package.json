@@ -5,10 +5,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node --max-old-space-size=400 ./node_modules/next/dist/bin/next build",
     "start": "next start",
     "test:identity": "node --test lib/identity.test.mjs",
     "test:reminder": "node --test lib/interview-reminder.test.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -22,7 +26,8 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-indiana-drag-scroll": "^2.2.1"
+    "react-indiana-drag-scroll": "^2.2.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "eslint": "^9",

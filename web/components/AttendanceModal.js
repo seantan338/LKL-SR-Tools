@@ -7,6 +7,7 @@ import { FirestoreStore } from '../lib/firestore-store';
 import { SystemLogger } from '../lib/logger';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../lib/cascade-shift-engine';
 
 const getApiUrl = (path) => {
   return path;
@@ -40,12 +41,14 @@ export default function AttendanceModal() {
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
-      { name: '公司总部', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
+      { name: 'HQ', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
     ],
-    officeWifi: { allowedIps: [] }
+    officeWifi: { allowedIps: [] },
+    shiftConfig: DEFAULT_SHIFT_CONFIG
   });
   const [toastMsg, setToastMsg] = useState('');
   const [appleHelpMsg, setAppleHelpMsg] = useState('');
+  const [earlyClockOutWarning, setEarlyClockOutWarning] = useState(null);
   const autoPopupCheckedRef = useRef(false);
 
   const showToast = (msg) => {
@@ -246,6 +249,36 @@ export default function AttendanceModal() {
     }
   };
 
+  // Guarded punch handler for strict clock out detection
+  const handlePunchWithGuard = (punchType = 'CLOCK_IN', force = false) => {
+    // 提前签退防呆拦截 (Strict Clock-Out Guard)
+    if (punchType === 'CLOCK_OUT' && !force && todayClockIn) {
+      try {
+        const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
+        const shift = CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+        const now = new Date();
+        const nowMin = CascadeShiftEngine.getDateMinutesOfDay(now);
+
+        if (shift && typeof shift.endMinutes === 'number' && nowMin < shift.endMinutes) {
+          const diffSec = Math.round((shift.endMinutes - nowMin) * 60);
+          const desc = diffSec >= 60
+            ? t('attendanceModal.timeMinSec', { m: Math.floor(diffSec / 60), s: diffSec % 60 }, `${Math.floor(diffSec / 60)}分${diffSec % 60}秒`)
+            : t('attendanceModal.timeSec', { s: diffSec }, `${diffSec}秒`);
+          setEarlyClockOutWarning({
+            shift,
+            diffSec,
+            desc
+          });
+          return;
+        }
+      } catch (guardErr) {
+        console.warn('Clock-out guard calculation error notice:', guardErr);
+      }
+    }
+    setEarlyClockOutWarning(null);
+    handlePunch(punchType);
+  };
+
   // 6. Two-stage Zero-Trust Verification Punch Action
   const handlePunch = async (punchType = 'CLOCK_IN') => {
     if (!teamId || !user) return;
@@ -324,11 +357,18 @@ export default function AttendanceModal() {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
         }
 
-        showToast(isWfh
+        let successTip = isWfh
           ? t('attendanceModal.toastWfhSuccess', '🏠 居家办公 (WFH) 打卡成功！')
           : isWifi
             ? t('attendanceModal.toastWifiSuccess', { ip: r1.client_ip || '' }, '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})')
-            : t('analytics.checkinSuccess', '打卡成功！'));
+            : t('analytics.checkinSuccess', '打卡成功！');
+
+        if (punchType === 'CLOCK_IN') {
+          const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+          successTip += t('attendanceModal.toastShiftSuffix', { name: shift.name, endStr: shift.endStr }, ` (${shift.name}，底线: ${shift.endStr})`);
+        }
+
+        showToast(successTip);
         setIsVerifying(false);
         setStatusMessage('');
         
@@ -410,7 +450,12 @@ export default function AttendanceModal() {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
           }
 
-          showToast(t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）'));
+          let successTip = t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）');
+          if (punchType === 'CLOCK_IN') {
+            const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+            successTip += t('attendanceModal.toastShiftSuffix', { name: shift.name, endStr: shift.endStr }, ` (${shift.name}，底线: ${shift.endStr})`);
+          }
+          showToast(successTip);
           setIsVerifying(false);
           setStatusMessage('');
           setTimeout(() => setIsOpen(false), 1500);
@@ -431,8 +476,6 @@ export default function AttendanceModal() {
       setIsVerifying(false);
     }
   };
-
-  if (!isOpen || !isHqTeam) return null;
 
   const hoursStr = String(currentTime.getHours()).padStart(2, '0');
   const minutesStr = String(currentTime.getMinutes()).padStart(2, '0');
@@ -505,6 +548,46 @@ export default function AttendanceModal() {
     };
   }
 
+  // Real-time dynamic shift matching based on current ticking clock
+  const liveShift = useMemo(() => {
+    try {
+      return CascadeShiftEngine.matchShift(currentTime, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || {
+        id: 'shift_d',
+        name: 'Shift D (9:00am - 6:00pm)',
+        baseName: 'Shift D (9:00am - 6:00pm)',
+        startTime: '09:00',
+        endTime: '18:00',
+        endMinutes: 1080,
+        endStr: '18:00:00',
+        isLateArrival: false
+      };
+    } catch (e) {
+      console.warn('Live shift match error fallback:', e);
+      return {
+        id: 'shift_d',
+        name: 'Shift D (9:00am - 6:00pm)',
+        baseName: 'Shift D (9:00am - 6:00pm)',
+        startTime: '09:00',
+        endTime: '18:00',
+        endMinutes: 1080,
+        endStr: '18:00:00',
+        isLateArrival: false
+      };
+    }
+  }, [currentTime, attendanceRules, isEn]);
+
+  // If already clocked in today, show the anchored shift
+  const assignedShift = useMemo(() => {
+    if (!todayClockIn) return liveShift;
+    try {
+      const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
+      return CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || liveShift;
+    } catch (e) {
+      console.warn('Assigned shift match error fallback:', e);
+      return liveShift;
+    }
+  }, [todayClockIn, attendanceRules, liveShift, isEn]);
+
   const getActionConfig = (type) => {
     switch (type) {
       case 'CLOCK_IN':
@@ -540,6 +623,8 @@ export default function AttendanceModal() {
   };
 
   const currentAction = getActionConfig(activePunch);
+
+  if (!isOpen || !isHqTeam) return null;
 
   return (
     <div style={{
@@ -628,6 +713,54 @@ export default function AttendanceModal() {
             <div style={{ marginTop: 'var(--space-3)', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '16px', background: statusBadge.bg, fontSize: '12px', fontWeight: '600', color: statusBadge.color }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusBadge.dot }}></span>
               {statusBadge.text}
+            </div>
+          </div>
+
+          {/* Real-time Dynamic Shift Preview Card */}
+          <div style={{
+            background: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival)
+              ? 'rgba(239, 68, 68, 0.08)'
+              : 'rgba(139, 92, 246, 0.08)',
+            border: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival)
+              ? '1px solid rgba(239, 68, 68, 0.3)'
+              : '1px solid rgba(139, 92, 246, 0.25)',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 12px',
+            marginBottom: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left' }}>
+              <i className="ph-bold ph-hourglass-high" style={{
+                color: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival) ? '#f87171' : '#c084fc',
+                fontSize: '16px'
+              }}></i>
+              <div>
+                <div style={{ fontWeight: '600', color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                  {todayClockIn ? (
+                    <>{t('attendanceModal.lockedShiftPrefix', '已锁定班次：')}<span style={{ color: assignedShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{assignedShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
+                  ) : (
+                    <>{t('attendanceModal.matchedShiftPrefix', '当前匹配：')}<span style={{ color: liveShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{liveShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
+                  )}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {todayClockIn
+                    ? (assignedShift?.isLateArrival
+                        ? t('attendanceModal.lateArrivalWarning', '⚠️ 今日上班已迟到，下班仍须达标')
+                        : t('attendanceModal.clockInLocked', '今日上班已锁定'))
+                    : (liveShift?.isLateArrival
+                        ? t('attendanceModal.lateRollOverHint', { time: '09:00', outTime: '18:00' }, '⚠️ 已超最晚打卡时间 (09:00)，自动归入末档班次 (18:00 下班)')
+                        : t('attendanceModal.minuteInclusiveHint', { time: '8:30:59' }, '8:30:59 前打卡计入本档，超时顺延'))}
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t('attendanceModal.cutoffTargetLine', '下班达标底线')}</div>
+              <div style={{ fontFamily: 'monospace', fontWeight: '700', color: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival) ? '#f87171' : 'var(--accent-blue)', fontSize: '13px' }}>
+                {todayClockIn ? (assignedShift?.endStr || '18:00:00') : (liveShift?.endStr || '18:00:00')}
+              </div>
             </div>
           </div>
 
@@ -909,6 +1042,42 @@ export default function AttendanceModal() {
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            {/* Strict Clock-Out Warning Card */}
+            {earlyClockOutWarning && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--space-3)',
+                marginBottom: 'var(--space-3)',
+                fontSize: '12px'
+              }}>
+                <div style={{ fontWeight: '700', color: '#f87171', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <i className="ph-bold ph-warning-circle"></i>
+                  <span>{t('attendanceModal.earlyWarningTitle', '⚠️ 提前签退预警 (严格考核)')}</span>
+                </div>
+                <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '8px' }}>
+                  {t('attendanceModal.earlyWarningText', { end: earlyClockOutWarning.shift?.endStr || '18:00', desc: earlyClockOutWarning.desc }, '当前核定下班底线为 {end}，距离达标还差 {desc}。未达底线签退将直接被计为迟到/早退违规！')}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    style={{ fontSize: '11px', padding: '3px 10px' }}
+                    onClick={() => setEarlyClockOutWarning(null)}
+                  >
+                    {t('attendanceModal.earlyWait', '再等一下 (保住全勤)')}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    style={{ fontSize: '11px', padding: '3px 10px', borderColor: '#ef4444', color: '#f87171' }}
+                    onClick={() => handlePunchWithGuard('CLOCK_OUT', true)}
+                  >
+                    {t('attendanceModal.earlyForce', '坚持提前签退')}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {!ENABLE_LUNCH_PUNCH ? (
               !todayClockIn ? (
                 <button
@@ -925,7 +1094,7 @@ export default function AttendanceModal() {
                     gap: '8px'
                   }}
                   disabled={isVerifying}
-                  onClick={() => handlePunch('CLOCK_IN')}
+                  onClick={() => handlePunchWithGuard('CLOCK_IN')}
                 >
                   <i className="ph-bold ph-sign-in"></i>
                   {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : t('attendanceModal.clockInNow', '立即上班打卡')}
@@ -945,7 +1114,7 @@ export default function AttendanceModal() {
                     gap: '8px'
                   }}
                   disabled={isVerifying}
-                  onClick={() => handlePunch('CLOCK_OUT')}
+                  onClick={() => handlePunchWithGuard('CLOCK_OUT')}
                 >
                   <i className="ph-bold ph-sign-out"></i>
                   {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : t('attendanceModal.clockOutNow', '下班签退打卡')}
@@ -966,7 +1135,7 @@ export default function AttendanceModal() {
                   gap: '8px'
                 }}
                 disabled={isVerifying}
-                onClick={() => handlePunch(activePunch)}
+                onClick={() => handlePunchWithGuard(activePunch)}
               >
                 <i className={`ph-bold ${currentAction.icon}`}></i>
                 {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : currentAction.label}

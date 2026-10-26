@@ -8,9 +8,12 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { ExcelExporter } from '../../../lib/excel-exporter';
+import { DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
+import { SystemLogger } from '../../../lib/logger';
 
 export default function LeaderboardPage() {
-  const { teamId, isHqTeam, role, user } = useAuth();
+  const { teamId, isHqTeam, role, user, isOwner, isManager } = useAuth();
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
@@ -22,6 +25,14 @@ export default function LeaderboardPage() {
   const [manualCheckins, setManualCheckins] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [attendanceRules, setAttendanceRules] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
 
   // 1. Subscribe to Job Orders for HQ
   useEffect(() => {
@@ -73,6 +84,62 @@ export default function LeaderboardPage() {
       unsubLogs();
     };
   }, [isHqTeam]);
+
+  // 2.5 Subscribe to Attendance Rules for Shift Configuration
+  useEffect(() => {
+    if (!isHqTeam) return;
+    const unsub = FirestoreStore.subscribeToAttendanceRules('default_team', (rules) => {
+      if (rules && typeof rules === 'object') {
+        setAttendanceRules(rules);
+      }
+    });
+    return () => unsub();
+  }, [isHqTeam]);
+
+  const handleExportAttendanceExcel = async () => {
+    if (!isHqTeam || (!isOwner && !isManager)) {
+      showToast(t('leaderboard.exportNoPermission', '仅 HQ 本部管理人员可导出考勤出勤月报'));
+      return;
+    }
+    const combinedEvents = [...manualCheckins, ...logs];
+    if (combinedEvents.length === 0) {
+      showToast(t('leaderboard.exportNoData', '当前无可导出的考勤打卡数据'));
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
+      const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
+
+      const sheets = ExcelExporter.buildAttendanceReportData({
+        monthStr: activeMonthStr,
+        attendanceEvents: combinedEvents,
+        hqMembers: hqAdvisors,
+        shiftConfig: attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG,
+        workingDays: 22,
+        locale: isEn ? 'en' : 'zh'
+      });
+
+      const filename = `TalentFlow_Attendance_${activeMonthStr}.xlsx`;
+      await ExcelExporter.exportWorkbook({ filename, sheets, locale: isEn ? 'en' : 'zh' });
+
+      try {
+        await SystemLogger.audit(teamId || 'default_team', {
+          action: 'EXPORT_ATTENDANCE_EXCEL',
+          targetType: 'ATTENDANCE_REPORT',
+          details: `Export monthly attendance report from leaderboard (${filename})`
+        });
+      } catch (logErr) {}
+
+      showToast(t('leaderboard.exportSuccess', { filename }, `🎉 考勤报表 (${filename}) 导出成功！`));
+    } catch (err) {
+      console.error('Export leaderboard attendance error:', err);
+      showToast(`${t('leaderboard.exportFailed', '导出失败: ')}${err.message}`, 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // 3. Subscribe to Team Members for Canonical PIC Resolution
   useEffect(() => {
@@ -499,6 +566,58 @@ export default function LeaderboardPage() {
         </button>
       </div>
 
+      {/* Attendance Tab Action Bar */}
+      {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
+          <button
+            className="btn btn-sm btn-outline"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderColor: 'rgba(139, 92, 246, 0.4)',
+              color: '#a78bfa',
+              background: 'rgba(139, 92, 246, 0.08)',
+              padding: '5px 14px',
+              fontSize: '12px',
+              fontWeight: '600',
+              borderRadius: 'var(--radius-md)',
+              cursor: isExporting ? 'wait' : 'pointer',
+              pointerEvents: isExporting ? 'none' : 'auto',
+              position: 'relative',
+              zIndex: 50,
+              flexShrink: 0
+            }}
+            onClick={handleExportAttendanceExcel}
+            disabled={isExporting}
+            title={t('leaderboard.exportAttendanceTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
+          >
+            <i className={`ph-bold ${isExporting ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+            <span style={{ pointerEvents: 'none' }}>{isExporting ? t('leaderboard.exporting', '正在导出报表...') : t('leaderboard.exportExcel', '导出考勤月报 (Excel)')}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Global Toast Notification */}
+      {toastMsg && (
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.95)',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
+          border: '1px solid #8b5cf6',
+          fontSize: '14px',
+          backdropFilter: 'blur(10px)'
+        }}>
+          {toastMsg}
+        </div>
+      )}
+
       {/* Top 3 Podium (Classic Olympic Stagger: #2 Left, #1 Center, #3 Right) */}
       {currentRankingList.length > 0 && (
         <div style={{
@@ -734,7 +853,7 @@ export default function LeaderboardPage() {
               <span>{activeTab === 'sales' ? t('leaderboard.tabSales', '销售业绩榜') : t('leaderboard.tabAttendance', '考勤出勤榜')}</span>
             </h3>
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-              {currentRankingList.length} {isEn ? 'HQ Members' : '位公司本部成员'}
+              {t('leaderboard.hqMembersCount', { count: currentRankingList.length }, `${currentRankingList.length} 位公司本部成员`)}
             </span>
           </div>
 
