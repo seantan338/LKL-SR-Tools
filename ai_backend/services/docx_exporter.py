@@ -90,7 +90,52 @@ def create_cloned_bullet_para(prototype_elem, doc, text: str):
     return new_p
 
 
-def export_cv_to_docx(cv_data: Dict, template_path: str) -> BytesIO:
+def resolve_cv_template_path(template_path: str = None) -> str:
+    """
+    Resolves the Sunrise CV Word template path across diverse runtime environments:
+    1. Direct valid path passed in or CV_TEMPLATE_PATH environment variable
+    2. Local package templates dir: ai_backend/templates/Sunrise CV - Job Title - Full Name (1).docx or Sunrise CV Template.docx
+    3. Service root: ai_backend/Sunrise CV - Job Title - Full Name (1).docx
+    4. Monorepo root fallback: ../Sunrise CV - Job Title - Full Name (1).docx
+    """
+    if template_path and os.path.exists(template_path):
+        return template_path
+
+    env_path = os.environ.get("CV_TEMPLATE_PATH", "").strip()
+    if env_path and os.path.exists(env_path):
+        return env_path
+
+    # Current service directory (ai_backend)
+    services_dir = os.path.dirname(os.path.abspath(__file__))
+    backend_dir = os.path.dirname(services_dir)
+    parent_dir = os.path.dirname(backend_dir)
+
+    template_names = [
+        "Sunrise CV - Job Title - Full Name (1).docx",
+        "Sunrise CV Template.docx",
+        "Sunrise CV.docx"
+    ]
+
+    search_dirs = [
+        os.path.join(backend_dir, "templates"),
+        backend_dir,
+        parent_dir
+    ]
+
+    candidates = []
+    for d in search_dirs:
+        for name in template_names:
+            candidate = os.path.join(d, name)
+            candidates.append(candidate)
+            if os.path.exists(candidate):
+                return candidate
+
+    raise FileNotFoundError(
+        f"Sunrise CV Template not found. Checked candidate locations: {candidates}"
+    )
+
+
+def export_cv_to_docx(cv_data: Dict, template_path: str = None) -> BytesIO:
     """
     Takes parsed CV JSON data and injects it into the Sunrise CV docx template.
     Aligns 1:1 with standard Sunrise headhunter deliverables:
@@ -101,10 +146,9 @@ def export_cv_to_docx(cv_data: Dict, template_path: str) -> BytesIO:
     - Preposition normalization for academic qualifications
     - Multi-blank line collapsing for a tight, elegant layout
     """
-    if not os.path.exists(template_path):
-        raise FileNotFoundError(f"CV Template not found at {template_path}")
+    resolved_path = resolve_cv_template_path(template_path)
 
-    doc = docx.Document(template_path)
+    doc = docx.Document(resolved_path)
 
     parsed = cv_data.get('parsed_cv', {})
     if not parsed:

@@ -771,9 +771,7 @@ async def export_cv_docx_endpoint(req: ExportDocxRequest, auth_user: dict = Depe
     try:
         from services.docx_exporter import export_cv_to_docx
         from fastapi.responses import StreamingResponse
-        import os
-        template_path = os.path.join(os.path.dirname(__file__), "..", "Sunrise CV - Job Title - Full Name (1).docx")
-        out_stream = export_cv_to_docx(req.parsed_data, template_path)
+        out_stream = export_cv_to_docx(req.parsed_data)
         
         headers = {
             'Content-Disposition': 'attachment; filename="Sunrise_CV.docx"'
@@ -936,16 +934,22 @@ async def get_current_ip_endpoint(request: Request):
 
 class AttendanceVerifyPayload(BaseModel):
     teamId: Optional[str] = "default_team"
+    userId: Optional[str] = None
+    userRole: Optional[str] = None
+    userWfhAllowed: Optional[bool] = None
     type: Optional[str] = "CLOCK_IN"
+    workMode: Optional[str] = "OFFICE"
+    wfhNote: Optional[str] = ""
     coords: Optional[dict] = None
     rules: Optional[dict] = None
 
 @app.post("/api/attendance/verify")
 async def verify_attendance_endpoint(payload: AttendanceVerifyPayload, request: Request):
     """
-    Two-stage progressive verification for attendance check-ins:
-    1. Checks if client egress public IP matches company Wi-Fi IP / DDNS.
-    2. If not matched, verifies 100m elastic geofence with indoor drift compensation pool.
+    Progressive verification for attendance check-ins:
+    Stage 0: Special WFH mode check-in.
+    Stage 1: Company Wi-Fi Public Egress IP / DDNS match.
+    Stage 2: Elastic geofence with indoor drift compensation.
     """
     try:
         client_ip = get_client_ip(request)
@@ -954,6 +958,7 @@ async def verify_attendance_endpoint(payload: AttendanceVerifyPayload, request: 
         if not rules:
             rules = {
                 "enabled": True,
+                "allowWfh": True,
                 "maxDistanceMeters": 100,
                 "maxDriftCompensation": 40,
                 "officeLocations": [],
@@ -963,7 +968,9 @@ async def verify_attendance_endpoint(payload: AttendanceVerifyPayload, request: 
         result = verify_clockin_eligibility(
             client_ip=client_ip,
             coords=payload.coords,
-            rules=rules
+            rules=rules,
+            work_mode=payload.workMode or "OFFICE",
+            wfh_note=payload.wfhNote or ""
         )
         return {
             "status": "success" if result.get("passed") else "rejected",

@@ -553,6 +553,7 @@ export const FirestoreStore = {
     };
     const defaultRules = {
       enabled: true,
+      allowWfh: true,
       maxDistanceMeters: 100,
       maxDriftCompensation: 40,
       officeLocations: [

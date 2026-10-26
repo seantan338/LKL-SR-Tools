@@ -32,14 +32,20 @@ export function AuthProvider({ children }) {
       return adminEmails.includes(targetEmail);
     };
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubProfile = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
       try {
         if (firebaseUser) {
           setUser(firebaseUser);
           const isAdmin = checkIsAdminEmail(firebaseUser.email);
           // Fetch or create user profile in Firestore
           const profileRef = doc(db, 'users', firebaseUser.uid);
-          const profileSnap = await withTimeout(getDoc(profileRef));
 
           // 只把真正写入 Firestore 成功的身份放进界面：Firestore rules 不允许自己升为 owner，
           // 若写入失败仍在内存里当 owner，界面会出现管理功能、实际操作却全部被拒绝
@@ -53,20 +59,20 @@ export function AuthProvider({ children }) {
             }
           };
 
+          const profileSnap = await withTimeout(getDoc(profileRef));
+
           if (profileSnap.exists()) {
             const data = profileSnap.data();
             // If the user is designated as admin via NEXT_PUBLIC_ADMIN_EMAIL, try to ensure owner role
             if (isAdmin && (data.role !== 'owner' || data.teamId !== 'default_team')) {
-              setUserProfile(await persistProfile({ ...data, teamId: 'default_team', role: 'owner' }, data));
+              await persistProfile({ ...data, teamId: 'default_team', role: 'owner' }, data);
             } else if (!data.teamId || !data.role) {
               const patchedData = {
                 ...data,
                 teamId: isAdmin ? 'default_team' : null,
                 role: isAdmin ? 'owner' : 'pending'
               };
-              setUserProfile(await persistProfile(patchedData, { ...data, teamId: null, role: 'pending' }));
-            } else {
-              setUserProfile(data);
+              await persistProfile(patchedData, { ...data, teamId: null, role: 'pending' });
             }
           } else {
             // First-time login — create profile
@@ -79,20 +85,28 @@ export function AuthProvider({ children }) {
               role: isAdmin ? 'owner' : 'pending',
               createdAt: serverTimestamp(),
             };
-            let savedProfile = newProfile;
             try {
               await withTimeout(setDoc(profileRef, newProfile), 3000);
             } catch (createErr) {
               console.warn('[auth] Direct create of profile blocked (likely firestore rules), attempting compliant fallback:', createErr);
-              savedProfile = { ...newProfile, teamId: null, role: 'pending' };
               try {
-                await withTimeout(setDoc(profileRef, savedProfile), 3000);
+                await withTimeout(setDoc(profileRef, { ...newProfile, teamId: null, role: 'pending' }), 3000);
               } catch (fallbackErr) {
                 console.error('[auth] Fallback profile creation also failed:', fallbackErr);
               }
             }
-            setUserProfile(savedProfile);
           }
+
+          // 核心：对当前用户文档建立实时监听，任何 WFH 权限开关、角色或团队变更全站零刷新即刻响应
+          unsubProfile = onSnapshot(profileRef, (snap) => {
+            if (snap.exists()) {
+              setUserProfile(snap.data());
+            }
+            setLoading(false);
+          }, (err) => {
+            console.warn('[auth] Real-time profile listener error:', err);
+            setLoading(false);
+          });
         } else {
           setUser(null);
           setUserProfile(null);
@@ -101,6 +115,7 @@ export function AuthProvider({ children }) {
           try {
             localStorage.removeItem('talent_flow_active_team');
           } catch (e) {}
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching user profile from Firestore:', error);
@@ -118,12 +133,14 @@ export function AuthProvider({ children }) {
             _firestoreError: error?.message || String(error),
           });
         }
-      } finally {
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubProfile) unsubProfile();
+      unsubscribeAuth();
+    };
   }, []);
 
   // Subscribe to team_links where current user's team is parentTeamId (e.g. HQ -> Partner)

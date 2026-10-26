@@ -337,10 +337,23 @@ export const Utils = {
       if (diffSec < 86400) return t('common.relativeHoursAgo', { count: Math.floor(diffSec / 3600) }, `${Math.floor(diffSec / 3600)} 小时前`);
       if (diffSec < 2592000) return t('common.relativeDaysAgo', { count: Math.floor(diffSec / 86400) }, `${Math.floor(diffSec / 86400)} 天前`);
     } else {
-      if (diffSec < 60) return '刚刚';
-      if (diffSec < 3600) return `${Math.floor(diffSec / 60)} 分钟前`;
-      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} 小时前`;
-      if (diffSec < 2592000) return `${Math.floor(diffSec / 86400)} 天前`;
+      let isEn = false;
+      try {
+        if (typeof window !== 'undefined' && localStorage.getItem('talent_flow_lang') === 'en') {
+          isEn = true;
+        }
+      } catch (e) {}
+      if (isEn) {
+        if (diffSec < 60) return 'Just now';
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+        if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+        if (diffSec < 2592000) return `${Math.floor(diffSec / 86400)}d ago`;
+      } else {
+        if (diffSec < 60) return '刚刚';
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)} 分钟前`;
+        if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} 小时前`;
+        if (diffSec < 2592000) return `${Math.floor(diffSec / 86400)} 天前`;
+      }
     }
     return this.formatDate(d);
   },
@@ -449,6 +462,20 @@ export const Utils = {
         label: t(`common.stages.${stageKey}`, meta.label)
       };
     }
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem('talent_flow_lang') === 'en') {
+        const enStages = {
+          screening: 'Screening',
+          phone: 'Phone Screening',
+          interview: 'Interviewing',
+          offer: 'Offer Issued',
+          pre_onboarding: 'Pre-onboarding',
+          onboarding: 'Onboarded',
+          post_onboarding: 'Post-onboarding'
+        };
+        if (enStages[stageKey]) return { ...meta, label: enStages[stageKey] };
+      }
+    } catch (e) {}
     return meta;
   },
 
@@ -502,6 +529,18 @@ export const Utils = {
       };
       return { ...meta, label: labels[statusKey] || meta.label };
     }
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem('talent_flow_lang') === 'en') {
+        const enJobStatus = {
+          open: 'Open',
+          urgent: '🔥 Urgent',
+          paused: '⏸️ Paused',
+          filled: '🤝 Filled',
+          closed: 'Closed'
+        };
+        if (enJobStatus[statusKey]) return { ...meta, label: enJobStatus[statusKey] };
+      }
+    } catch (e) {}
     return meta;
   },
 

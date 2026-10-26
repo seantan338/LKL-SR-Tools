@@ -41,7 +41,7 @@ export default function TeamPage() {
 
   // Modal for editing existing member
   const [editingMember, setEditingMember] = useState(null);
-  const [editForm, setEditForm] = useState({ displayName: '', role: 'recruiter', teamId: 'default_team' });
+  const [editForm, setEditForm] = useState({ displayName: '', role: 'recruiter', teamId: 'default_team', allowWfhPunch: false });
   const [isSavingMember, setIsSavingMember] = useState(false);
 
   // Lock background scrolling when any modal is open
@@ -127,7 +127,10 @@ export default function TeamPage() {
     setEditForm({
       displayName: member.displayName || '',
       role: member.role || 'recruiter',
-      teamId: member.teamId || 'default_team'
+      teamId: member.teamId || 'default_team',
+      allowWfhPunch: member.allowWfhPunch !== undefined
+        ? Boolean(member.allowWfhPunch)
+        : (member.role === 'owner' || member.role === 'manager')
     });
   };
 
@@ -136,10 +139,19 @@ export default function TeamPage() {
     if (!editingMember) return;
     setIsSavingMember(true);
     try {
+      let roleToSave = editForm.role;
+      if (editingMember.id === userProfile?.uid && editingMember.role === 'owner') {
+        roleToSave = 'owner';
+      } else if (!isOwner) {
+        roleToSave = editingMember.role || 'recruiter';
+      }
+      const teamIdToSave = !isOwner ? (editingMember.teamId || 'default_team') : editForm.teamId;
+
       await updateDoc(doc(db, 'users', editingMember.id), {
         displayName: editForm.displayName.trim(),
-        role: editForm.role,
-        teamId: editForm.teamId
+        role: roleToSave,
+        teamId: teamIdToSave,
+        allowWfhPunch: Boolean(editForm.allowWfhPunch)
       });
       showToast(t('team.memberUpdatedSuccess', '成员信息与权限已成功更新'), 'success');
       setEditingMember(null);
@@ -625,28 +637,45 @@ export default function TeamPage() {
                         }}>
                           {member.role === 'owner' ? 'Owner' : member.role === 'manager' ? 'Manager' : 'Recruiter'}
                         </span>
-                        
-                        {isOwner && member.id !== userProfile?.uid && (
-                          <>
-                            <button 
-                              className="btn btn-sm btn-secondary" 
-                              style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
-                              title={t('team.editMemberTitle', '编辑成员信息与权限')}
-                              onClick={() => openEditMemberModal(member)}
-                            >
-                              <i className="ph-light ph-note-pencil" style={{ fontSize: '13px' }}></i>
-                              <span>{t('team.editMemberBtn', '编辑')}</span>
-                            </button>
 
-                            <button 
-                              className="btn btn-sm btn-secondary" 
-                              style={{ color: 'var(--accent-rose)', padding: '4px 8px' }}
-                              title={t('team.removeMember', '移出团队')}
-                              onClick={() => handleReject(member.id)}
-                            >
-                              <i className="ph-light ph-trash"></i>
-                            </button>
-                          </>
+                        {/* WFH Permission Badge */}
+                        {(member.allowWfhPunch !== undefined ? member.allowWfhPunch : (member.role === 'owner' || member.role === 'manager')) && (
+                          <span className="badge" style={{
+                            color: '#8b5cf6',
+                            background: 'rgba(139, 92, 246, 0.12)',
+                            borderColor: 'rgba(139, 92, 246, 0.25)',
+                            fontWeight: '600',
+                            fontSize: '11px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}>
+                            <i className="ph-bold ph-house-line"></i>
+                            <span>{t('team.wfhBadge', 'WFH 允许')}</span>
+                          </span>
+                        )}
+                        
+                        {(isOwner || (isManager && member.role === 'recruiter')) && (
+                          <button 
+                            className="btn btn-sm btn-secondary" 
+                            style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                            title={t('team.editMemberTitle', '编辑成员信息与权限')}
+                            onClick={() => openEditMemberModal(member)}
+                          >
+                            <i className="ph-light ph-note-pencil" style={{ fontSize: '13px' }}></i>
+                            <span>{t('team.editMemberBtn', '编辑')}</span>
+                          </button>
+                        )}
+
+                        {isOwner && member.id !== userProfile?.uid && (
+                          <button 
+                            className="btn btn-sm btn-secondary" 
+                            style={{ color: 'var(--accent-rose)', padding: '4px 8px' }}
+                            title={t('team.removeMember', '移出团队')}
+                            onClick={() => handleReject(member.id)}
+                          >
+                            <i className="ph-light ph-trash"></i>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -946,6 +975,7 @@ export default function TeamPage() {
                   </label>
                   <select
                     value={editForm.teamId}
+                    disabled={!isOwner}
                     onChange={(e) => setEditForm(prev => ({ ...prev, teamId: e.target.value }))}
                     style={{
                       width: '100%',
@@ -953,10 +983,10 @@ export default function TeamPage() {
                       background: 'var(--input-bg)',
                       border: '1px solid var(--border-interactive)',
                       borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-primary)',
+                      color: !isOwner ? 'var(--text-muted)' : 'var(--text-primary)',
                       fontSize: 'var(--text-sm)',
                       outline: 'none',
-                      cursor: 'pointer'
+                      cursor: !isOwner ? 'not-allowed' : 'pointer'
                     }}
                   >
                     <option value="default_team">{isEn ? "HQ Team" : "公司本部 (HQ)"}</option>
@@ -967,7 +997,9 @@ export default function TeamPage() {
                     ))}
                   </select>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    {isEn ? 'After reassignment, this member can only access the selected team data. Isolation rules take effect immediately.' : '调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。'}
+                    {!isOwner
+                      ? (isEn ? 'Only Owner can reassign member teams.' : '仅 Owner 可调配成员归属团队。')
+                      : (isEn ? 'After reassignment, this member can only access the selected team data. Isolation rules take effect immediately.' : '调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。')}
                   </span>
                 </div>
 
@@ -978,6 +1010,7 @@ export default function TeamPage() {
                   </label>
                   <select
                     value={editForm.role}
+                    disabled={!isOwner || editingMember.id === userProfile?.uid}
                     onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value }))}
                     style={{
                       width: '100%',
@@ -985,16 +1018,73 @@ export default function TeamPage() {
                       background: 'var(--input-bg)',
                       border: '1px solid var(--border-interactive)',
                       borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-primary)',
+                      color: (!isOwner || editingMember.id === userProfile?.uid) ? 'var(--text-muted)' : 'var(--text-primary)',
                       fontSize: 'var(--text-sm)',
                       outline: 'none',
-                      cursor: 'pointer'
+                      cursor: (!isOwner || editingMember.id === userProfile?.uid) ? 'not-allowed' : 'pointer'
                     }}
                   >
                     <option value="owner">{t('team.ownerOpt', 'Owner (所有者)')}</option>
                     <option value="manager">{t('team.managerOpt', 'Manager (管理员)')}</option>
                     <option value="recruiter">{t('team.recruiterOpt', 'Recruiter (招聘员)')}</option>
                   </select>
+                  {editingMember.id === userProfile?.uid && (
+                    <span style={{ fontSize: '11px', color: 'var(--accent-amber)', marginTop: '4px', display: 'block' }}>
+                      {isEn ? 'Cannot modify your own Owner role to prevent accidental lockout.' : '为防止误操作失去系统管理权限，不可修改自身账号的 Owner 角色。'}
+                    </span>
+                  )}
+                  {!isOwner && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      {isEn ? 'Only Owner can change member roles.' : '仅 Owner 可变更成员系统角色。'}
+                    </span>
+                  )}
+                </div>
+
+                {/* WFH Check-in Permission Toggle */}
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'rgba(139, 92, 246, 0.06)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ph-bold ph-house-line" style={{ color: '#8b5cf6', fontSize: '18px' }}></i>
+                      <div>
+                        <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
+                        </div>
+                      </div>
+                    </div>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '22px', flexShrink: 0, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editForm.allowWfhPunch)}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, allowWfhPunch: e.target.checked }))}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: editForm.allowWfhPunch ? '#8b5cf6' : 'var(--border-subtle)',
+                        transition: '.3s',
+                        borderRadius: '22px'
+                      }}>
+                        <span style={{
+                          position: 'absolute', content: '""', height: '16px', width: '16px', left: editForm.allowWfhPunch ? '19px' : '3px', bottom: '3px',
+                          backgroundColor: 'white',
+                          transition: '.3s',
+                          borderRadius: '50%'
+                        }} />
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Information Notice (Strictly no emojis) */}

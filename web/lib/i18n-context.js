@@ -6,26 +6,34 @@ import { zh, en } from './i18n';
 const dictionaries = { zh, en };
 
 const I18nContext = createContext({
-  lang: 'zh',
+  lang: 'en',
   setLang: () => {},
   toggleLang: () => {},
   t: (key, fallback) => key,
 });
 
 export function I18nProvider({ children }) {
-  const [lang, setLangState] = useState('zh');
+  const [lang, setLangState] = useState('en');
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem('talent_flow_lang');
       if (stored === 'en' || stored === 'zh') {
         setLangState(stored);
+        if (typeof document !== 'undefined') {
+          document.documentElement.lang = stored === 'zh' ? 'zh-CN' : 'en';
+        }
+      } else if (typeof document !== 'undefined') {
+        document.documentElement.lang = 'en';
       }
     } catch (e) {}
 
     const onLangChange = (evt) => {
       if (evt?.detail?.lang) {
         setLangState(evt.detail.lang);
+        if (typeof document !== 'undefined') {
+          document.documentElement.lang = evt.detail.lang === 'zh' ? 'zh-CN' : 'en';
+        }
       }
     };
     window.addEventListener('langchange', onLangChange);
@@ -38,6 +46,9 @@ export function I18nProvider({ children }) {
     try {
       localStorage.setItem('talent_flow_lang', newLang);
     } catch (e) {}
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = newLang === 'zh' ? 'zh-CN' : 'en';
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('langchange', { detail: { lang: newLang } }));
     }
@@ -58,7 +69,7 @@ export function I18nProvider({ children }) {
       fallback = paramsOrFallback;
     }
 
-    const dict = dictionaries[lang] || dictionaries.zh;
+    const dict = dictionaries[lang] || dictionaries.en;
     const parts = path.split('.');
     let cur = dict;
     for (const p of parts) {
@@ -70,18 +81,19 @@ export function I18nProvider({ children }) {
       }
     }
 
-    // Fallback to zh if en is missing key
-    if ((cur === null || cur === undefined) && lang !== 'zh') {
-      let zhCur = dictionaries.zh;
+    // Fallback to en if zh is missing key, or fallback to zh if en is missing key
+    if (cur === null || cur === undefined) {
+      const fallbackDict = lang === 'en' ? dictionaries.zh : dictionaries.en;
+      let fbCur = fallbackDict;
       for (const p of parts) {
-        if (zhCur && typeof zhCur === 'object' && p in zhCur) {
-          zhCur = zhCur[p];
+        if (fbCur && typeof fbCur === 'object' && p in fbCur) {
+          fbCur = fbCur[p];
         } else {
-          zhCur = null;
+          fbCur = null;
           break;
         }
       }
-      if (zhCur !== null && zhCur !== undefined) cur = zhCur;
+      if (fbCur !== null && fbCur !== undefined) cur = fbCur;
     }
 
     let result = cur !== null && cur !== undefined ? cur : (fallback || path);

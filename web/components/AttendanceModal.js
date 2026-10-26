@@ -16,7 +16,8 @@ const getApiUrl = (path) => {
 const ENABLE_LUNCH_PUNCH = false;
 
 export default function AttendanceModal() {
-  const { user, userProfile, teamId, isOwner, isHqTeam } = useAuth();
+  const { user, userProfile, teamId, isOwner, isManager, isHqTeam } = useAuth();
+  const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
   const { t, lang } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -24,8 +25,18 @@ export default function AttendanceModal() {
   const [detectedIp, setDetectedIp] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userRecords, setUserRecords] = useState([]);
+  const [workMode, setWorkMode] = useState('OFFICE'); // 'OFFICE' | 'WFH'
+  const [wfhNote, setWfhNote] = useState('');
+
+  // Enforce OFFICE mode if user has no WFH permission
+  useEffect(() => {
+    if (!canWfh && workMode === 'WFH') {
+      setWorkMode('OFFICE');
+    }
+  }, [canWfh, workMode]);
   const [attendanceRules, setAttendanceRules] = useState({
     enabled: true,
+    allowWfh: true,
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
@@ -239,12 +250,16 @@ export default function AttendanceModal() {
   const handlePunch = async (punchType = 'CLOCK_IN') => {
     if (!teamId || !user) return;
     setIsVerifying(true);
-    setStatusMessage(t('attendanceModal.statusDetecting', '正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...'));
+    setStatusMessage(
+      workMode === 'WFH'
+        ? t('attendanceModal.statusConnectingWfh', '正在提交居家办公 (WFH) 安全打卡...')
+        : t('attendanceModal.statusDetecting', '正在探测当前网络环境，核验企业 Wi-Fi 公网出口 IP...')
+    );
 
     const picName = userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0] || t('analytics.defaultPicName', '顾问');
 
     try {
-      // Stage 1: Wi-Fi Public IP check (pass coords: null)
+      // Stage 1: Wi-Fi Public IP check / Stage 0 WFH check (pass coords: null)
       let stage1Res;
       try {
         const resp = await fetch(getApiUrl('/api/attendance/verify'), {
@@ -252,7 +267,12 @@ export default function AttendanceModal() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             teamId,
+            userId: user?.uid,
+            userRole: userProfile?.role,
+            userWfhAllowed: canWfh,
             type: punchType,
+            workMode: canWfh ? workMode : 'OFFICE',
+            wfhNote: canWfh ? wfhNote.trim() : '',
             rules: attendanceRules,
             coords: null
           })
@@ -272,13 +292,20 @@ export default function AttendanceModal() {
         setAppleHelpMsg('');
       }
 
-      // Case 1: Rule disabled OR Wi-Fi IP passed!
+      // Case 1: Rule disabled OR Wi-Fi IP passed OR WFH passed!
       if (r1?.passed) {
+        const isWfh = r1.verify_method === 'WFH';
         const isWifi = r1.verify_method === 'WIFI_IP';
+        const methodName = isWfh
+          ? t('analytics.methodWfh', '居家办公 (WFH)')
+          : isWifi
+            ? t('analytics.methodWifi', '公司 Wi-Fi 内网认证')
+            : t('analytics.methodRuleDisabled', '规则未限制');
         const verifySnapshot = {
           method: r1.verify_method,
-          methodName: isWifi ? t('analytics.methodWifi', '公司 Wi-Fi 内网认证') : t('analytics.methodRuleDisabled', '规则未限制'),
+          methodName,
           ip: r1.client_ip || r1.hit_ip || '',
+          wfhNote: isWfh ? wfhNote.trim() : '',
           timestamp: new Date().toISOString()
         };
 
@@ -291,15 +318,17 @@ export default function AttendanceModal() {
             type: punchType,
             verifyMethod: r1.verify_method,
             verifySnapshot,
-            note: `[${verifySnapshot.methodName}] ${getPunchTypeLabel(punchType)}`
+            note: `[${verifySnapshot.methodName}] ${getPunchTypeLabel(punchType)}${isWfh && wfhNote.trim() ? ': ' + wfhNote.trim() : ''}`
           });
         } catch (storeErr) {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
         }
 
-        showToast(isWifi
-          ? t('attendanceModal.toastWifiSuccess', { ip: r1.client_ip || '' }, '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})')
-          : t('analytics.checkinSuccess', '打卡成功！'));
+        showToast(isWfh
+          ? t('attendanceModal.toastWfhSuccess', '🏠 居家办公 (WFH) 打卡成功！')
+          : isWifi
+            ? t('attendanceModal.toastWifiSuccess', { ip: r1.client_ip || '' }, '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})')
+            : t('analytics.checkinSuccess', '打卡成功！'));
         setIsVerifying(false);
         setStatusMessage('');
         
@@ -465,11 +494,14 @@ export default function AttendanceModal() {
       text: t('attendanceModal.statusLunchIn', { time: lunchInTimeStr }, '下午工作中 · 返回 ({time})')
     };
   } else if (todayClockIn) {
+    const isWfhRecord = todayClockIn.verifyMethod === 'WFH';
     statusBadge = {
-      bg: 'rgba(16, 185, 129, 0.12)',
-      color: 'var(--accent-emerald)',
-      dot: 'var(--accent-emerald)',
-      text: t('attendanceModal.statusClockedIn', { time: inTimeStr }, '工作中 · 已签到 ({time})')
+      bg: isWfhRecord ? 'rgba(168, 85, 247, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+      color: isWfhRecord ? '#c084fc' : 'var(--accent-emerald)',
+      dot: isWfhRecord ? '#c084fc' : 'var(--accent-emerald)',
+      text: isWfhRecord
+        ? t('attendanceModal.statusWfhClockedIn', { time: inTimeStr }, '居家办公 (WFH) · 已签到 ({time})')
+        : t('attendanceModal.statusClockedIn', { time: inTimeStr }, '工作中 · 已签到 ({time})')
     };
   }
 
@@ -741,6 +773,77 @@ export default function AttendanceModal() {
             </div>
           )}
 
+          {/* Office vs WFH Mode Selector (Only visible if user has WFH permission) */}
+          {attendanceRules.allowWfh !== false && canWfh && (
+            <div style={{ marginBottom: 'var(--space-4)', textAlign: 'left' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '6px',
+                background: 'rgba(255,255,255,0.03)',
+                padding: '4px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-subtle)'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setWorkMode('OFFICE')}
+                  style={{
+                    padding: '7px 10px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    borderRadius: 'var(--radius-sm)',
+                    border: workMode === 'OFFICE' ? '1px solid rgba(16, 185, 129, 0.4)' : 'none',
+                    background: workMode === 'OFFICE' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                    color: workMode === 'OFFICE' ? 'var(--accent-emerald)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <i className="ph-bold ph-buildings"></i>
+                  <span>{t('attendanceModal.modeOffice', '办公室打卡')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkMode('WFH')}
+                  style={{
+                    padding: '7px 10px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    borderRadius: 'var(--radius-sm)',
+                    border: workMode === 'WFH' ? '1px solid rgba(168, 85, 247, 0.45)' : 'none',
+                    background: workMode === 'WFH' ? 'rgba(168, 85, 247, 0.18)' : 'transparent',
+                    color: workMode === 'WFH' ? '#c084fc' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <i className="ph-bold ph-house-line"></i>
+                  <span>{t('attendanceModal.modeWfh', '居家办公 (WFH)')}</span>
+                </button>
+              </div>
+
+              {workMode === 'WFH' && (
+                <div style={{ marginTop: '8px' }}>
+                  <input
+                    type="text"
+                    className="input"
+                    style={{ width: '100%', height: '34px', fontSize: '12px' }}
+                    placeholder={t('attendanceModal.wfhNotePlaceholder', '选填居家办公备注 (如：今日远程跟进候选人)...')}
+                    value={wfhNote}
+                    onChange={(e) => setWfhNote(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Status / Verification Progress Banner */}
           {statusMessage && (
             <div style={{
@@ -761,7 +864,7 @@ export default function AttendanceModal() {
                 <span style={{ lineHeight: 1.4 }}>{statusMessage}</span>
               </div>
 
-              {appleHelpMsg && (
+              {appleHelpMsg && workMode !== 'WFH' && (
                 <div style={{
                   background: 'rgba(234, 179, 8, 0.12)',
                   border: '1px solid rgba(234, 179, 8, 0.35)',
@@ -778,7 +881,7 @@ export default function AttendanceModal() {
                 </div>
               )}
 
-              {!isVerifying && isOwner && detectedIp && (
+              {!isVerifying && isOwner && detectedIp && workMode !== 'WFH' && (
                 <button
                   type="button"
                   className="btn btn-outline"
