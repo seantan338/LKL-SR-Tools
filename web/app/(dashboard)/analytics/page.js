@@ -25,6 +25,7 @@ export default function AnalyticsPage() {
   const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
+  const isEn = lang === 'en';
 
   // Active Tab: 'performance' (业绩看板) or 'attendance' (打卡记录)
   const [selectedTab, setActiveTab] = useState('performance');
