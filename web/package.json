@@ -22,7 +22,8 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-indiana-drag-scroll": "^2.2.1"
+    "react-indiana-drag-scroll": "^2.2.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "eslint": "^9",

@@ -12,6 +12,8 @@ import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp 
 import Chart from 'chart.js/auto';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { useI18n } from '../../../lib/i18n-context';
+import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
+import { ExcelExporter } from '../../../lib/excel-exporter';
 
 const getApiUrl = (path) => {
   return path;
@@ -43,6 +45,7 @@ export default function AnalyticsPage() {
   const [isClockingIn, setIsClockingIn] = useState(false);
   const [clockInStatusMsg, setClockInStatusMsg] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Attendance Rules & Settings Modal State
   const [attendanceRules, setAttendanceRules] = useState({
@@ -53,7 +56,8 @@ export default function AnalyticsPage() {
     officeLocations: [
       { name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
     ],
-    officeWifi: { allowedIps: ['127.0.0.1'], ddnsDomain: '' }
+    officeWifi: { allowedIps: ['127.0.0.1'], ddnsDomain: '' },
+    shiftConfig: DEFAULT_SHIFT_CONFIG
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingRules, setEditingRules] = useState(null);
@@ -349,14 +353,29 @@ export default function AnalyticsPage() {
     const result = Object.values(recordMap).map(r => {
       const isToday = r.date === todayStr;
       
+      // 组装当日打卡事件流供 CascadeShiftEngine 判定
+      const dayEvents = [];
+      if (r.manualClockIn) dayEvents.push({ type: 'CLOCK_IN', timestamp: r.manualClockIn });
+      if (r.manualLunchOut) dayEvents.push({ type: 'LUNCH_OUT', timestamp: r.manualLunchOut });
+      if (r.manualLunchIn) dayEvents.push({ type: 'LUNCH_IN', timestamp: r.manualLunchIn });
+      if (r.manualClockOut) dayEvents.push({ type: 'CLOCK_OUT', timestamp: r.manualClockOut });
+      if (dayEvents.length === 0) {
+        dayEvents.push({ type: 'CLOCK_IN', timestamp: r.firstActionTime });
+        if (r.lastActionTime > r.firstActionTime) {
+          dayEvents.push({ type: 'CLOCK_OUT', timestamp: r.lastActionTime });
+        }
+      }
+
+      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(dayEvents, attendanceRules.shiftConfig);
+
       // Calculate work duration
       const diffMs = r.lastActionTime.getTime() - r.firstActionTime.getTime();
       const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(1);
 
       // Determine status
       let status = 'completed'; // 已打卡/全天完成
-      let statusLabel = t('analytics.statusFullShift', '正常完成');
-      let statusColor = 'var(--accent-emerald)';
+      let statusLabel = shiftAnalysis.complianceLabel || t('analytics.statusFullShift', '正常完成');
+      let statusColor = shiftAnalysis.isViolation ? '#ef4444' : shiftAnalysis.isMissingPunch ? 'var(--accent-amber)' : 'var(--accent-emerald)';
 
       if (isToday) {
         // If employee has clocked lunch out and not yet clocked lunch in
@@ -364,14 +383,20 @@ export default function AnalyticsPage() {
           status = 'lunch';
           statusLabel = t('analytics.statusOnLunch', '午休中 (离岗)');
           statusColor = 'var(--accent-amber)';
+        } else if (r.manualClockOut) {
+          // 今日已签退，严格显示最终合规判定（包含提前签退绝杀）
+          statusLabel = shiftAnalysis.complianceLabel;
+          statusColor = shiftAnalysis.isViolation ? '#ef4444' : 'var(--accent-emerald)';
         } else {
           const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
           if (minutesSinceLast < 120) {
             status = 'online';
-            statusLabel = r.manualLunchIn ? t('analytics.statusAfternoonDuty', '工作中 (下午)') : t('analytics.statusOnDuty', '工作中 (活跃)');
+            statusLabel = r.manualLunchIn
+              ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : '在岗'}`
+              : `${t('analytics.statusOnDuty', '工作中 (活跃)')} · ${shiftAnalysis.shift?.endStr ? `底线 ${shiftAnalysis.shift.endStr}` : ''}`;
             statusColor = 'var(--accent-blue)';
           } else {
-            statusLabel = t('analytics.statusJustClockedIn', '今日已打卡');
+            statusLabel = `${t('analytics.statusJustClockedIn', '今日已打卡')} (${shiftAnalysis.shift?.name || '在岗'})`;
             statusColor = 'var(--accent-emerald)';
           }
         }
@@ -379,7 +404,8 @@ export default function AnalyticsPage() {
 
       return {
         ...r,
-        durationHours: Number(diffHours),
+        durationHours: shiftAnalysis.durationHours !== null ? shiftAnalysis.durationHours : Number(diffHours),
+        shiftAnalysis,
         status,
         statusLabel,
         statusColor,
@@ -868,6 +894,53 @@ export default function AnalyticsPage() {
     });
   };
 
+  // Export Attendance Excel (Dual-Sheet Report)
+  const handleExportAttendanceExcel = async () => {
+    if (!isHqTeam || (!isOwner && !isManager)) {
+      showToast(t('analytics.exportNoPermission', '仅 HQ 本部管理人员具备全员考勤月报导出权限'), 'error');
+      return;
+    }
+    if (picAttendanceRecords.length === 0) {
+      showToast(t('analytics.exportNoData', '当前时间段内暂无可导出的考勤打卡数据'), 'warning');
+      return;
+    }
+
+    setIsExportingExcel(true);
+    try {
+      const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
+      const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
+
+      const sheets = ExcelExporter.buildAttendanceReportData({
+        monthStr: activeMonthStr,
+        attendanceEvents: [...manualCheckins, ...logs],
+        hqMembers: hqAdvisors,
+        shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
+        workingDays: 22
+      });
+
+      const filename = `TalentFlow_Attendance_${activeMonthStr}.xlsx`;
+      await ExcelExporter.exportWorkbook({ filename, sheets });
+
+      // Audit Log Track (Non-blocking)
+      try {
+        await SystemLogger.audit(teamId, {
+          action: 'EXPORT_ATTENDANCE_EXCEL',
+          targetType: 'ATTENDANCE_REPORT',
+          details: `成功导出内部员工考勤出勤月报 (${filename})`
+        });
+      } catch (logErr) {
+        console.warn('Attendance audit log notice:', logErr);
+      }
+
+      showToast(t('analytics.exportSuccess', `🎉 考勤报表 (${filename}) 已成功生成并下载！`));
+    } catch (err) {
+      console.error('Failed to export attendance excel:', err);
+      showToast(t('analytics.exportFailed', `导出失败: ${err.message}`), 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // Save Settings to Firestore
   const handleSaveSettings = async () => {
     if (!teamId) return;
@@ -879,7 +952,7 @@ export default function AnalyticsPage() {
       showToast(t('analytics.rulesSavedToast', '考勤规则与网络设置已保存并全员实时生效'));
     } catch (err) {
       console.error('Failed to save attendance rules:', err);
-      alert(t('analytics.saveRulesFailed', '保存失败: ') + err.message);
+      showToast(t('analytics.saveRulesFailed', '保存失败: ') + err.message, 'error');
     } finally {
       setIsSavingRules(false);
     }
@@ -1290,14 +1363,43 @@ export default function AnalyticsPage() {
           {/* Attendance Log Table */}
           <div className="bezel-shell">
             <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)' }}></i>
                   {t('analytics.attendanceTableTitle', '顾问考勤打卡明细与系统日常活跃记录')}
                 </h3>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                  {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡/活跃记录')).replace('{count}', filteredAttendance.length)}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡/活跃记录')).replace('{count}', filteredAttendance.length)}
+                  </span>
+                  {isHqTeam && (isOwner || isManager) && (
+                    <button
+                      className="btn btn-sm btn-outline"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        borderColor: 'rgba(16, 185, 129, 0.4)',
+                        color: 'var(--accent-emerald)',
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        padding: '4px 12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        borderRadius: 'var(--radius-md)'
+                      }}
+                      onClick={handleExportAttendanceExcel}
+                      disabled={isExportingExcel}
+                      title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
+                    >
+                      {isExportingExcel ? (
+                        <i className="ph-light ph-spinner-gap ph-spin"></i>
+                      ) : (
+                        <i className="ph-bold ph-file-xls"></i>
+                      )}
+                      <span>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div style={{ overflowX: 'auto' }}>
@@ -1890,6 +1992,108 @@ export default function AnalyticsPage() {
                       officeWifi: { ...(editingRules.officeWifi || {}), ddnsDomain: e.target.value }
                     })}
                   />
+                </div>
+              </div>
+
+              {/* Section 3: Flexible Shifts & Cascade Tolerance Configuration */}
+              <div style={{ marginBottom: 'var(--space-6)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-5)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                  <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph-bold ph-hourglass-high" style={{ color: 'var(--accent-purple)' }}></i>
+                    {t('analytics.secShiftTitle', '阶梯弹性班次与打卡容差配置')}
+                  </h4>
+                  <span style={{ fontSize: '11px', color: 'var(--accent-purple)', background: 'rgba(168, 85, 247, 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                    {t('analytics.tagZeroGrace', '当前设定：零打卡冗余 (过一分钟即顺延)')}
+                  </span>
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-4) 0', lineHeight: 1.4 }}>
+                  {t('analytics.shiftConfigDesc', '系统以员工早晨首次签到时间动态核定所属班次。若超出所选档位，下班时间强制顺延至下一档（例如 8:31 打卡需工作至 18:00）。若提前签退（例如 17:59）则直接判定为迟到/早退违规。')}
+                </p>
+
+                {/* Grace Minutes Configuration */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: 'var(--space-4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+                      {t('analytics.graceMinutesLabel', '打卡宽限容差 (Grace Minutes / 分钟)')}
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="30"
+                        className="input"
+                        style={{ width: '64px', height: '30px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}
+                        value={editingRules.shiftConfig?.graceMinutes ?? 0}
+                        onChange={(e) => {
+                          const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                          setEditingRules({
+                            ...editingRules,
+                            shiftConfig: {
+                              ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+                              graceMinutes: val
+                            }
+                          });
+                        }}
+                      />
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{t('analytics.unitMinutes', '分钟')}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                    {(editingRules.shiftConfig?.graceMinutes ?? 0) === 0
+                      ? t('analytics.graceHintZero', '💡 当前为 0 分钟 (严格执行)：8:30:00 前打卡计为 8:30，只要到 8:31:00 立刻强制顺延至 9:00 - 18:00 档。')
+                      : t('analytics.graceHintCustom', `💡 当前容差已调整为 ${editingRules.shiftConfig?.graceMinutes} 分钟，打卡在基准时间 + ${editingRules.shiftConfig?.graceMinutes} 分钟内仍可计入该班次。`)}
+                  </div>
+                </div>
+
+                {/* Shifts Table */}
+                <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', overflow: 'hidden', marginBottom: 'var(--space-3)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                    <span>{t('analytics.colShiftName', '阶梯班次档位')}</span>
+                    <span>{t('analytics.colShiftIn', '签到基准线')}</span>
+                    <span>{t('analytics.colShiftOut', '强制下班底线')}</span>
+                  </div>
+                  {(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map((shift, sIdx) => (
+                    <div key={shift.id || sIdx} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', padding: '8px 12px', borderTop: '1px solid var(--border-hairline)', fontSize: '12px', alignItems: 'center' }}>
+                      <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{shift.name}</span>
+                      <span style={{ fontFamily: 'monospace', color: 'var(--accent-emerald)' }}>{shift.startTime}</span>
+                      <span style={{ fontFamily: 'monospace', color: 'var(--accent-blue)' }}>{shift.endTime}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Strict Clock Out Switch */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>{t('analytics.strictClockOutTitle', '严格签退绝杀 (Strict Clock-Out)')}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.strictClockOutDesc', '未达到核定班次下班底线提前签退（例如 17:59 签退）将直接被系统计为迟到/早退违规。')}</div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={editingRules.shiftConfig?.strictClockOut !== false}
+                      onChange={(e) => {
+                        setEditingRules({
+                          ...editingRules,
+                          shiftConfig: {
+                            ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+                            strictClockOut: e.target.checked
+                          }
+                        });
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                      background: editingRules.shiftConfig?.strictClockOut !== false ? 'var(--accent-purple)' : 'rgba(255,255,255,0.15)',
+                      borderRadius: '20px', transition: '0.3s'
+                    }}>
+                      <span style={{
+                        position: 'absolute', content: '""', height: '14px', width: '14px',
+                        left: editingRules.shiftConfig?.strictClockOut !== false ? '22px' : '3px', bottom: '3px',
+                        background: '#fff', borderRadius: '50%', transition: '0.3s'
+                      }}></span>
+                    </span>
+                  </label>
                 </div>
               </div>
 

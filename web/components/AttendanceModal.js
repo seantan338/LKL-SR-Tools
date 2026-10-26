@@ -7,6 +7,7 @@ import { FirestoreStore } from '../lib/firestore-store';
 import { SystemLogger } from '../lib/logger';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../lib/cascade-shift-engine';
 
 const getApiUrl = (path) => {
   return path;
@@ -42,10 +43,12 @@ export default function AttendanceModal() {
     officeLocations: [
       { name: '公司总部', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
     ],
-    officeWifi: { allowedIps: [] }
+    officeWifi: { allowedIps: [] },
+    shiftConfig: DEFAULT_SHIFT_CONFIG
   });
   const [toastMsg, setToastMsg] = useState('');
   const [appleHelpMsg, setAppleHelpMsg] = useState('');
+  const [earlyClockOutWarning, setEarlyClockOutWarning] = useState(null);
   const autoPopupCheckedRef = useRef(false);
 
   const showToast = (msg) => {
@@ -246,6 +249,30 @@ export default function AttendanceModal() {
     }
   };
 
+  // Guarded punch handler for strict clock out detection
+  const handlePunchWithGuard = (punchType = 'CLOCK_IN', force = false) => {
+    // 提前签退防呆拦截 (Strict Clock-Out Guard)
+    if (punchType === 'CLOCK_OUT' && !force && todayClockIn) {
+      const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
+      const shift = CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig);
+      const now = new Date();
+      const nowMin = CascadeShiftEngine.getDateMinutesOfDay(now);
+
+      if (nowMin < shift.endMinutes) {
+        const diffSec = Math.round((shift.endMinutes - nowMin) * 60);
+        const desc = diffSec >= 60 ? `${Math.floor(diffSec / 60)}分${diffSec % 60}秒` : `${diffSec}秒`;
+        setEarlyClockOutWarning({
+          shift,
+          diffSec,
+          desc
+        });
+        return;
+      }
+    }
+    setEarlyClockOutWarning(null);
+    handlePunch(punchType);
+  };
+
   // 6. Two-stage Zero-Trust Verification Punch Action
   const handlePunch = async (punchType = 'CLOCK_IN') => {
     if (!teamId || !user) return;
@@ -324,11 +351,18 @@ export default function AttendanceModal() {
           console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
         }
 
-        showToast(isWfh
+        let successTip = isWfh
           ? t('attendanceModal.toastWfhSuccess', '🏠 居家办公 (WFH) 打卡成功！')
           : isWifi
             ? t('attendanceModal.toastWifiSuccess', { ip: r1.client_ip || '' }, '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})')
-            : t('analytics.checkinSuccess', '打卡成功！'));
+            : t('analytics.checkinSuccess', '打卡成功！');
+
+        if (punchType === 'CLOCK_IN') {
+          const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig);
+          successTip += ` (${shift.name}，底线: ${shift.endStr})`;
+        }
+
+        showToast(successTip);
         setIsVerifying(false);
         setStatusMessage('');
         
@@ -410,7 +444,12 @@ export default function AttendanceModal() {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
           }
 
-          showToast(t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）'));
+          let successTip = t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）');
+          if (punchType === 'CLOCK_IN') {
+            const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig);
+            successTip += ` (${shift.name}，底线: ${shift.endStr})`;
+          }
+          showToast(successTip);
           setIsVerifying(false);
           setStatusMessage('');
           setTimeout(() => setIsOpen(false), 1500);
@@ -909,6 +948,42 @@ export default function AttendanceModal() {
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            {/* Strict Clock-Out Warning Card */}
+            {earlyClockOutWarning && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--space-3)',
+                marginBottom: 'var(--space-3)',
+                fontSize: '12px'
+              }}>
+                <div style={{ fontWeight: '700', color: '#f87171', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <i className="ph-bold ph-warning-circle"></i>
+                  <span>{t('attendanceModal.earlyWarningTitle', '⚠️ 提前签退预警 (严格考核)')}</span>
+                </div>
+                <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '8px' }}>
+                  {t('attendanceModal.earlyWarningText', { end: earlyClockOutWarning.shift?.endStr || '18:00', desc: earlyClockOutWarning.desc }, '当前核定下班底线为 {end}，距离达标还差 {desc}。未达底线签退将直接被计为迟到/早退违规！')}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    style={{ fontSize: '11px', padding: '3px 10px' }}
+                    onClick={() => setEarlyClockOutWarning(null)}
+                  >
+                    {t('attendanceModal.earlyWait', '再等一下 (保住全勤)')}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    style={{ fontSize: '11px', padding: '3px 10px', borderColor: '#ef4444', color: '#f87171' }}
+                    onClick={() => handlePunchWithGuard('CLOCK_OUT', true)}
+                  >
+                    {t('attendanceModal.earlyForce', '坚持提前签退')}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {!ENABLE_LUNCH_PUNCH ? (
               !todayClockIn ? (
                 <button
@@ -925,7 +1000,7 @@ export default function AttendanceModal() {
                     gap: '8px'
                   }}
                   disabled={isVerifying}
-                  onClick={() => handlePunch('CLOCK_IN')}
+                  onClick={() => handlePunchWithGuard('CLOCK_IN')}
                 >
                   <i className="ph-bold ph-sign-in"></i>
                   {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : t('attendanceModal.clockInNow', '立即上班打卡')}
@@ -945,7 +1020,7 @@ export default function AttendanceModal() {
                     gap: '8px'
                   }}
                   disabled={isVerifying}
-                  onClick={() => handlePunch('CLOCK_OUT')}
+                  onClick={() => handlePunchWithGuard('CLOCK_OUT')}
                 >
                   <i className="ph-bold ph-sign-out"></i>
                   {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : t('attendanceModal.clockOutNow', '下班签退打卡')}
@@ -966,7 +1041,7 @@ export default function AttendanceModal() {
                   gap: '8px'
                 }}
                 disabled={isVerifying}
-                onClick={() => handlePunch(activePunch)}
+                onClick={() => handlePunchWithGuard(activePunch)}
               >
                 <i className={`ph-bold ${currentAction.icon}`}></i>
                 {isVerifying ? t('attendanceModal.verifying', '正在安全核验...') : currentAction.label}
