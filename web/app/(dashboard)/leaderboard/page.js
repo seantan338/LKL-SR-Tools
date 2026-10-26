@@ -580,18 +580,19 @@ export default function LeaderboardPage() {
               padding: '5px 14px',
               fontSize: '12px',
               fontWeight: '600',
-              borderRadius: 'var(--radius-md)'
+              borderRadius: 'var(--radius-md)',
+              cursor: isExporting ? 'wait' : 'pointer',
+              pointerEvents: isExporting ? 'none' : 'auto',
+              position: 'relative',
+              zIndex: 50,
+              flexShrink: 0
             }}
             onClick={handleExportAttendanceExcel}
             disabled={isExporting}
             title={t('leaderboard.exportAttendanceTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
           >
-            {isExporting ? (
-              <i className="ph-light ph-spinner-gap ph-spin"></i>
-            ) : (
-              <i className="ph-bold ph-file-xls"></i>
-            )}
-            <span>{isExporting ? t('leaderboard.exporting', '正在导出报表...') : t('leaderboard.exportExcel', '导出考勤月报 (Excel)')}</span>
+            <i className={`ph-bold ${isExporting ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+            <span style={{ pointerEvents: 'none' }}>{isExporting ? t('leaderboard.exporting', '正在导出报表...') : t('leaderboard.exportExcel', '导出考勤月报 (Excel)')}</span>
           </button>
         </div>
       )}

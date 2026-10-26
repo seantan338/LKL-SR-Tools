@@ -15,6 +15,14 @@ test('1. 零打卡冗余匹配：8:30:00 准时打卡应命中 Shift C (8:30 - 1
   assert.equal(shift.isLateArrival, false);
 });
 
+test('1.1 整分钟包含制核心验证：8:30:59 依然属于 8:30 班次之内，应稳稳命中 Shift C', () => {
+  const t83059 = makeDate('08:30:59');
+  const shift = CascadeShiftEngine.matchShift(t83059, DEFAULT_SHIFT_CONFIG);
+  assert.equal(shift.id, 'shift_c', '8:30:59 尚未跨入 8:31，必须算作 8:30 档');
+  assert.equal(shift.endTime, '17:30');
+  assert.equal(shift.isLateArrival, false);
+});
+
 test('2. 老板WhatsApp案例：8:31:00 打卡零容忍滚入 Shift D (9:00 - 18:00)', () => {
   const t831 = makeDate('08:31:00');
   const shift = CascadeShiftEngine.matchShift(t831, DEFAULT_SHIFT_CONFIG);

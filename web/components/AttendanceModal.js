@@ -544,6 +544,18 @@ export default function AttendanceModal() {
     };
   }
 
+  // Real-time dynamic shift matching based on current ticking clock
+  const liveShift = useMemo(() => {
+    return CascadeShiftEngine.matchShift(currentTime, attendanceRules?.shiftConfig);
+  }, [currentTime, attendanceRules]);
+
+  // If already clocked in today, show the anchored shift
+  const assignedShift = useMemo(() => {
+    if (!todayClockIn) return liveShift;
+    const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
+    return CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig);
+  }, [todayClockIn, attendanceRules, liveShift]);
+
   const getActionConfig = (type) => {
     switch (type) {
       case 'CLOCK_IN':
@@ -667,6 +679,41 @@ export default function AttendanceModal() {
             <div style={{ marginTop: 'var(--space-3)', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '16px', background: statusBadge.bg, fontSize: '12px', fontWeight: '600', color: statusBadge.color }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusBadge.dot }}></span>
               {statusBadge.text}
+            </div>
+          </div>
+
+          {/* Real-time Dynamic Shift Preview Card */}
+          <div style={{
+            background: 'rgba(139, 92, 246, 0.08)',
+            border: '1px solid rgba(139, 92, 246, 0.25)',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 12px',
+            marginBottom: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left' }}>
+              <i className="ph-bold ph-hourglass-high" style={{ color: '#c084fc', fontSize: '16px' }}></i>
+              <div>
+                <div style={{ fontWeight: '600', color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                  {todayClockIn ? (
+                    <>已锁定班次：<span style={{ color: '#a78bfa' }}>{assignedShift.name}</span></>
+                  ) : (
+                    <>当前匹配：<span style={{ color: '#a78bfa' }}>{liveShift.name}</span></>
+                  )}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {todayClockIn ? '今日上班已锁定' : '8:30:59 前打卡计入本档，超时顺延'}
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>下班达标底线</div>
+              <div style={{ fontFamily: 'monospace', fontWeight: '700', color: 'var(--accent-blue)', fontSize: '13px' }}>
+                {todayClockIn ? assignedShift.endStr : liveShift.endStr}
+              </div>
             </div>
           </div>
 

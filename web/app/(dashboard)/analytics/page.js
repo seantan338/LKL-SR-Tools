@@ -1039,6 +1039,36 @@ export default function AnalyticsPage() {
             )}
           </div>
 
+          {/* Top Quick Excel Export Button (HQ Owner / Manager) */}
+          {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
+            <button
+              className="btn btn-sm btn-outline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: 'rgba(16, 185, 129, 0.4)',
+                color: 'var(--accent-emerald)',
+                background: 'rgba(16, 185, 129, 0.08)',
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-md)',
+                cursor: isExportingExcel ? 'wait' : 'pointer',
+                pointerEvents: isExportingExcel ? 'none' : 'auto',
+                position: 'relative',
+                zIndex: 50,
+                flexShrink: 0
+              }}
+              onClick={handleExportAttendanceExcel}
+              disabled={isExportingExcel}
+              title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
+            >
+              <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+              <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
+            </button>
+          )}
+
           {/* Quick Clock-in Buttons (HQ only) */}
           {isHqTeam && (
           <div style={{ display: 'flex', gap: '6px' }}>
@@ -1385,18 +1415,19 @@ export default function AnalyticsPage() {
                         padding: '4px 12px',
                         fontSize: '12px',
                         fontWeight: '600',
-                        borderRadius: 'var(--radius-md)'
+                        borderRadius: 'var(--radius-md)',
+                        cursor: isExportingExcel ? 'wait' : 'pointer',
+                        pointerEvents: isExportingExcel ? 'none' : 'auto',
+                        position: 'relative',
+                        zIndex: 50,
+                        flexShrink: 0
                       }}
                       onClick={handleExportAttendanceExcel}
                       disabled={isExportingExcel}
                       title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
                     >
-                      {isExportingExcel ? (
-                        <i className="ph-light ph-spinner-gap ph-spin"></i>
-                      ) : (
-                        <i className="ph-bold ph-file-xls"></i>
-                      )}
-                      <span>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
+                      <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+                      <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
                     </button>
                   )}
                 </div>

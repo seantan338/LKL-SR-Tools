@@ -50,6 +50,12 @@
   transition: all var(--duration-fast) var(--ease-spring);
   position: relative;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .btn:active {

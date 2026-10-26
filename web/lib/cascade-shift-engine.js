@@ -109,17 +109,20 @@ export class CascadeShiftEngine {
       };
     }
 
-    const inMinutes = this.getDateMinutesOfDay(firstIn);
+    // 精确到秒级整分钟包含制（Minute-inclusive Window: 包含目标分钟的 00~59 秒）
+    const inSeconds = firstIn.getHours() * 3600 + firstIn.getMinutes() * 60 + firstIn.getSeconds();
     const grace = config.graceMinutes || 0;
 
     for (const s of config.shifts) {
-      const startMin = this.parseTimeToMinutes(s.startTime);
-      const cutoffMin = startMin + grace;
+      const parts = s.startTime.split(':');
+      const baseHour = parseInt(parts[0], 10) || 0;
+      const baseMin = parseInt(parts[1], 10) || 0;
+      // 截止秒数严格设定为目标分钟末尾 59 秒 (例如 8:30 档即 08:30:59)
+      const cutoffSeconds = (baseHour * 60 + baseMin + grace) * 60 + 59;
 
-      // 零冗余匹配：必须 <= (基准时间 + 容差)
-      // 若 08:30:00，inMinutes = 510 <= 510 命中；
-      // 若 08:30:01 或 08:31:00，inMinutes > 510，不能命中，滚入下一个班次！
-      if (inMinutes <= cutoffMin) {
+      // 整分钟包含制匹配：只要未跨入下一分钟 (例如 08:30:59 及之前)，均算在该班次内
+      // 只有当时钟正式跳到 08:31:00 时，才判定为超时滚入下一班次
+      if (inSeconds <= cutoffSeconds) {
         const endMin = this.parseTimeToMinutes(s.endTime);
         return {
           id: s.id,
