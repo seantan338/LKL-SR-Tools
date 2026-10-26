@@ -245,6 +245,7 @@ export const ExcelExporter = {
     attendanceEvents = [],
     hqMembers = [],
     shiftConfig = null,
+    shiftOverrides = {},
     workingDays = 22,
     locale = 'zh'
   }) {
@@ -288,9 +289,12 @@ export const ExcelExporter = {
       }
     });
 
-    // 2. 针对每一条每日记录应用 CascadeShiftEngine 判定
+    // 2. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次）
     const dailyLogs = Object.values(dailyMap).map(day => {
-      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale });
+      const overrideKey = `${day.dateStr}__${day.picName}`;
+      const overrideKeyUid = `${day.dateStr}__${day.userId}`;
+      const overrideShift = (shiftOverrides && (shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid])) || null;
+      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale, overrideShift });
       return {
         ...day,
         analysis: res

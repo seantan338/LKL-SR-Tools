@@ -542,14 +542,16 @@ export const FirestoreStore = {
   subscribeToAttendanceRules(teamId, callback) {
     if (!teamId) return () => {};
     const healRules = (r) => {
-      if (!r || !r.officeLocations) return r;
-      const healed = r.officeLocations.map(loc => {
+      if (!r) return r;
+      const res = { ...r, shiftOverrides: r.shiftOverrides || {} };
+      if (!res.officeLocations) return res;
+      const healed = res.officeLocations.map(loc => {
         if (Math.abs((parseFloat(loc.latitude) || 0) - 3.139) < 0.001 && Math.abs((parseFloat(loc.longitude) || 0) - 101.6869) < 0.001) {
           return { ...loc, name: loc.name || '公司总部', latitude: 1.440472, longitude: 103.617917 };
         }
         return loc;
       });
-      return { ...r, officeLocations: healed };
+      return { ...res, officeLocations: healed };
     };
     const defaultRules = {
       enabled: true,
@@ -623,6 +625,32 @@ export const FirestoreStore = {
     }
 
     return payload;
+  },
+
+  async saveShiftOverride(teamId, overrideKey, overrideData) {
+    if (!teamId || !overrideKey) return;
+    let currentRules = {};
+    try {
+      const saved = localStorage.getItem(`omni_attendance_rules_${teamId}`);
+      if (saved) currentRules = JSON.parse(saved);
+    } catch (e) {}
+
+    const overrides = { ...(currentRules.shiftOverrides || {}) };
+    if (overrideData === null) {
+      delete overrides[overrideKey];
+    } else {
+      overrides[overrideKey] = {
+        ...overrideData,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    const updatedRules = {
+      ...currentRules,
+      shiftOverrides: overrides
+    };
+
+    return await this.saveAttendanceRules(teamId, updatedRules);
   },
 
   async addAttendanceRecord(teamId, recordData) {

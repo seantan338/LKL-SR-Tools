@@ -38,7 +38,9 @@ export const CASCADE_I18N = {
     lateArrivalNote: (inTime, outTime) => `上班迟到(${inTime})，已于 ${outTime} 满勤签退`,
     compliant: '✅ 达标完成',
     compliantNote: '考勤阶梯工时达标',
-    lateSuffix: ' (迟到)'
+    lateSuffix: ' (迟到)',
+    overriddenTag: '[主管调整]',
+    overrideHint: '经主管人工调整'
   },
   en: {
     notClocked: 'Not Clocked',
@@ -62,7 +64,9 @@ export const CASCADE_I18N = {
     lateArrivalNote: (inTime, outTime) => `Late arrival (${inTime}), completed shift at ${outTime}`,
     compliant: '✅ Compliant',
     compliantNote: 'Shift hours requirement fulfilled',
-    lateSuffix: ' (Late)'
+    lateSuffix: ' (Late)',
+    overriddenTag: '[Adjusted]',
+    overrideHint: 'Manually adjusted by manager'
   }
 };
 
@@ -216,11 +220,52 @@ export class CascadeShiftEngine {
    * 核心单日考勤判定机理（输入单日事件流，输出合规画像）
    * @param {Array<object>} dayEvents - 当天由 Firestore logs / attendance 汇聚的打卡流水
    * @param {object} [customConfig] - 考勤 shiftConfig 配置
-   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en' }
+   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en', overrideShift?: object | string }
    */
-  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh' } = {}) {
+  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh', overrideShift = null } = {}) {
     const config = this.getEffectiveConfig(customConfig);
     const labels = CASCADE_I18N[locale] || CASCADE_I18N.zh;
+
+    // 解析主管人工改派班次 (Manual Override Shift)
+    let manualShift = null;
+    if (overrideShift) {
+      if (typeof overrideShift === 'object') {
+        const targetId = overrideShift.shiftId || overrideShift.id;
+        const matched = config.shifts.find(s => s.id === targetId);
+        const base = matched || overrideShift;
+        const endMinutes = base.endTime ? this.parseTimeToMinutes(base.endTime) : (base.endMinutes || 18 * 60);
+        manualShift = {
+          id: base.id || targetId || 'override_shift',
+          name: base.name || (matched ? matched.name : 'Custom Shift'),
+          baseName: base.baseName || base.name || (matched ? matched.name : 'Custom Shift'),
+          startTime: base.startTime || '09:00',
+          endTime: base.endTime || '18:00',
+          endMinutes,
+          endStr: `${base.endTime || '18:00'}:00`,
+          isLateArrival: false,
+          isOverridden: true,
+          overrideReason: overrideShift.reason || '',
+          overrideBy: overrideShift.overrideBy || '',
+          overrideAt: overrideShift.overrideAt || null
+        };
+      } else if (typeof overrideShift === 'string') {
+        const matched = config.shifts.find(s => s.id === overrideShift);
+        if (matched) {
+          const endMinutes = this.parseTimeToMinutes(matched.endTime);
+          manualShift = {
+            id: matched.id,
+            name: matched.name,
+            baseName: matched.name,
+            startTime: matched.startTime,
+            endTime: matched.endTime,
+            endMinutes,
+            endStr: `${matched.endTime}:00`,
+            isLateArrival: false,
+            isOverridden: true
+          };
+        }
+      }
+    }
 
     if (!Array.isArray(dayEvents) || dayEvents.length === 0) {
       return {
@@ -229,7 +274,7 @@ export class CascadeShiftEngine {
         lastOut: null,
         clockInStr: labels.notClocked,
         clockOutStr: labels.notClocked,
-        shift: null,
+        shift: manualShift || null,
         durationHours: null,
         compliance: 'ABSENT',
         complianceLabel: labels.absent,
@@ -257,7 +302,7 @@ export class CascadeShiftEngine {
         lastOut: null,
         clockInStr: labels.notClocked,
         clockOutStr: labels.notClocked,
-        shift: null,
+        shift: manualShift || null,
         durationHours: null,
         compliance: 'ABSENT',
         complianceLabel: labels.absent,
@@ -290,7 +335,7 @@ export class CascadeShiftEngine {
 
     // 3. 场景 A：只有签到，无签退（解决忘记打卡痛点，严禁签退伪造成签到时间）
     if (firstIn && !lastOut) {
-      const shift = this.matchShift(firstIn, config, { locale });
+      const shift = manualShift || this.matchShift(firstIn, config, { locale });
       return {
         hasAttendance: true,
         firstIn,
@@ -317,7 +362,7 @@ export class CascadeShiftEngine {
         lastOut,
         clockInStr: labels.notClockedMissed,
         clockOutStr: this.formatTime(lastOut),
-        shift: { name: labels.unassignedShift, endStr: '-' },
+        shift: manualShift || { name: labels.unassignedShift, endStr: '-' },
         durationHours: null,
         compliance: 'MISSED_IN',
         complianceLabel: labels.missedIn,
@@ -332,7 +377,7 @@ export class CascadeShiftEngine {
     // 5. 场景 C：签到与签退时间相同，或间隔 < 30 分钟（疑似连击误触防呆）
     const durationMs = lastOut.getTime() - firstIn.getTime();
     const durationMinutes = durationMs / (1000 * 60);
-    const shift = this.matchShift(firstIn, config, { locale });
+    const shift = manualShift || this.matchShift(firstIn, config, { locale });
 
     if (durationMinutes < 30) {
       return {
@@ -383,8 +428,8 @@ export class CascadeShiftEngine {
       };
     }
 
-    // 上班迟到（超9点档）但下班时间达标
-    if (shift.isLateArrival) {
+    // 上班迟到（超9点档）但下班时间达标（若主管人工特批改派，则不计迟到）
+    if (shift.isLateArrival && !shift.isOverridden) {
       return {
         hasAttendance: true,
         firstIn,
@@ -413,12 +458,12 @@ export class CascadeShiftEngine {
       shift,
       durationHours,
       compliance: 'COMPLIANT',
-      complianceLabel: labels.compliant,
+      complianceLabel: `${labels.compliant}${shift.isOverridden ? ` ${labels.overriddenTag}` : ''}`,
       isCompliant: true,
       isViolation: false,
       isMissingPunch: false,
       isLate: false,
-      note: labels.compliantNote
+      note: shift.isOverridden ? (shift.overrideReason ? `${labels.overrideHint}: ${shift.overrideReason}` : labels.overrideHint) : labels.compliantNote
     };
   }
 }

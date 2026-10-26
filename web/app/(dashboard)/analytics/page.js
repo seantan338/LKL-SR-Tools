@@ -23,6 +23,7 @@ export default function AnalyticsPage() {
   const router = useRouter();
   const { teamId, role, isOwner, isManager, user, userProfile, isHqTeam } = useAuth();
   const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
+  const canManageAttendance = Boolean(isOwner || isManager);
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
@@ -69,6 +70,13 @@ export default function AnalyticsPage() {
   const [isDetectingIp, setIsDetectingIp] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
+
+  // Shift Override Modal State (主管人工改派单日核定班次)
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [overrideTargetRecord, setOverrideTargetRecord] = useState(null);
+  const [selectedOverrideShiftId, setSelectedOverrideShiftId] = useState('');
+  const [overrideReasonInput, setOverrideReasonInput] = useState('');
+  const [isSavingOverride, setIsSavingOverride] = useState(false);
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -367,7 +375,16 @@ export default function AnalyticsPage() {
         }
       }
 
-      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(dayEvents, attendanceRules.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+      // 检查该人员在当日是否存在主管人工改派班次
+      const overrideKey = `${r.date}__${r.picName}`;
+      const overrideKeyEmail = r.userEmail ? `${r.date}__${r.userEmail}` : null;
+      const overrideData = (attendanceRules?.shiftOverrides && (attendanceRules.shiftOverrides[overrideKey] || (overrideKeyEmail && attendanceRules.shiftOverrides[overrideKeyEmail]))) || null;
+
+      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(
+        dayEvents,
+        attendanceRules.shiftConfig,
+        { locale: isEn ? 'en' : 'zh', overrideShift: overrideData }
+      );
 
       // Calculate work duration
       const diffMs = r.lastActionTime.getTime() - r.firstActionTime.getTime();
@@ -405,6 +422,9 @@ export default function AnalyticsPage() {
 
       return {
         ...r,
+        overrideKey,
+        overrideData,
+        isOverridden: Boolean(overrideData),
         durationHours: shiftAnalysis.durationHours !== null ? shiftAnalysis.durationHours : Number(diffHours),
         shiftAnalysis,
         status,
@@ -416,7 +436,7 @@ export default function AnalyticsPage() {
 
     // Sort by date desc, then by first action time desc
     return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
-  }, [logs, manualCheckins, teamMembers, lang, t]);
+  }, [logs, manualCheckins, teamMembers, attendanceRules, lang, t]);
 
   // Filtered attendance list
   const filteredAttendance = useMemo(() => {
@@ -916,6 +936,7 @@ export default function AnalyticsPage() {
         attendanceEvents: [...manualCheckins, ...logs],
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
+        shiftOverrides: attendanceRules.shiftOverrides || {},
         workingDays: 22,
         locale: isEn ? 'en' : 'zh'
       });
@@ -943,13 +964,128 @@ export default function AnalyticsPage() {
     }
   };
 
-  // Save Settings to Firestore
+  // --- Flexible Shifts Row Handlers (考勤规则班次行编辑) ---
+  const handleUpdateShiftRow = (index, field, value) => {
+    if (!editingRules) return;
+    const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+    currentShifts[index] = { ...currentShifts[index], [field]: value };
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: currentShifts
+      }
+    });
+  };
+
+  const handleAddShiftRow = () => {
+    if (!editingRules) return;
+    const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+    const lastShift = currentShifts[currentShifts.length - 1];
+    let newStart = '09:30';
+    let newEnd = '18:30';
+    if (lastShift && lastShift.startTime) {
+      const lastStartMin = CascadeShiftEngine.parseTimeToMinutes(lastShift.startTime);
+      const nextStartMin = Math.min(23 * 60 + 30, lastStartMin + 30);
+      const nextEndMin = Math.min(23 * 60 + 59, nextStartMin + 9 * 60);
+      const pad = (n) => String(n).padStart(2, '0');
+      newStart = `${pad(Math.floor(nextStartMin / 60))}:${pad(nextStartMin % 60)}`;
+      newEnd = `${pad(Math.floor(nextEndMin / 60))}:${pad(nextEndMin % 60)}`;
+    }
+    const charCode = 65 + currentShifts.length;
+    const charLetter = charCode <= 90 ? String.fromCharCode(charCode) : `${currentShifts.length + 1}`;
+    currentShifts.push({
+      id: `shift_${Date.now()}`,
+      name: `Shift ${charLetter} (${newStart} - ${newEnd})`,
+      startTime: newStart,
+      endTime: newEnd
+    });
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: currentShifts
+      }
+    });
+  };
+
+  const handleRemoveShiftRow = (index) => {
+    if (!editingRules) return;
+    const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+    if (currentShifts.length <= 1) return;
+    currentShifts.splice(index, 1);
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: currentShifts
+      }
+    });
+  };
+
+  const handleResetDefaultShifts = () => {
+    if (!editingRules) return;
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: DEFAULT_SHIFT_CONFIG.shifts
+      }
+    });
+  };
+
+  // Save Settings to Firestore (带班次合法性校验与排序)
   const handleSaveSettings = async () => {
     if (!teamId) return;
     setIsSavingRules(true);
     try {
-      await FirestoreStore.saveAttendanceRules(teamId, editingRules);
-      setAttendanceRules(editingRules);
+      const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+      if (currentShifts.length === 0) {
+        showToast(t('analytics.errShiftEmpty', '至少需要保留一个班次档位'), 'error');
+        setIsSavingRules(false);
+        return;
+      }
+
+      for (let i = 0; i < currentShifts.length; i++) {
+        const s = currentShifts[i];
+        if (!s.name || !s.name.trim()) {
+          showToast(t('analytics.errShiftNameEmpty', `第 ${i + 1} 档班次名称不能为空`), 'error');
+          setIsSavingRules(false);
+          return;
+        }
+        if (!s.startTime || !s.endTime) {
+          showToast(t('analytics.errShiftTimeEmpty', `第 ${i + 1} 档班次上下班时间不能为空`), 'error');
+          setIsSavingRules(false);
+          return;
+        }
+        const sMin = CascadeShiftEngine.parseTimeToMinutes(s.startTime);
+        const eMin = CascadeShiftEngine.parseTimeToMinutes(s.endTime);
+        if (eMin <= sMin) {
+          showToast(t('analytics.errShiftTimeOrder', `【${s.name}】下班底线时间必须晚于上班签到时间`), 'error');
+          setIsSavingRules(false);
+          return;
+        }
+      }
+
+      // 按签到时间由早到晚自动升序排序，并赋予唯一 id
+      currentShifts.sort((a, b) => CascadeShiftEngine.parseTimeToMinutes(a.startTime) - CascadeShiftEngine.parseTimeToMinutes(b.startTime));
+      const cleanShifts = currentShifts.map((s, idx) => ({
+        id: s.id || `shift_${Date.now()}_${idx}`,
+        name: s.name.trim(),
+        startTime: s.startTime,
+        endTime: s.endTime
+      }));
+
+      const finalRules = {
+        ...editingRules,
+        shiftConfig: {
+          ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+          shifts: cleanShifts
+        }
+      };
+
+      await FirestoreStore.saveAttendanceRules(teamId, finalRules);
+      setAttendanceRules(finalRules);
       setIsSettingsOpen(false);
       showToast(t('analytics.rulesSavedToast', '考勤规则与网络设置已保存并全员实时生效'));
     } catch (err) {
@@ -957,6 +1093,80 @@ export default function AnalyticsPage() {
       showToast(t('analytics.saveRulesFailed', '保存失败: ') + err.message, 'error');
     } finally {
       setIsSavingRules(false);
+    }
+  };
+
+  // --- Shift Override Handlers (主管人工改派单日班次) ---
+  const handleOpenOverrideModal = (record) => {
+    setOverrideTargetRecord(record);
+    const existingOverride = record.overrideData;
+    if (existingOverride && existingOverride.shiftId) {
+      setSelectedOverrideShiftId(existingOverride.shiftId);
+      setOverrideReasonInput(existingOverride.reason || '');
+    } else {
+      setSelectedOverrideShiftId(record.shiftAnalysis?.shift?.id || '');
+      setOverrideReasonInput('');
+    }
+    setOverrideModalOpen(true);
+  };
+
+  const handleSaveShiftOverride = async () => {
+    if (!teamId || !overrideTargetRecord) return;
+    setIsSavingOverride(true);
+    try {
+      const overrideKey = overrideTargetRecord.overrideKey || `${overrideTargetRecord.date}__${overrideTargetRecord.picName}`;
+      
+      if (selectedOverrideShiftId === '__AUTO__') {
+        await FirestoreStore.saveShiftOverride(teamId, overrideKey, null);
+        try {
+          await SystemLogger.audit(teamId, {
+            action: 'SHIFT_OVERRIDE_RESET',
+            targetType: 'ATTENDANCE',
+            targetName: overrideTargetRecord.picName,
+            details: `主管 ${user?.email || '管理员'} 清除了 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的人工改派班次，恢复系统自动核定。`
+          });
+        } catch (_) {}
+        showToast(t('analytics.overrideResetToast', '已恢复系统自动核定班次'));
+      } else {
+        const allShifts = attendanceRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts;
+        const targetShift = allShifts.find(s => s.id === selectedOverrideShiftId) || {
+          id: selectedOverrideShiftId,
+          name: selectedOverrideShiftId,
+          startTime: '09:00',
+          endTime: '18:00'
+        };
+
+        const overridePayload = {
+          shiftId: targetShift.id,
+          shiftName: targetShift.name,
+          startTime: targetShift.startTime,
+          endTime: targetShift.endTime,
+          reason: overrideReasonInput.trim() || t('analytics.defaultOverrideReason', '主管特批调整'),
+          overrideBy: user?.email || userProfile?.displayName || '主管',
+          overrideAt: new Date().toISOString()
+        };
+
+        await FirestoreStore.saveShiftOverride(teamId, overrideKey, overridePayload);
+
+        try {
+          await SystemLogger.audit(teamId, {
+            action: 'SHIFT_OVERRIDE',
+            targetType: 'ATTENDANCE',
+            targetName: overrideTargetRecord.picName,
+            details: `主管 ${user?.email || '管理员'} 将 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的班次调整为【${targetShift.name}】。原因：${overrideReasonInput.trim() || '主管特批'}`
+          });
+        } catch (_) {}
+
+        showToast(t('analytics.overrideSuccessToast', `已将 ${overrideTargetRecord.picName} 的班次调整为 ${targetShift.name}`));
+      }
+
+      setOverrideModalOpen(false);
+      setOverrideTargetRecord(null);
+    } catch (err) {
+      console.error('Failed to save shift override:', err);
+      showToast(t('analytics.overrideFailToast', '班次调整失败: ') + err.message, 'error');
+    } finally {
+      setIsSavingOverride(false);
     }
   };
 
@@ -1446,21 +1656,23 @@ export default function AnalyticsPage() {
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时跨度')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colActionCount', '当日系统操作量')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colVerifyMethod', '核验凭证')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定阶梯班次')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colMainProgress', '当日主要工作推进')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>{t('analytics.colAction', '操作')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingLogs ? (
                       <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }}></i>
                           {t('analytics.loadingLogs', '正在加载实时打卡记录...')}
                         </td>
                       </tr>
                     ) : filteredAttendance.length === 0 ? (
                       <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           {t('analytics.emptyAttendance', '所选时间范围内暂无打卡记录，可点击上方「上班签到」立即打卡')}
                         </td>
                       </tr>
@@ -1585,6 +1797,37 @@ export default function AnalyticsPage() {
                               )}
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                  {item.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                                </span>
+                                {item.isOverridden ? (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: '700',
+                                    color: '#c084fc',
+                                    background: 'rgba(168, 85, 247, 0.15)',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    width: 'fit-content',
+                                    border: '1px solid rgba(168, 85, 247, 0.3)'
+                                  }} title={`调整人: ${item.overrideData?.overrideBy || '主管'}\n原因: ${item.overrideData?.reason || '无'}\n时间: ${item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''}`}>
+                                    <i className="ph-bold ph-pencil-simple"></i>
+                                    {t('analytics.tagOverridden', '主管调整')}
+                                  </span>
+                                ) : (
+                                  item.shiftAnalysis?.shift?.endStr ? (
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                      底线 {item.shiftAnalysis.shift.endStr}
+                                    </span>
+                                  ) : null
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                               <span style={{
                                 padding: '2px 8px',
                                 borderRadius: '4px',
@@ -1610,6 +1853,22 @@ export default function AnalyticsPage() {
                               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.actions.map(a => a.note).join('; ')}>
                                 {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '候选人状态更新与跟进')) : t('analytics.onlineProgressNote', '在线跟进')}
                               </div>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
+                              {canManageAttendance ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
+                                  title={t('analytics.btnOverrideShift', '调整核定班次')}
+                                  onClick={() => handleOpenOverrideModal(item)}
+                                >
+                                  <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
+                                  {t('analytics.btnEditShift', '改班')}
+                                </button>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -2080,18 +2339,76 @@ export default function AnalyticsPage() {
 
                 {/* Shifts Table */}
                 <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', overflow: 'hidden', marginBottom: 'var(--space-3)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 40px', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
                     <span>{t('analytics.colShiftName', '阶梯班次档位')}</span>
-                    <span>{t('analytics.colShiftIn', '签到基准线')}</span>
-                    <span>{t('analytics.colShiftOut', '强制下班底线')}</span>
+                    <span style={{ textAlign: 'center' }}>{t('analytics.colShiftIn', '签到基准线')}</span>
+                    <span style={{ textAlign: 'center' }}>{t('analytics.colShiftOut', '强制下班底线')}</span>
+                    <span style={{ textAlign: 'center' }}>{t('analytics.colShiftAction', '操作')}</span>
                   </div>
-                  {(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map((shift, sIdx) => (
-                    <div key={shift.id || sIdx} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', padding: '8px 12px', borderTop: '1px solid var(--border-hairline)', fontSize: '12px', alignItems: 'center' }}>
-                      <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{shift.name}</span>
-                      <span style={{ fontFamily: 'monospace', color: 'var(--accent-emerald)' }}>{shift.startTime}</span>
-                      <span style={{ fontFamily: 'monospace', color: 'var(--accent-blue)' }}>{shift.endTime}</span>
+                  {(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map((shift, sIdx, arr) => (
+                    <div key={shift.id || sIdx} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 40px', gap: '8px', padding: '8px 12px', borderTop: '1px solid var(--border-hairline)', fontSize: '12px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        className="input"
+                        style={{ height: '32px', fontSize: '12px', padding: '4px 8px' }}
+                        value={shift.name || ''}
+                        placeholder={t('analytics.shiftNamePlaceholder', '如: Shift A (7:30am - 4:30pm)')}
+                        onChange={(e) => handleUpdateShiftRow(sIdx, 'name', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="input"
+                        style={{ height: '32px', fontSize: '12px', fontFamily: 'monospace', padding: '4px 6px', color: 'var(--accent-emerald)', textAlign: 'center' }}
+                        value={shift.startTime || '09:00'}
+                        onChange={(e) => handleUpdateShiftRow(sIdx, 'startTime', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="input"
+                        style={{ height: '32px', fontSize: '12px', fontFamily: 'monospace', padding: '4px 6px', color: 'var(--accent-blue)', textAlign: 'center' }}
+                        value={shift.endTime || '18:00'}
+                        onChange={(e) => handleUpdateShiftRow(sIdx, 'endTime', e.target.value)}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ width: '28px', height: '28px', padding: 0, color: arr.length <= 1 ? 'var(--text-muted)' : '#f87171' }}
+                          disabled={arr.length <= 1}
+                          title={arr.length <= 1 ? t('analytics.keepAtLeastOneShift', '至少保留一个班次') : t('analytics.deleteShift', '删除此档位')}
+                          onClick={() => handleRemoveShiftRow(sIdx)}
+                        >
+                          <i className="ph-bold ph-trash"></i>
+                        </button>
+                      </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Shift Quick Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '12px', gap: '6px' }}
+                    onClick={handleAddShiftRow}
+                  >
+                    <i className="ph-bold ph-plus-circle" style={{ color: 'var(--accent-emerald)' }}></i>
+                    {t('analytics.btnAddShift', '添加班次档位')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: '11px', color: 'var(--text-muted)', gap: '4px' }}
+                    onClick={handleResetDefaultShifts}
+                    title={t('analytics.resetShiftsHint', '重置回系统标准的 4 档弹性班次 (7:30 / 8:00 / 8:30 / 9:00)')}
+                  >
+                    <i className="ph-bold ph-arrow-counter-clockwise"></i>
+                    {t('analytics.btnResetDefaultShifts', '恢复默认4档')}
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-4)', lineHeight: 1.4 }}>
+                  {t('analytics.shiftAutoSortHint', '提示：保存时系统将根据「签到基准线」自动由早至晚排序，下班时间必须晚于上班签到时间。')}
                 </div>
 
                 {/* Strict Clock Out Switch */}
@@ -2147,6 +2464,139 @@ export default function AnalyticsPage() {
               </div>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shift Override Modal (主管人工改派单日核定班次) */}
+      {overrideModalOpen && overrideTargetRecord && (
+        <div className="modal-backdrop" onClick={() => !isSavingOverride && setOverrideModalOpen(false)}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '480px', width: '90%', animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+              <div>
+                <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
+                  {t('analytics.overrideModalTitle', '调整考勤核定班次')}
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                  {t('analytics.overrideModalDesc', '为该员工指定或修正此日期的核定班次。调整后下班底线将重新核算，并保留操作审计记录。')}
+                </p>
+              </div>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setOverrideModalOpen(false)}
+                disabled={isSavingOverride}
+                style={{ padding: '4px', color: 'var(--text-muted)' }}
+              >
+                <i className="ph-bold ph-x" style={{ fontSize: '18px' }}></i>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              
+              {/* Employee & Date Snapshot Info */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideEmployeeLabel', '打卡人员')}</div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>
+                    {overrideTargetRecord.picName}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideDateLabel', '考勤日期')}</div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent-blue)', marginTop: '2px' }}>
+                    {overrideTargetRecord.date}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</div>
+                  <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-emerald)', marginTop: '2px' }}>
+                    {overrideTargetRecord.firstActionTime ? overrideTargetRecord.firstActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideOriginalShift', '系统原判定')}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {overrideTargetRecord.shiftAnalysis?.shift?.baseName || overrideTargetRecord.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Target Shift Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                  {t('analytics.overrideTargetShiftLabel', '目标调整班次')} <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select
+                  className="input"
+                  style={{ width: '100%', height: '36px', fontSize: '13px' }}
+                  value={selectedOverrideShiftId}
+                  onChange={(e) => setSelectedOverrideShiftId(e.target.value)}
+                >
+                  <option value="__AUTO__">
+                    {t('analytics.overrideShiftAuto', '恢复系统自动判定 (清除人工改派)')}
+                  </option>
+                  <optgroup label={t('analytics.secShiftTitle', '生效班次档位')}>
+                    {(attendanceRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.startTime} - {s.endTime})
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Reason / Note */}
+              {selectedOverrideShiftId !== '__AUTO__' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('analytics.overrideReasonLabel', '调整原因说明')}
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder={t('analytics.overrideReasonPlaceholder', '例如：经主管特批公出免顺延 / 网络打卡延迟补正')}
+                    value={overrideReasonInput}
+                    onChange={(e) => setOverrideReasonInput(e.target.value)}
+                    style={{ width: '100%', fontSize: '13px' }}
+                  />
+                </div>
+              )}
+
+              {/* Warning Notice */}
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(168, 85, 247, 0.06)', border: '1px solid rgba(168, 85, 247, 0.2)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', lineHeight: 1.4 }}>
+                <i className="ph-bold ph-info" style={{ color: 'var(--accent-purple)', marginRight: '4px' }}></i>
+                {t('analytics.overrideWarningNotice', '调整后，员工当日早退与达标底线将依据新班次强制下班时间实时刷新，且写入不可篡改的系统审计日志。')}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-5)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setOverrideModalOpen(false)}
+                disabled={isSavingOverride}
+              >
+                {t('analytics.btnCancel', '取消')}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveShiftOverride}
+                disabled={isSavingOverride}
+                style={{ gap: '6px' }}
+              >
+                <i className={`ph-bold ${isSavingOverride ? 'ph-spinner-gap' : 'ph-check-circle'}`} style={isSavingOverride ? { animation: 'spin 1s linear infinite' } : {}}></i>
+                {isSavingOverride ? t('analytics.savingRules', '正在保存...') : t('analytics.btnSaveOverride', '保存调整')}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
