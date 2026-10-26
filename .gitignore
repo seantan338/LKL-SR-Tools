@@ -87,6 +87,7 @@ whatsapp_bot/.wwebjs_cache/
 # Candidate Resumes & Exports (Prevent PII leakage)
 Sunrise CV - *.docx
 !Sunrise CV - Job Title - Full Name (1).docx
+!ai_backend/templates/**
 ai_backend/uploads/resumes/
 # Local UAT Test Spreadsheets & Excel Locks
 *UAT*.xlsx

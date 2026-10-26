@@ -771,9 +771,7 @@ async def export_cv_docx_endpoint(req: ExportDocxRequest, auth_user: dict = Depe
     try:
         from services.docx_exporter import export_cv_to_docx
         from fastapi.responses import StreamingResponse
-        import os
-        template_path = os.path.join(os.path.dirname(__file__), "..", "Sunrise CV - Job Title - Full Name (1).docx")
-        out_stream = export_cv_to_docx(req.parsed_data, template_path)
+        out_stream = export_cv_to_docx(req.parsed_data)
         
         headers = {
             'Content-Disposition': 'attachment; filename="Sunrise_CV.docx"'
