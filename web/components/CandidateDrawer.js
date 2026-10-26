@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -57,6 +58,7 @@ const getInitialCandidateFormData = () => ({
 });
 
 export default function CandidateDrawer({ isOpen, onClose, candidate, focusInterview = false }) {
+  const router = useRouter();
   const { teamId, user, userProfile, isReadOnlyView } = useAuth();
   const { confirm, showToast: showGlobalToast } = useFeedback();
   const { t, lang } = useI18n();
@@ -926,6 +928,31 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                   </button>
                 )}
 
+                {currentCandidate && (
+                  <button 
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.8rem',
+                      padding: '4px 10px',
+                      borderColor: 'rgba(168, 85, 247, 0.4)',
+                      color: 'var(--accent-purple)',
+                      background: 'rgba(168, 85, 247, 0.08)'
+                    }}
+                    onClick={() => {
+                      onClose();
+                      router.push(`/cv-autofill?candidateId=${currentCandidate.id}`);
+                    }}
+                    title={t('candidates.drawer.pushToCvAutofillTitle', '将该候选人推送到 CV Auto Fill 并导出模板')}
+                  >
+                    <i className="ph-fill ph-file-doc"></i>
+                    <span>{t('candidates.drawer.pushToCvAutofill', '推送到 CV Auto Fill')}</span>
+                  </button>
+                )}
+
                 <div style={{ position: 'relative' }}>
                   {pencilHint && (
                     <div style={{
@@ -1528,6 +1555,20 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                       style={{ fontSize: '11px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)' }}
                     >
                       <i className="ph ph-plus"></i> {t('candidates.drawer.addWorkHistoryBtn')}
+                    </button>
+                  )}
+                  {!isEditing && currentCandidate && (
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-secondary"
+                      onClick={() => {
+                        onClose();
+                        router.push(`/cv-autofill?candidateId=${currentCandidate.id}`);
+                      }}
+                      style={{ fontSize: '11px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)' }}
+                      title={t('candidates.drawer.pushToCvAutofillTitle', '将该候选人推送到 CV Auto Fill 并导出模板')}
+                    >
+                      <i className="ph ph-file-doc"></i> {t('candidates.drawer.exportSunriseCvBtn', '在 CV Auto Fill 中导出 Sunrise 模板')}
                     </button>
                   )}
                 </div>

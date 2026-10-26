@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../lib/auth-context';
 import { useNotifications } from '../../../lib/notification-context';
@@ -163,6 +164,7 @@ function fuseCandidateRecords(master, secondaries, currentUser) {
 }
 
 export default function CandidatesPage() {
+  const router = useRouter();
   const { teamId, role, user, isReadOnlyView } = useAuth();
   const { candidates, candidatesLoading: loading } = useNotifications();
   const { confirm } = useFeedback();
@@ -631,6 +633,17 @@ export default function CandidatesPage() {
                                 <i className="ph-light ph-trash"></i>
                               </button>
                             )}
+                            <button 
+                              className="btn-icon" 
+                              title={t('candidates.pushToCvAutofill', '推送到 CV Auto Fill (导出 Sunrise 模板)')} 
+                              style={{ color: 'var(--accent-purple)' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/cv-autofill?candidateId=${c.id}`);
+                              }}
+                            >
+                              <i className="ph-light ph-file-doc"></i>
+                            </button>
                             <button className="btn-icon" title={t('candidates.viewProfile', '查看档案')} onClick={() => openCandidate(c)}>
                               <i className="ph-light ph-caret-right"></i>
                             </button>
@@ -769,6 +782,17 @@ export default function CandidatesPage() {
                             <i className="ph-light ph-trash" style={{ fontSize: '13px' }}></i>
                           </button>
                         )}
+                        <button
+                          className="btn-icon"
+                          style={{ width: '28px', height: '28px', color: 'var(--accent-purple)' }}
+                          title={t('candidates.pushToCvAutofill', '推送到 CV Auto Fill (导出 Sunrise 模板)')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/cv-autofill?candidateId=${c.id}`);
+                          }}
+                        >
+                          <i className="ph-light ph-file-doc" style={{ fontSize: '13px' }}></i>
+                        </button>
                         <button className="btn-icon" style={{ width: '28px', height: '28px' }} title={t('candidates.viewProfile', '查看档案')} onClick={() => openCandidate(c)}>
                           <i className="ph-light ph-caret-right" style={{ fontSize: '13px' }}></i>
                         </button>
