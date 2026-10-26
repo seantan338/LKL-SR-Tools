@@ -11,6 +11,11 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_PYTHON_API_URL: pythonApiUrl,
   },
+  experimental: {
+    cpus: 1,
+    workerThreads: false,
+  },
+  productionBrowserSourceMaps: false,
   async rewrites() {
     // If deployed on Render/Vercel, point to the live Python API URL, otherwise fallback to local
     const destinationBase = pythonApiUrl || 'http://127.0.0.1:8000';
