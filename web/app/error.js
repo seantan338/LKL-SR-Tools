@@ -31,10 +31,12 @@ export default function GlobalError({ error, reset }) {
       }}>
         <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔄</div>
         <h3 style={{ fontSize: '17px', fontWeight: '700', margin: '0 0 8px 0', color: 'var(--text-primary, #fff)' }}>
-          页面状态已重置
+          Session Reset / 页面状态已重置
         </h3>
         <p style={{ fontSize: '13px', color: 'var(--text-muted, rgba(255,255,255,0.6))', lineHeight: 1.5, margin: '0 0 20px 0' }}>
-          检测到云端更新或网络波动，请点击下方按钮重新同步并恢复工作台。
+          Network sync refreshed. Please click below to reload your workspace.
+          <br />
+          检测到云端更新或网络波动，请点击下方按钮重新同步工作台。
         </p>
         <button
           onClick={() => {
@@ -53,7 +55,7 @@ export default function GlobalError({ error, reset }) {
             cursor: 'pointer'
           }}
         >
-          立即重新加载 (Reload)
+          Reload Workspace / 立即重新加载
         </button>
       </div>
     </div>
