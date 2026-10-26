@@ -475,8 +475,6 @@ export default function AttendanceModal() {
     }
   };
 
-  if (!isOpen || !isHqTeam) return null;
-
   const hoursStr = String(currentTime.getHours()).padStart(2, '0');
   const minutesStr = String(currentTime.getMinutes()).padStart(2, '0');
   const secondsStr = String(currentTime.getSeconds()).padStart(2, '0');
@@ -623,6 +621,8 @@ export default function AttendanceModal() {
   };
 
   const currentAction = getActionConfig(activePunch);
+
+  if (!isOpen || !isHqTeam) return null;
 
   return (
     <div style={{
