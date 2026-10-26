@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
 import { useFeedback } from '../../../lib/feedback-context';
 import { useI18n } from '../../../lib/i18n-context';
@@ -8,10 +9,216 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { SystemLogger } from '../../../lib/logger';
 import { authFetch, getAiBackendUrl } from '../../../lib/api-client';
 
-export default function CvAutofillPage() {
+const getInitialCvFormData = (defaultPic = '') => ({
+  // 基础联络与个人核心信息 (Personal Information)
+  name: '',
+  phone: '',
+  email: '',
+  location: '', // Address
+  positionApplied: '',
+  age: '',
+  gender: 'Male',
+  nationality: 'Malaysian',
+  race: 'Chinese',
+  maritalStatus: 'Single',
+  lastDrawnSalary: '',
+  expectedSalary: '',
+  availability: 'Immediate',
+
+  // 动态工作经历列表 (Professional History)
+  professionalHistory: [
+    {
+      company: '',
+      position: '',
+      period: '',
+      lastDrawnSalary: '',
+      reasonForLeaving: '',
+      responsibilities: ''
+    }
+  ],
+
+  // 动态教育背景列表 (Education)
+  educationList: [
+    {
+      school: '',
+      degree: '',
+      major: '',
+      graduationYear: new Date().getFullYear().toString(),
+      qualification: ''
+    }
+  ],
+  // 兼容根级字段
+  school: '',
+  degree: '',
+  major: '',
+  graduationYear: new Date().getFullYear().toString(),
+  qualification: '',
+  educationHistory: [], // 其他学历列表
+
+  // 技能与语言 (Skills & Languages)
+  skills: '',
+  languages: '',
+
+  // ATS 归档与备注 (ATS Settings)
+  experience: '',
+  source: 'AI 简历解析独立录入',
+  notes: '',
+  stage: 'screening',
+  picName: defaultPic
+});
+
+function mapCandidateToCvFormData(cand, defaultPic = '') {
+  if (!cand) return getInitialCvFormData(defaultPic);
+  const sData = cand.sunriseCvData || {};
+  const sPersonal = sData.personal || {};
+  const pCv = cand.parsedCvData?.parsed_cv || {};
+  const pPersonal = pCv.personal_information || {};
+
+  // 1. 工作履历
+  let rawProf = [];
+  if (Array.isArray(sData.professionalHistory) && sData.professionalHistory.length > 0) {
+    rawProf = sData.professionalHistory;
+  } else if (Array.isArray(cand.workExperience) && cand.workExperience.length > 0) {
+    rawProf = cand.workExperience;
+  } else if (Array.isArray(pCv.professional_history) && pCv.professional_history.length > 0) {
+    rawProf = pCv.professional_history;
+  }
+
+  const profList = rawProf.length > 0 ? rawProf.map(p => ({
+    company: p.company || '',
+    position: p.position || '',
+    period: p.period || '',
+    lastDrawnSalary: p.lastDrawnSalary || p.last_drawn_salary || '',
+    reasonForLeaving: p.reasonForLeaving || p.reason_for_leaving || '',
+    responsibilities: Array.isArray(p.responsibilities) 
+      ? p.responsibilities.join('\n') 
+      : (p.responsibilities || '')
+  })) : [
+    { company: '', position: '', period: '', lastDrawnSalary: '', reasonForLeaving: '', responsibilities: '' }
+  ];
+
+  // 2. 教育背景
+  let rawEdu = [];
+  if (Array.isArray(sData.education) && sData.education.length > 0) {
+    rawEdu = sData.education;
+  } else if (Array.isArray(cand.educationList) && cand.educationList.length > 0) {
+    rawEdu = cand.educationList;
+  } else if (Array.isArray(pCv.education) && pCv.education.length > 0) {
+    rawEdu = pCv.education;
+  } else if (cand.school || cand.degree || cand.qualification) {
+    rawEdu = [{
+      school: cand.school || '',
+      degree: cand.degree || '',
+      major: cand.major || '',
+      graduationYear: cand.graduationYear || cand.year || '',
+      qualification: cand.qualification || ''
+    }];
+  }
+
+  const eduList = rawEdu.length > 0 ? rawEdu.map(e => {
+    const d = e.degree || '';
+    const m = e.major || '';
+    let qual = e.qualification || '';
+    if (!qual && (d || m)) {
+      if (d && m) {
+        const dLower = d.toLowerCase();
+        if (dLower.includes('bachelor') && !dLower.includes('of')) qual = `Bachelor of ${m}`;
+        else if (dLower.includes('diploma') && !dLower.includes('in')) qual = `Diploma in ${m}`;
+        else if (dLower.includes('master') && !dLower.includes('of')) qual = `Master of ${m}`;
+        else qual = `${d} ${m}`;
+      } else {
+        qual = d || m;
+      }
+    }
+    return {
+      school: e.school || '',
+      degree: d,
+      major: m,
+      graduationYear: e.graduationYear || e.year || '',
+      qualification: qual || ''
+    };
+  }) : [
+    { school: '', degree: '', major: '', graduationYear: new Date().getFullYear().toString(), qualification: '' }
+  ];
+
+  const primaryEdu = eduList[0] || {};
+  const primaryProf = profList[0] || {};
+
+  // 3. 技能标签
+  let skillsStr = '';
+  if (typeof cand.skills === 'string') {
+    skillsStr = cand.skills;
+  } else if (Array.isArray(cand.skills)) {
+    skillsStr = cand.skills.join(', ');
+  } else if (Array.isArray(cand.tags)) {
+    skillsStr = cand.tags.join(', ');
+  } else if (Array.isArray(sData.skills)) {
+    skillsStr = sData.skills.join(', ');
+  } else if (Array.isArray(pCv.skills)) {
+    skillsStr = pCv.skills.join(', ');
+  }
+
+  // 4. 掌握语言
+  let langsStr = '';
+  if (typeof cand.languages === 'string') {
+    langsStr = cand.languages;
+  } else if (Array.isArray(cand.languages)) {
+    langsStr = cand.languages.join(', ');
+  } else if (Array.isArray(sData.languages)) {
+    langsStr = sData.languages.join(', ');
+  } else if (Array.isArray(pCv.languages)) {
+    langsStr = pCv.languages.join(', ');
+  }
+
+  const ageVal = cand.age !== undefined && cand.age !== null 
+    ? String(cand.age) 
+    : (sPersonal.age ? String(sPersonal.age) : (pPersonal.age ? String(pPersonal.age) : ''));
+
+  return {
+    name: cand.name || sPersonal.name || pPersonal.name || '',
+    phone: cand.phone || pPersonal.phone || '',
+    email: cand.email || pPersonal.email || '',
+    location: cand.location || sPersonal.address || pPersonal.address || pPersonal.location || '',
+    positionApplied: cand.position || cand.positionApplied || sPersonal.positionApplied || pCv.position_applied || '',
+    age: ageVal,
+    gender: cand.gender || sPersonal.gender || pPersonal.gender || 'Male',
+    nationality: cand.nationality || sPersonal.nationality || pPersonal.nationality || 'Malaysian',
+    race: cand.race || sPersonal.race || pPersonal.race || 'Chinese',
+    maritalStatus: cand.maritalStatus || sPersonal.maritalStatus || pPersonal.marital_status || 'Single',
+    lastDrawnSalary: cand.lastDrawnSalary || sPersonal.lastDrawnSalary || pPersonal.last_drawn_salary || primaryProf.lastDrawnSalary || '',
+    expectedSalary: cand.expectedSalary || cand.offered || cand.salary || sPersonal.expectedSalary || pPersonal.expected_salary || '',
+    availability: cand.availability || sPersonal.availability || pPersonal.availability || 'Immediate',
+
+    professionalHistory: profList,
+    educationList: eduList,
+
+    school: primaryEdu.school || cand.school || '',
+    degree: primaryEdu.degree || cand.degree || '',
+    major: primaryEdu.major || cand.major || '',
+    graduationYear: primaryEdu.graduationYear || cand.graduationYear || '',
+    qualification: primaryEdu.qualification || cand.qualification || '',
+    educationHistory: eduList.slice(1),
+
+    skills: skillsStr,
+    languages: langsStr,
+
+    experience: cand.experience || cand.totalYearsExperience || pCv.total_years_experience || '',
+    source: cand.source ? `${cand.source} (人才库载入)` : '人才库档案推入',
+    notes: cand.notes || '',
+    stage: cand.stage || 'screening',
+    picName: cand.picName || cand.pic || defaultPic
+  };
+}
+
+function CvAutofillContent() {
   const { teamId, user, userProfile } = useAuth();
   const { showToast } = useFeedback();
   const { t } = useI18n();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlCandidateId = searchParams?.get('candidateId');
+
+  const defaultPic = userProfile?.displayName || user?.displayName || '';
 
   const [aiParseTab, setAiParseTab] = useState('file'); // 'file' | 'text'
   const [aiFile, setAiFile] = useState(null);
@@ -24,64 +231,98 @@ export default function CvAutofillPage() {
   const [rawParsedCv, setRawParsedCv] = useState(null);
   const fileInputRef = useRef(null);
 
+  // 人才库联动状态
+  const [loadedCandidate, setLoadedCandidate] = useState(null);
+  const [isLoadingCandidate, setIsLoadingCandidate] = useState(false);
+  const [isCandidatePickerOpen, setIsCandidatePickerOpen] = useState(false);
+  const [candidatePickerSearch, setCandidatePickerSearch] = useState('');
+  const [teamCandidates, setTeamCandidates] = useState([]);
+  const [isLoadingCandidatesList, setIsLoadingCandidatesList] = useState(false);
+
   // 100% 对齐 Sunrise CV 模板的完整表单状态
-  const [formData, setFormData] = useState({
-    // 基础联络与个人核心信息 (Personal Information)
-    name: '',
-    phone: '',
-    email: '',
-    location: '', // Address
-    positionApplied: '',
-    age: '',
-    gender: 'Male',
-    nationality: 'Malaysian',
-    race: 'Chinese',
-    maritalStatus: 'Single',
-    lastDrawnSalary: '',
-    expectedSalary: '',
-    availability: 'Immediate',
+  const [formData, setFormData] = useState(() => getInitialCvFormData(defaultPic));
 
-    // 动态工作经历列表 (Professional History)
-    professionalHistory: [
-      {
-        company: '',
-        position: '',
-        period: '',
-        lastDrawnSalary: '',
-        reasonForLeaving: '',
-        responsibilities: ''
+  const applyCandidate = (cand) => {
+    if (!cand) return;
+    const mapped = mapCandidateToCvFormData(cand, defaultPic);
+    setFormData(mapped);
+    setLoadedCandidate(cand);
+    setAiFile(null);
+    setAiText('');
+    setAiParseError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    showToast(t('cvAutofill.toastLoadedCandidateSuccess', { name: cand.name }, `✨ 已成功载入候选人 "${cand.name}" 的档案！您可直接核对或微调，并点击【导出 Sunrise CV (Word)】。`));
+  };
+
+  const handleClearLoadedCandidate = () => {
+    setLoadedCandidate(null);
+    router.replace('/cv-autofill');
+    setFormData(getInitialCvFormData(defaultPic));
+    showToast(t('cvAutofill.toastClearedCandidate', '已清除当前候选人载入数据，恢复空白表单'));
+  };
+
+  // 监听 URL candidateId 参数并自动载入
+  useEffect(() => {
+    if (!teamId || !urlCandidateId) return;
+    if (loadedCandidate && loadedCandidate.id === urlCandidateId) return;
+
+    let isCancelled = false;
+    setIsLoadingCandidate(true);
+    FirestoreStore.getCandidate(teamId, urlCandidateId)
+      .then((cand) => {
+        if (!isCancelled && cand) {
+          applyCandidate(cand);
+        } else if (!isCancelled && !cand) {
+          showToast(t('cvAutofill.candidateNotFound', '未找到指定候选人档案，可能已被删除'), 'error');
+        }
+      })
+      .catch((err) => {
+        if (!isCancelled) {
+          console.error("Failed to load candidate by ID:", err);
+          showToast(t('cvAutofill.loadCandidateFailed', '载入候选人失败: ') + err.message, 'error');
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingCandidate(false);
+      });
+
+    return () => { isCancelled = true; };
+  }, [teamId, urlCandidateId]);
+
+  // 从人才库订阅候选人列表以供选择弹窗使用
+  useEffect(() => {
+    if (!isCandidatePickerOpen || !teamId) return;
+    setIsLoadingCandidatesList(true);
+    const unsub = FirestoreStore.subscribeToCandidates(
+      teamId,
+      userProfile?.role || 'member',
+      user?.uid,
+      (list) => {
+        setTeamCandidates(list || []);
+        setIsLoadingCandidatesList(false);
       }
-    ],
+    );
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [isCandidatePickerOpen, teamId, userProfile?.role, user?.uid]);
 
-    // 动态教育背景列表 (Education)
-    educationList: [
-      {
-        school: '',
-        degree: '',
-        major: '',
-        graduationYear: new Date().getFullYear().toString(),
-        qualification: ''
-      }
-    ],
-    // 兼容根级字段
-    school: '',
-    degree: '',
-    major: '',
-    graduationYear: new Date().getFullYear().toString(),
-    qualification: '',
-    educationHistory: [], // 其他学历列表
+  const filteredCandidates = useMemo(() => {
+    if (!candidatePickerSearch.trim()) return teamCandidates.slice(0, 50);
+    const q = candidatePickerSearch.toLowerCase().trim();
+    return teamCandidates.filter(c => 
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.includes(q)) ||
+      (c.position && c.position.toLowerCase().includes(q)) ||
+      (c.company && c.company.toLowerCase().includes(q))
+    ).slice(0, 50);
+  }, [teamCandidates, candidatePickerSearch]);
 
-    // 技能与语言 (Skills & Languages)
-    skills: '',
-    languages: '',
-
-    // ATS 归档与备注 (ATS Settings)
-    experience: '',
-    source: 'AI 简历解析独立录入',
-    notes: '',
-    stage: 'screening',
-    picName: ''
-  });
+  const handleSelectCandidateFromPicker = (cand) => {
+    applyCandidate(cand);
+    setIsCandidatePickerOpen(false);
+    router.replace(`/cv-autofill?candidateId=${cand.id}`);
+  };
 
   const handleDrawerAiParse = async () => {
     setAiParseError('');
@@ -520,35 +761,31 @@ export default function CvAutofillPage() {
         payload.companySource = 'manual';
       }
       
-      const saveResult = await FirestoreStore.upsertCandidate(teamId, user.uid, payload, aiFile?.name);
-      if (saveResult.isMerged) {
+      if (loadedCandidate && loadedCandidate.id) {
+        await FirestoreStore.updateCandidate(teamId, loadedCandidate.id, payload);
         SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', formData.name, {
-          actionDetail: `检测到同电话候选人 (${formData.phone})，已自动合并更新档案并追加重新投递记录`
+          actionDetail: '通过 CV Auto Fill 完善并回写档案及 Sunrise CV 结构数据'
         });
-        showToast(t('cvAutofill.toastSaveSuccess', '🎉 候选人档案与 Sunrise CV 已成功完整入库！'));
+        showToast(t('cvAutofill.toastSaveUpdateSuccess', '🎉 候选人档案与 Sunrise CV 已成功同步更新至人才库！'));
       } else {
-        SystemLogger.audit(teamId, user, 'CREATE', 'CANDIDATE', formData.name, {
-          actionDetail: '通过完整 Sunrise CV 结构快速录入'
-        });
-        showToast(t('cvAutofill.toastSaveSuccess', '🎉 候选人档案与 Sunrise CV 已成功完整入库！'));
+        const saveResult = await FirestoreStore.upsertCandidate(teamId, user.uid, payload, aiFile?.name);
+        if (saveResult.isMerged) {
+          SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', formData.name, {
+            actionDetail: `检测到同电话候选人 (${formData.phone})，已自动合并更新档案并追加重新投递记录`
+          });
+          showToast(t('cvAutofill.toastSaveSuccess', '🎉 候选人档案与 Sunrise CV 已成功完整入库！'));
+        } else {
+          SystemLogger.audit(teamId, user, 'CREATE', 'CANDIDATE', formData.name, {
+            actionDetail: '通过完整 Sunrise CV 结构快速录入'
+          });
+          showToast(t('cvAutofill.toastSaveSuccess', '🎉 候选人档案与 Sunrise CV 已成功完整入库！'));
+        }
       }
       
-      // 重置表单
-      setFormData({
-        name: '', phone: '', email: '', location: '', positionApplied: '',
-        age: '', gender: 'Male', nationality: 'Malaysian', race: 'Chinese', maritalStatus: 'Single',
-        lastDrawnSalary: '', expectedSalary: '', availability: 'Immediate',
-        professionalHistory: [
-          { company: '', position: '', period: '', lastDrawnSalary: '', reasonForLeaving: '', responsibilities: '' }
-        ],
-        educationList: [
-          { school: '', degree: '', major: '', graduationYear: new Date().getFullYear().toString() }
-        ],
-        school: '', degree: '', major: '', graduationYear: new Date().getFullYear().toString(),
-        educationHistory: [],
-        skills: '', languages: '',
-        experience: '', source: 'AI 简历解析独立录入', notes: '', stage: 'screening', picName: ''
-      });
+      // 重置表单与载入状态
+      setFormData(getInitialCvFormData(defaultPic));
+      setLoadedCandidate(null);
+      router.replace('/cv-autofill');
       setAiFile(null);
       setAiText('');
       setMissingAnalysis(null);
@@ -742,8 +979,27 @@ export default function CvAutofillPage() {
 
           <div className="bezel-shell" style={{ flex: 1 }}>
             <div className="bezel-core" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <div className="bento-header">
+              <div className="bento-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3>{t('cvAutofill.step1Title', '1. 提供简历内容')}</h3>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-xs"
+                  onClick={() => setIsCandidatePickerOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '11px',
+                    padding: '3px 8px',
+                    color: 'var(--accent-purple)',
+                    borderColor: 'rgba(168, 85, 247, 0.4)',
+                    background: 'rgba(168, 85, 247, 0.08)'
+                  }}
+                  title={t('cvAutofill.btnPickCandidateTitle', '从团队人才库中选择已有候选人档案并一键载入')}
+                >
+                  <i className="ph-bold ph-users"></i>
+                  <span>{t('cvAutofill.btnPickCandidate', '从人才库载入候选人')}</span>
+                </button>
               </div>
               
               {aiParseError && (
@@ -855,6 +1111,83 @@ export default function CvAutofillPage() {
                   <i className="ph-fill ph-file-doc"></i> {t('cvAutofill.badgeVersion', 'Sunrise CV v1.0')}
                 </span>
               </div>
+
+              {/* 人才库载入中提示 */}
+              {isLoadingCandidate && (
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(168, 85, 247, 0.08)',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--accent-purple)'
+                }}>
+                  <i className="ph-light ph-spinner ph-spin" style={{ fontSize: '18px' }}></i>
+                  <span style={{ fontSize: '0.85rem' }}>{t('common.loading', '正在从人才库载入候选人档案...')}</span>
+                </div>
+              )}
+
+              {/* 候选人已载入横幅 (人才库联动) */}
+              {loadedCandidate && !isLoadingCandidate && (
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.12) 100%)',
+                  border: '1px solid rgba(168, 85, 247, 0.35)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '50%',
+                      background: 'var(--accent-purple)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '16px', flexShrink: 0
+                    }}>
+                      <i className="ph-fill ph-user-check"></i>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{t('cvAutofill.loadedBannerTitle', '已载入人才库档案:')} {loadedCandidate.name}</span>
+                        <span className="badge badge-purple" style={{ fontSize: '11px', padding: '1px 6px' }}>{loadedCandidate.phone || t('candidates.noPhone', '未留电话')}</span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {t('cvAutofill.loadedBannerDesc', '已为您自动填入右侧 Sunrise 模板结构；您可直接核对微调并导出 Word，或完善后保存更新该档案。')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={handleExportDocx}
+                      disabled={isExporting}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '6px 14px' }}
+                    >
+                      <i className="ph-bold ph-download-simple"></i>
+                      <span>{isExporting ? t('cvAutofill.btnExporting', '正在生成...') : t('cvAutofill.bannerExportDocx', '立即导出 Word')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleClearLoadedCandidate}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '6px 10px', color: 'var(--text-muted)' }}
+                      title={t('cvAutofill.bannerClearTitle', '解除与此人才档案的关联并重置表单')}
+                    >
+                      <i className="ph-light ph-x"></i>
+                      <span>{t('cvAutofill.bannerClearBtn', '清除/重置')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 模块 A: 个人核心画像 (Personal Information) */}
               <div style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)' }}>
@@ -1371,6 +1704,123 @@ export default function CvAutofillPage() {
         </div>
 
       </div>
+
+      {/* 从人才库选择候选人弹窗 */}
+      {isCandidatePickerOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '20px'
+        }} onClick={() => setIsCandidatePickerOpen(false)}>
+          <div style={{
+            background: 'var(--card-bg, #1e2235)',
+            border: '1px solid var(--border-hairline, rgba(255, 255, 255, 0.1))',
+            borderRadius: 'var(--radius-lg, 12px)',
+            width: '100%', maxWidth: '640px', maxHeight: '80vh',
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            overflow: 'hidden'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--border-hairline)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ph-fill ph-users" style={{ color: 'var(--accent-purple)', fontSize: '18px' }}></i>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>{t('cvAutofill.pickerModalTitle', '从人才库选择候选人')}</h3>
+              </div>
+              <button className="btn-icon" onClick={() => setIsCandidatePickerOpen(false)}>
+                <i className="ph-light ph-x"></i>
+              </button>
+            </div>
+
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-hairline)' }}>
+              <div style={{ position: 'relative' }}>
+                <i className="ph-light ph-magnifying-glass" style={{
+                  position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)', fontSize: '16px'
+                }}></i>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ paddingLeft: '38px', width: '100%' }}
+                  placeholder={t('cvAutofill.pickerSearchPlaceholder', '搜索候选人姓名、电话、应聘职位或公司...')}
+                  value={candidatePickerSearch}
+                  onChange={(e) => setCandidatePickerSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+              {isLoadingCandidatesList ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <i className="ph-light ph-spinner ph-spin" style={{ fontSize: '24px', marginBottom: '8px' }}></i>
+                  <div>{t('common.loading', '正在加载候选人列表...')}</div>
+                </div>
+              ) : filteredCandidates.length === 0 ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  {t('cvAutofill.pickerEmpty', '未找到匹配的候选人档案')}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {filteredCandidates.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => handleSelectCandidateFromPicker(c)}
+                      style={{
+                        padding: '12px 14px', borderRadius: 'var(--radius-md)',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid var(--border-hairline)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        cursor: 'pointer', transition: 'all 0.2s'
+                      }}
+                      className="hover-card"
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{c.name}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.phone || t('candidates.noPhone', '未留电话')}</span>
+                          {c.gender && (
+                            <span className="badge" style={{ fontSize: '10px', padding: '1px 5px' }}>{c.gender}</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', gap: '10px' }}>
+                          <span><i className="ph ph-briefcase" style={{ marginRight: '4px' }}></i>{c.position || t('candidates.noPositionAssigned', '未指定岗位')}</span>
+                          {c.company && <span><i className="ph ph-buildings" style={{ marginRight: '4px' }}></i>{c.company}</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-xs"
+                        style={{ color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)', pointerEvents: 'none' }}
+                      >
+                        <i className="ph ph-arrow-right"></i> {t('cvAutofill.pickerSelectBtn', '载入并填表')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function CvAutofillPage() {
+  return (
+    <Suspense fallback={
+      <div className="page-view active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="ph-light ph-spinner ph-spin" style={{ fontSize: '20px' }}></i>
+          <span>正在准备 CV Auto Fill...</span>
+        </div>
+      </div>
+    }>
+      <CvAutofillContent />
+    </Suspense>
   );
 }
