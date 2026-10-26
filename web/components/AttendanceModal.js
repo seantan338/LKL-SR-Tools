@@ -41,7 +41,7 @@ export default function AttendanceModal() {
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
-      { name: '公司总部', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
+      { name: 'HQ', latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
     ],
     officeWifi: { allowedIps: [] },
     shiftConfig: DEFAULT_SHIFT_CONFIG
@@ -255,13 +255,15 @@ export default function AttendanceModal() {
     if (punchType === 'CLOCK_OUT' && !force && todayClockIn) {
       try {
         const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
-        const shift = CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig);
+        const shift = CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
         const now = new Date();
         const nowMin = CascadeShiftEngine.getDateMinutesOfDay(now);
 
         if (shift && typeof shift.endMinutes === 'number' && nowMin < shift.endMinutes) {
           const diffSec = Math.round((shift.endMinutes - nowMin) * 60);
-          const desc = diffSec >= 60 ? `${Math.floor(diffSec / 60)}分${diffSec % 60}秒` : `${diffSec}秒`;
+          const desc = diffSec >= 60
+            ? t('attendanceModal.timeMinSec', { m: Math.floor(diffSec / 60), s: diffSec % 60 }, `${Math.floor(diffSec / 60)}分${diffSec % 60}秒`)
+            : t('attendanceModal.timeSec', { s: diffSec }, `${diffSec}秒`);
           setEarlyClockOutWarning({
             shift,
             diffSec,
@@ -362,8 +364,8 @@ export default function AttendanceModal() {
             : t('analytics.checkinSuccess', '打卡成功！');
 
         if (punchType === 'CLOCK_IN') {
-          const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig);
-          successTip += ` (${shift.name}，底线: ${shift.endStr})`;
+          const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+          successTip += t('attendanceModal.toastShiftSuffix', { name: shift.name, endStr: shift.endStr }, ` (${shift.name}，底线: ${shift.endStr})`);
         }
 
         showToast(successTip);
@@ -450,8 +452,8 @@ export default function AttendanceModal() {
 
           let successTip = t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）');
           if (punchType === 'CLOCK_IN') {
-            const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig);
-            successTip += ` (${shift.name}，底线: ${shift.endStr})`;
+            const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+            successTip += t('attendanceModal.toastShiftSuffix', { name: shift.name, endStr: shift.endStr }, ` (${shift.name}，底线: ${shift.endStr})`);
           }
           showToast(successTip);
           setIsVerifying(false);
@@ -549,7 +551,7 @@ export default function AttendanceModal() {
   // Real-time dynamic shift matching based on current ticking clock
   const liveShift = useMemo(() => {
     try {
-      return CascadeShiftEngine.matchShift(currentTime, attendanceRules?.shiftConfig) || {
+      return CascadeShiftEngine.matchShift(currentTime, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || {
         id: 'shift_d',
         name: 'Shift D (9:00am - 6:00pm)',
         baseName: 'Shift D (9:00am - 6:00pm)',
@@ -572,19 +574,19 @@ export default function AttendanceModal() {
         isLateArrival: false
       };
     }
-  }, [currentTime, attendanceRules]);
+  }, [currentTime, attendanceRules, isEn]);
 
   // If already clocked in today, show the anchored shift
   const assignedShift = useMemo(() => {
     if (!todayClockIn) return liveShift;
     try {
       const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
-      return CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig) || liveShift;
+      return CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || liveShift;
     } catch (e) {
       console.warn('Assigned shift match error fallback:', e);
       return liveShift;
     }
-  }, [todayClockIn, attendanceRules, liveShift]);
+  }, [todayClockIn, attendanceRules, liveShift, isEn]);
 
   const getActionConfig = (type) => {
     switch (type) {
@@ -738,22 +740,24 @@ export default function AttendanceModal() {
               <div>
                 <div style={{ fontWeight: '600', color: 'var(--text-primary)', lineHeight: 1.2 }}>
                   {todayClockIn ? (
-                    <>已锁定班次：<span style={{ color: assignedShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{assignedShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
+                    <>{t('attendanceModal.lockedShiftPrefix', '已锁定班次：')}<span style={{ color: assignedShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{assignedShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
                   ) : (
-                    <>当前匹配：<span style={{ color: liveShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{liveShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
+                    <>{t('attendanceModal.matchedShiftPrefix', '当前匹配：')}<span style={{ color: liveShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{liveShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
                   )}
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                   {todayClockIn
-                    ? (assignedShift?.isLateArrival ? '⚠️ 今日上班已迟到，下班仍须达标' : '今日上班已锁定')
+                    ? (assignedShift?.isLateArrival
+                        ? t('attendanceModal.lateArrivalWarning', '⚠️ 今日上班已迟到，下班仍须达标')
+                        : t('attendanceModal.clockInLocked', '今日上班已锁定'))
                     : (liveShift?.isLateArrival
-                        ? '⚠️ 已超最晚打卡时间 (09:00)，自动归入末档班次 (18:00 下班)'
-                        : '8:30:59 前打卡计入本档，超时顺延')}
+                        ? t('attendanceModal.lateRollOverHint', { time: '09:00', outTime: '18:00' }, '⚠️ 已超最晚打卡时间 (09:00)，自动归入末档班次 (18:00 下班)')
+                        : t('attendanceModal.minuteInclusiveHint', { time: '8:30:59' }, '8:30:59 前打卡计入本档，超时顺延'))}
                 </div>
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>下班达标底线</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t('attendanceModal.cutoffTargetLine', '下班达标底线')}</div>
               <div style={{ fontFamily: 'monospace', fontWeight: '700', color: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival) ? '#f87171' : 'var(--accent-blue)', fontSize: '13px' }}>
                 {todayClockIn ? (assignedShift?.endStr || '18:00:00') : (liveShift?.endStr || '18:00:00')}
               </div>

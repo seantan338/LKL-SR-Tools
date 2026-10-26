@@ -6,6 +6,69 @@
 import { saveAs } from 'file-saver';
 import { CascadeShiftEngine } from './cascade-shift-engine';
 
+export const EXCEL_I18N = {
+  zh: {
+    sheetSummary: (m) => `${m} 全员出勤总账`,
+    sheetDetail: '每日打卡流水明细',
+    colPicName: '顾问姓名 (PIC)',
+    colEmail: '注册邮箱',
+    colWorkDays: '应出勤工作日 (天)',
+    colPresentDays: '实际出勤天数 (天)',
+    colOfficeDays: '办公室打卡 (天)',
+    colWfhDays: '🏠 WFH居家 (天)',
+    colCompliantDays: '阶梯班次达标 (天)',
+    colViolations: '迟到/早退违规 (次)',
+    colMissedAnomalies: '漏打卡/异常 (次)',
+    colComplianceRate: '综合合规出勤率 (%)',
+    colDate: '考勤日期',
+    colFirstIn: '首次签到 (In)',
+    colShift: '核定阶梯班次',
+    colCutoff: '要求下班底线',
+    colLastOut: '实际签退 (Out)',
+    colDuration: '当日工时 (h)',
+    colComplianceStatus: '综合合规判定',
+    colVerifyMethod: '核验模式',
+    colNotes: '核验凭证与备注',
+    defaultPic: '顾问',
+    unassignedShift: '未定班次',
+    methodWfh: '居家办公 (WFH)',
+    methodWifi: '公司 Wi-Fi',
+    methodGps: '100m 地理围栏',
+    methodRegular: '日常打卡',
+    emptySheetErr: '导出内容为空，无有效 Sheet'
+  },
+  en: {
+    sheetSummary: (m) => `${m} Attendance Summary`,
+    sheetDetail: 'Daily Punch Log Details',
+    colPicName: 'Consultant / PIC',
+    colEmail: 'Registered Email',
+    colWorkDays: 'Working Days (Days)',
+    colPresentDays: 'Days Present (Days)',
+    colOfficeDays: 'Office Days (Days)',
+    colWfhDays: '🏠 WFH Days (Days)',
+    colCompliantDays: 'Compliant Shifts (Days)',
+    colViolations: 'Violations / Late (Count)',
+    colMissedAnomalies: 'Missed / Anomalies (Count)',
+    colComplianceRate: 'Compliance Rate (%)',
+    colDate: 'Date',
+    colFirstIn: 'First Clock-In (In)',
+    colShift: 'Assigned Shift',
+    colCutoff: 'Mandatory Cutoff',
+    colLastOut: 'Actual Clock-Out (Out)',
+    colDuration: 'Hours Worked (h)',
+    colComplianceStatus: 'Compliance Status',
+    colVerifyMethod: 'Verification Method',
+    colNotes: 'Credentials & Notes',
+    defaultPic: 'Advisor',
+    unassignedShift: 'Unassigned Shift',
+    methodWfh: 'Work From Home (WFH)',
+    methodWifi: 'Office Wi-Fi',
+    methodGps: '100m Geofence',
+    methodRegular: 'Standard Check-in',
+    emptySheetErr: 'Export content is empty — no valid sheet found'
+  }
+};
+
 /**
  * CSV / Excel 公式注入清洗器 (Formula Injection Sanitizer)
  * 若单元格为字符串且以 =, +, -, @ 开头，自动拼接前置单引号 '
@@ -94,7 +157,7 @@ function buildXmlSpreadsheet(sheets) {
         for (const cell of row) {
           const val = sanitizeExcelValue(cell);
           const isNum = typeof val === 'number' && !isNaN(val);
-          const isViolation = typeof val === 'string' && (val.includes('❌') || val.includes('违规') || val.includes('早退'));
+          const isViolation = typeof val === 'string' && (val.includes('❌') || val.includes('违规') || val.includes('早退') || val.includes('Violation') || val.includes('Late') || val.includes('Early'));
           const isCompliant = typeof val === 'string' && val.includes('✅');
           const styleId = isViolation ? 'ss:StyleID="ViolationStyle"' : isCompliant ? 'ss:StyleID="CompliantStyle"' : '';
 
@@ -126,9 +189,10 @@ export const ExcelExporter = {
    * @param {string} params.filename - 文件名（如 'TalentFlow_Attendance_2026-10.xlsx'）
    * @param {Array<{ name: string, headers: string[], rows: any[][], colWidths?: number[] }>} params.sheets
    */
-  async exportWorkbook({ filename = 'Export.xlsx', sheets = [] }) {
+  async exportWorkbook({ filename = 'Export.xlsx', sheets = [], locale = 'zh' }) {
+    const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
     if (!sheets || sheets.length === 0) {
-      throw new Error('导出内容为空，无有效 Sheet');
+      throw new Error(labels.emptySheetErr);
     }
 
     // 优先尝试使用 xlsx 库导出原生 .xlsx
@@ -181,8 +245,11 @@ export const ExcelExporter = {
     attendanceEvents = [],
     hqMembers = [],
     shiftConfig = null,
-    workingDays = 22
+    workingDays = 22,
+    locale = 'zh'
   }) {
+    const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
+
     // 1. 过滤当月事件并按日期+顾问 UID 聚合
     // 键格式: `${dateStr}__${picKey}`
     const dailyMap = {};
@@ -195,7 +262,7 @@ export const ExcelExporter = {
       const dStr = dateObj.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
       if (!dStr.startsWith(monthStr)) return; // 严格过滤在指定月份内
 
-      const picName = evt.picName || evt.userName || evt.user?.displayName || (evt.userEmail ? evt.userEmail.split('@')[0] : '顾问');
+      const picName = evt.picName || evt.userName || evt.user?.displayName || (evt.userEmail ? evt.userEmail.split('@')[0] : labels.defaultPic);
       const userId = evt.userId || evt.user?.uid || picName;
       const key = `${dStr}__${userId}`;
 
@@ -223,7 +290,7 @@ export const ExcelExporter = {
 
     // 2. 针对每一条每日记录应用 CascadeShiftEngine 判定
     const dailyLogs = Object.values(dailyMap).map(day => {
-      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig);
+      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale });
       return {
         ...day,
         analysis: res
@@ -239,7 +306,7 @@ export const ExcelExporter = {
 
     // 预填充所有 HQ 成员
     hqMembers.forEach(m => {
-      const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : '顾问');
+      const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : labels.defaultPic);
       memberSummaryMap[m.id] = {
         name,
         email: m.email || '',
@@ -287,16 +354,16 @@ export const ExcelExporter = {
     });
 
     const summaryHeaders = [
-      '顾问姓名 (PIC)',
-      '注册邮箱',
-      '应出勤工作日 (天)',
-      '实际出勤天数 (天)',
-      '办公室打卡 (天)',
-      '🏠 WFH居家 (天)',
-      '阶梯班次达标 (天)',
-      '迟到/早退违规 (次)',
-      '漏打卡/异常 (次)',
-      '综合合规出勤率 (%)'
+      labels.colPicName,
+      labels.colEmail,
+      labels.colWorkDays,
+      labels.colPresentDays,
+      labels.colOfficeDays,
+      labels.colWfhDays,
+      labels.colCompliantDays,
+      labels.colViolations,
+      labels.colMissedAnomalies,
+      labels.colComplianceRate
     ];
 
     const summaryRows = Object.values(memberSummaryMap).map(m => {
@@ -317,27 +384,27 @@ export const ExcelExporter = {
 
     // 4. 构建 Sheet 2: 每日打卡与阶梯审计明细 (Daily Shift Logs)
     const dailyHeaders = [
-      '考勤日期',
-      '顾问姓名 (PIC)',
-      '首次签到 (In)',
-      '核定阶梯班次',
-      '要求下班底线',
-      '实际签退 (Out)',
-      '当日工时 (h)',
-      '综合合规判定',
-      '核验模式',
-      '核验凭证与备注'
+      labels.colDate,
+      labels.colPicName,
+      labels.colFirstIn,
+      labels.colShift,
+      labels.colCutoff,
+      labels.colLastOut,
+      labels.colDuration,
+      labels.colComplianceStatus,
+      labels.colVerifyMethod,
+      labels.colNotes
     ];
 
     const dailyRows = dailyLogs.map(log => {
       const a = log.analysis;
       const methodLabel = log.verifyMethod === 'WFH'
-        ? '居家办公 (WFH)'
+        ? labels.methodWfh
         : log.verifyMethod === 'WIFI_IP'
-          ? '公司 Wi-Fi'
+          ? labels.methodWifi
           : log.verifyMethod === 'GPS_GEOFENCE'
-            ? '100m 地理围栏'
-            : log.verifyMethod || '日常打卡';
+            ? labels.methodGps
+            : log.verifyMethod || labels.methodRegular;
 
       const verifyDetails = log.verifySnapshot?.ip
         ? `IP: ${log.verifySnapshot.ip}; ${a.note || ''}`
@@ -347,7 +414,7 @@ export const ExcelExporter = {
         log.dateStr,
         log.picName,
         a.clockInStr || '-',
-        a.shift?.name || '未定班次',
+        a.shift?.name || labels.unassignedShift,
         a.shift?.endStr || '-',
         a.clockOutStr || '-',
         a.durationHours !== null ? a.durationHours : '-',
@@ -359,13 +426,13 @@ export const ExcelExporter = {
 
     return [
       {
-        name: `${monthStr} 全员出勤总账`,
+        name: labels.sheetSummary(monthStr),
         headers: summaryHeaders,
         rows: summaryRows,
         colWidths: [130, 190, 110, 110, 100, 100, 120, 120, 110, 130]
       },
       {
-        name: '每日打卡流水明细',
+        name: labels.sheetDetail,
         headers: dailyHeaders,
         rows: dailyRows,
         colWidths: [100, 120, 100, 190, 110, 110, 90, 190, 110, 260]

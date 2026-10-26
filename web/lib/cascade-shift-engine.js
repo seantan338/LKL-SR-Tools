@@ -15,6 +15,57 @@ export const DEFAULT_SHIFT_CONFIG = {
   ]
 };
 
+export const CASCADE_I18N = {
+  zh: {
+    notClocked: '未打卡',
+    notClockedMissed: '未打卡 (Missed)',
+    absent: '缺勤',
+    noRecord: '全天无打卡记录',
+    invalidTs: '打卡时间戳异常',
+    missedOut: '⚠️ 下班未打卡',
+    missedOutNote: (inTime) => `已完成上班签到(${inTime})，下班未打卡`,
+    missedIn: '⚠️ 上班未打卡',
+    missedInNote: (outTime) => `仅记录下班签退(${outTime})，上班缺卡`,
+    unassignedShift: '未定班次',
+    abnormalTouch: '⚠️ 异常签退 (疑似误触)',
+    abnormalTouchNote: (min) => `签退与签到间隔仅 ${min} 分钟，疑似手滑误触，需核实离岗时间`,
+    abnormalOut: (time) => `${time} (异常)`,
+    earlyDescMinSec: (m, s) => `${m}分${s}秒`,
+    earlyDescSec: (s) => `${s}秒`,
+    earlyLeave: (desc) => `❌ 违规早退 (提前${desc}计迟到)`,
+    earlyLeaveNote: (endStr, desc) => `未达核定班次下班底线 ${endStr}，提前 ${desc} 签退`,
+    lateArrival: '⚠️ 迟到完成 (上班迟到)',
+    lateArrivalNote: (inTime, outTime) => `上班迟到(${inTime})，已于 ${outTime} 满勤签退`,
+    compliant: '✅ 达标完成',
+    compliantNote: '考勤阶梯工时达标',
+    lateSuffix: ' (迟到)'
+  },
+  en: {
+    notClocked: 'Not Clocked',
+    notClockedMissed: 'Missed Punch',
+    absent: 'Absent',
+    noRecord: 'No punch records for the day',
+    invalidTs: 'Invalid punch timestamp',
+    missedOut: '⚠️ Missing Clock-Out',
+    missedOutNote: (inTime) => `Clock-in recorded (${inTime}), missed clock-out`,
+    missedIn: '⚠️ Missing Clock-In',
+    missedInNote: (outTime) => `Clock-out recorded (${outTime}), missed morning clock-in`,
+    unassignedShift: 'Unassigned Shift',
+    abnormalTouch: '⚠️ Suspicious Quick Clock-Out',
+    abnormalTouchNote: (min) => `Interval between in/out is only ${min} min, suspicious touch`,
+    abnormalOut: (time) => `${time} (Abnormal)`,
+    earlyDescMinSec: (m, s) => `${m}m ${s}s`,
+    earlyDescSec: (s) => `${s}s`,
+    earlyLeave: (desc) => `❌ Early Departure (${desc} early, counted as late)`,
+    earlyLeaveNote: (endStr, desc) => `Failed to meet cutoff ${endStr}, punched out ${desc} early`,
+    lateArrival: '⚠️ Late Arrival Completed',
+    lateArrivalNote: (inTime, outTime) => `Late arrival (${inTime}), completed shift at ${outTime}`,
+    compliant: '✅ Compliant',
+    compliantNote: 'Shift hours requirement fulfilled',
+    lateSuffix: ' (Late)'
+  }
+};
+
 export class CascadeShiftEngine {
   /**
    * 将 'HH:mm' 或 'HH:mm:ss' 转换为从 0 点起的分钟数
@@ -94,10 +145,12 @@ export class CascadeShiftEngine {
    * 阶梯匹配班次（严格执行零打卡冗余与管理员配置容差）
    * @param {Date} firstIn - 首次签到时间
    * @param {object} [customConfig] - 考勤规则中的 shiftConfig
+   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en' }
    */
-  static matchShift(firstIn, customConfig) {
+  static matchShift(firstIn, customConfig, { locale = 'zh' } = {}) {
     const config = this.getEffectiveConfig(customConfig);
     const firstInDate = this.toSafeDate(firstIn);
+    const labels = CASCADE_I18N[locale] || CASCADE_I18N.zh;
     const lastShift = (config.shifts && config.shifts.length > 0)
       ? config.shifts[config.shifts.length - 1]
       : { id: 'shift_d', name: 'Shift D (9:00am - 6:00pm)', startTime: '09:00', endTime: '18:00' };
@@ -107,7 +160,7 @@ export class CascadeShiftEngine {
     if (!firstInDate) {
       return {
         id: lastShift.id,
-        name: lastShift.name,
+        name: `${lastShift.name}${labels.lateSuffix}`,
         baseName: lastShift.name,
         startTime: lastShift.startTime,
         endTime: lastShift.endTime,
@@ -149,7 +202,7 @@ export class CascadeShiftEngine {
     // 超过所有允许班次（严重迟到对不上任何班次）：直接指派归入最迟班次（如 Shift D），继承最迟班次的下班达标底线（如 18:00），同时标记迟到
     return {
       id: lastShift.id,
-      name: `${lastShift.name} (迟到)`,
+      name: `${lastShift.name}${labels.lateSuffix}`,
       baseName: lastShift.name,
       startTime: lastShift.startTime,
       endTime: lastShift.endTime,
@@ -163,26 +216,28 @@ export class CascadeShiftEngine {
    * 核心单日考勤判定机理（输入单日事件流，输出合规画像）
    * @param {Array<object>} dayEvents - 当天由 Firestore logs / attendance 汇聚的打卡流水
    * @param {object} [customConfig] - 考勤 shiftConfig 配置
+   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en' }
    */
-  static resolveDailyShift(dayEvents = [], customConfig) {
+  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh' } = {}) {
     const config = this.getEffectiveConfig(customConfig);
+    const labels = CASCADE_I18N[locale] || CASCADE_I18N.zh;
 
     if (!Array.isArray(dayEvents) || dayEvents.length === 0) {
       return {
         hasAttendance: false,
         firstIn: null,
         lastOut: null,
-        clockInStr: '未打卡',
-        clockOutStr: '未打卡',
+        clockInStr: labels.notClocked,
+        clockOutStr: labels.notClocked,
         shift: null,
         durationHours: null,
         compliance: 'ABSENT',
-        complianceLabel: '缺勤',
+        complianceLabel: labels.absent,
         isCompliant: false,
         isViolation: false,
         isMissingPunch: true,
         isLate: false,
-        note: '全天无打卡记录'
+        note: labels.noRecord
       };
     }
 
@@ -200,17 +255,17 @@ export class CascadeShiftEngine {
         hasAttendance: false,
         firstIn: null,
         lastOut: null,
-        clockInStr: '未打卡',
-        clockOutStr: '未打卡',
+        clockInStr: labels.notClocked,
+        clockOutStr: labels.notClocked,
         shift: null,
         durationHours: null,
         compliance: 'ABSENT',
-        complianceLabel: '缺勤',
+        complianceLabel: labels.absent,
         isCompliant: false,
         isViolation: false,
         isMissingPunch: true,
         isLate: false,
-        note: '打卡时间戳异常'
+        note: labels.invalidTs
       };
     }
 
@@ -235,22 +290,22 @@ export class CascadeShiftEngine {
 
     // 3. 场景 A：只有签到，无签退（解决忘记打卡痛点，严禁签退伪造成签到时间）
     if (firstIn && !lastOut) {
-      const shift = this.matchShift(firstIn, config);
+      const shift = this.matchShift(firstIn, config, { locale });
       return {
         hasAttendance: true,
         firstIn,
         lastOut: null,
         clockInStr: this.formatTime(firstIn),
-        clockOutStr: '未打卡 (Missed)',
+        clockOutStr: labels.notClockedMissed,
         shift,
         durationHours: null,
         compliance: 'MISSED_OUT',
-        complianceLabel: '⚠️ 下班未打卡',
+        complianceLabel: labels.missedOut,
         isCompliant: false,
         isViolation: shift.isLateArrival,
         isMissingPunch: true,
         isLate: shift.isLateArrival,
-        note: `已完成上班签到(${this.formatTime(firstIn)})，下班未打卡`
+        note: labels.missedOutNote(this.formatTime(firstIn))
       };
     }
 
@@ -260,24 +315,24 @@ export class CascadeShiftEngine {
         hasAttendance: true,
         firstIn: null,
         lastOut,
-        clockInStr: '未打卡 (Missed)',
+        clockInStr: labels.notClockedMissed,
         clockOutStr: this.formatTime(lastOut),
-        shift: { name: '未定班次', endStr: '-' },
+        shift: { name: labels.unassignedShift, endStr: '-' },
         durationHours: null,
         compliance: 'MISSED_IN',
-        complianceLabel: '⚠️ 上班未打卡',
+        complianceLabel: labels.missedIn,
         isCompliant: false,
         isViolation: false,
         isMissingPunch: true,
         isLate: false,
-        note: `仅记录下班签退(${this.formatTime(lastOut)})，上班缺卡`
+        note: labels.missedInNote(this.formatTime(lastOut))
       };
     }
 
     // 5. 场景 C：签到与签退时间相同，或间隔 < 30 分钟（疑似连击误触防呆）
     const durationMs = lastOut.getTime() - firstIn.getTime();
     const durationMinutes = durationMs / (1000 * 60);
-    const shift = this.matchShift(firstIn, config);
+    const shift = this.matchShift(firstIn, config, { locale });
 
     if (durationMinutes < 30) {
       return {
@@ -285,16 +340,16 @@ export class CascadeShiftEngine {
         firstIn,
         lastOut,
         clockInStr: this.formatTime(firstIn),
-        clockOutStr: `${this.formatTime(lastOut)} (异常)`,
+        clockOutStr: labels.abnormalOut(this.formatTime(lastOut)),
         shift,
         durationHours: null,
         compliance: 'ABNORMAL_PUNCH',
-        complianceLabel: '⚠️ 异常签退 (疑似误触)',
+        complianceLabel: labels.abnormalTouch,
         isCompliant: false,
         isViolation: true,
         isMissingPunch: true,
         isLate: shift.isLateArrival,
-        note: `签退与签到间隔仅 ${Math.max(0, Math.round(durationMinutes))} 分钟，疑似手滑误触，需核实离岗时间`
+        note: labels.abnormalTouchNote(Math.max(0, Math.round(durationMinutes)))
       };
     }
 
@@ -307,8 +362,8 @@ export class CascadeShiftEngine {
     if (config.strictClockOut && actualOutMinutes < requiredEndMinutes) {
       const earlySeconds = Math.round((requiredEndMinutes - actualOutMinutes) * 60);
       const earlyDesc = earlySeconds >= 60
-        ? `${Math.floor(earlySeconds / 60)}分${earlySeconds % 60}秒`
-        : `${earlySeconds}秒`;
+        ? labels.earlyDescMinSec(Math.floor(earlySeconds / 60), earlySeconds % 60)
+        : labels.earlyDescSec(earlySeconds);
 
       return {
         hasAttendance: true,
@@ -319,12 +374,12 @@ export class CascadeShiftEngine {
         shift,
         durationHours,
         compliance: 'EARLY_LEAVE_AS_LATE',
-        complianceLabel: `❌ 违规早退 (提前${earlyDesc}计迟到)`,
+        complianceLabel: labels.earlyLeave(earlyDesc),
         isCompliant: false,
         isViolation: true,
         isMissingPunch: false,
         isLate: true, // 按老板要求统一计为迟到
-        note: `未达核定班次下班底线 ${shift.endStr}，提前 ${earlyDesc} 签退`
+        note: labels.earlyLeaveNote(shift.endStr, earlyDesc)
       };
     }
 
@@ -339,12 +394,12 @@ export class CascadeShiftEngine {
         shift,
         durationHours,
         compliance: 'LATE_COMPLETED',
-        complianceLabel: '⚠️ 迟到完成 (上班迟到)',
+        complianceLabel: labels.lateArrival,
         isCompliant: false,
         isViolation: true,
         isMissingPunch: false,
         isLate: true,
-        note: `上班迟到(${this.formatTime(firstIn)})，已于 ${this.formatTime(lastOut)} 满勤签退`
+        note: labels.lateArrivalNote(this.formatTime(firstIn), this.formatTime(lastOut))
       };
     }
 
@@ -358,12 +413,12 @@ export class CascadeShiftEngine {
       shift,
       durationHours,
       compliance: 'COMPLIANT',
-      complianceLabel: '✅ 达标完成',
+      complianceLabel: labels.compliant,
       isCompliant: true,
       isViolation: false,
       isMissingPunch: false,
       isLate: false,
-      note: '考勤阶梯工时达标'
+      note: labels.compliantNote
     };
   }
 }

@@ -1328,8 +1328,10 @@ export const zh = {
     exporting: '正在导出报表...',
     exportNoPermission: '仅 HQ 本部管理人员可导出考勤出勤月报',
     exportNoData: '当前无可导出的考勤打卡数据',
-    exportSuccess: '考勤报表导出成功！',
-    exportFailed: '导出失败: '
+    exportSuccess: '🎉 考勤报表 ({filename}) 导出成功！',
+    exportSuccessFallback: '考勤报表导出成功！',
+    exportFailed: '导出失败: ',
+    hqMembersCount: '{count} 位公司本部成员'
   },
   analytics: {
     gateTitle: '专属权限受限',
@@ -1512,8 +1514,11 @@ export const zh = {
     exportBtnTitle: '导出当月内部员工考勤出勤双 Sheet Excel 报表',
     exportNoPermission: '仅 HQ 本部管理人员具备全员考勤月报导出权限',
     exportNoData: '当前无可导出的考勤打卡数据',
-    exportSuccess: '考勤报表导出成功！',
+    exportSuccess: '🎉 考勤报表 ({filename}) 已成功生成并下载！',
+    exportSuccessFallback: '考勤报表导出成功！',
     exportFailed: '导出失败: ',
+    statusCutoffSuffix: ' · 底线 {time}',
+    dutyFallback: '在岗',
     secShiftTitle: '阶梯弹性班次与打卡容差配置',
     tagZeroGrace: '当前设定：零打卡冗余 (过一分钟即顺延)',
     shiftConfigDesc: '系统以员工早晨首次签到时间动态核定所属班次。若超出所选档位，下班时间强制顺延至下一档（例如 8:31 打卡需工作至 18:00）。若提前签退（例如 17:59）则直接判定为迟到/早退违规。',
@@ -1900,7 +1905,18 @@ export const zh = {
     errServiceUnreachable: '无法连接考勤核验服务，请检查网络连接',
     toastWifiSuccess: '命中公司 Wi-Fi 认证，打卡成功！(IP: {ip})',
     statusCheckingGps: '未连接公司 Wi-Fi，正在调用高精度 GPS 校验 100 米考勤围栏...',
-    statusGpsCaptured: '已捕获 GPS (精度 ±{acc}m)，正在提交后端核验...'
+    statusGpsCaptured: '已捕获 GPS (精度 ±{acc}m)，正在提交后端核验...',
+    lockedShiftPrefix: '已锁定班次：',
+    matchedShiftPrefix: '当前匹配：',
+    lateArrivalWarning: '⚠️ 今日上班已迟到，下班仍须达标',
+    clockInLocked: '今日上班已锁定',
+    lateRollOverHint: '⚠️ 已超最晚打卡时间 ({time})，自动归入末档班次 ({outTime} 下班)',
+    minuteInclusiveHint: '{time} 前打卡计入本档，超时顺延',
+    cutoffTargetLine: '下班达标底线',
+    timeMinSec: '{m}分{s}秒',
+    timeSec: '{s}秒',
+    lateSuffix: ' (迟到)',
+    toastShiftSuffix: ' ({name}，底线: {endStr})'
   },
   authPages: {
     verifyingIdentity: '正在验证身份...',
@@ -3365,8 +3381,10 @@ export const en = {
     exporting: 'Generating Report...',
     exportNoPermission: 'Only Company HQ management have permission to export attendance reports',
     exportNoData: 'No attendance records available for export',
-    exportSuccess: 'Attendance report exported successfully!',
-    exportFailed: 'Export failed: '
+    exportSuccess: '🎉 Attendance report ({filename}) exported successfully!',
+    exportSuccessFallback: 'Attendance report exported successfully!',
+    exportFailed: 'Export failed: ',
+    hqMembersCount: '{count} HQ Members'
   },
   analytics: {
     gateTitle: 'Exclusive Access Restricted',
@@ -3549,8 +3567,11 @@ export const en = {
     exportBtnTitle: 'Export monthly staff attendance dual-sheet Excel report',
     exportNoPermission: 'Only Company HQ management have permission to export attendance reports',
     exportNoData: 'No attendance records available for export',
-    exportSuccess: 'Attendance report exported successfully!',
+    exportSuccess: '🎉 Attendance report ({filename}) generated and downloaded!',
+    exportSuccessFallback: 'Attendance report exported successfully!',
     exportFailed: 'Export failed: ',
+    statusCutoffSuffix: ' · Cutoff {time}',
+    dutyFallback: 'On Duty',
     secShiftTitle: 'Cascade Flexible Shifts & Tolerance Configuration',
     tagZeroGrace: 'Active Setting: Zero Grace Period (Strict Roll-over)',
     shiftConfigDesc: 'Dynamically assign employee shifts based on first morning punch-in. If arrival time exceeds threshold, mandatory clock-out time is cascaded to the next session (e.g. 8:31am punch-in requires working until 6:00pm). Clocking out earlier (e.g. 5:59pm) is directly penalized as late/early departure.',
@@ -3937,7 +3958,18 @@ export const en = {
     errServiceUnreachable: 'Cannot reach the attendance verification service. Please check your network connection.',
     toastWifiSuccess: 'Office Wi-Fi verified — clocked in! (IP: {ip})',
     statusCheckingGps: 'Not on office Wi-Fi — checking high-accuracy GPS against the 100m geofence...',
-    statusGpsCaptured: 'GPS captured (±{acc}m accuracy), verifying with server...'
+    statusGpsCaptured: 'GPS captured (±{acc}m accuracy), verifying with server...',
+    lockedShiftPrefix: 'Locked Shift: ',
+    matchedShiftPrefix: 'Current Match: ',
+    lateArrivalWarning: '⚠️ Clocked in late today; cutoff still strictly enforced',
+    clockInLocked: 'Shift locked for today',
+    lateRollOverHint: '⚠️ Passed latest punch time ({time}), assigned to final shift ({outTime} clock-out)',
+    minuteInclusiveHint: 'Punch in before {time} to match this shift; roll over if passed',
+    cutoffTargetLine: 'Required Clock-Out',
+    timeMinSec: '{m}m {s}s',
+    timeSec: '{s}s',
+    lateSuffix: ' (Late)',
+    toastShiftSuffix: ' ({name}, Cutoff: {endStr})'
   },
   authPages: {
     verifyingIdentity: 'Verifying identity...',

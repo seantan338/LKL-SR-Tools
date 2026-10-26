@@ -117,24 +117,25 @@ export default function LeaderboardPage() {
         attendanceEvents: combinedEvents,
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG,
-        workingDays: 22
+        workingDays: 22,
+        locale: isEn ? 'en' : 'zh'
       });
 
       const filename = `TalentFlow_Attendance_${activeMonthStr}.xlsx`;
-      await ExcelExporter.exportWorkbook({ filename, sheets });
+      await ExcelExporter.exportWorkbook({ filename, sheets, locale: isEn ? 'en' : 'zh' });
 
       try {
         await SystemLogger.audit(teamId || 'default_team', {
           action: 'EXPORT_ATTENDANCE_EXCEL',
           targetType: 'ATTENDANCE_REPORT',
-          details: `从排行榜导出内部员工考勤出勤月报 (${filename})`
+          details: `Export monthly attendance report from leaderboard (${filename})`
         });
       } catch (logErr) {}
 
-      showToast(t('leaderboard.exportSuccess', `🎉 考勤报表 (${filename}) 导出成功！`));
+      showToast(t('leaderboard.exportSuccess', { filename }, `🎉 考勤报表 (${filename}) 导出成功！`));
     } catch (err) {
       console.error('Export leaderboard attendance error:', err);
-      showToast(t('leaderboard.exportFailed', `导出失败: ${err.message}`));
+      showToast(`${t('leaderboard.exportFailed', '导出失败: ')}${err.message}`, 'error');
     } finally {
       setIsExporting(false);
     }
@@ -852,7 +853,7 @@ export default function LeaderboardPage() {
               <span>{activeTab === 'sales' ? t('leaderboard.tabSales', '销售业绩榜') : t('leaderboard.tabAttendance', '考勤出勤榜')}</span>
             </h3>
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-              {currentRankingList.length} {isEn ? 'HQ Members' : '位公司本部成员'}
+              {t('leaderboard.hqMembersCount', { count: currentRankingList.length }, `${currentRankingList.length} 位公司本部成员`)}
             </span>
           </div>
 

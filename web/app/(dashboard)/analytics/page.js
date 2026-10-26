@@ -366,7 +366,7 @@ export default function AnalyticsPage() {
         }
       }
 
-      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(dayEvents, attendanceRules.shiftConfig);
+      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(dayEvents, attendanceRules.shiftConfig, { locale: isEn ? 'en' : 'zh' });
 
       // Calculate work duration
       const diffMs = r.lastActionTime.getTime() - r.firstActionTime.getTime();
@@ -392,11 +392,11 @@ export default function AnalyticsPage() {
           if (minutesSinceLast < 120) {
             status = 'online';
             statusLabel = r.manualLunchIn
-              ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : '在岗'}`
-              : `${t('analytics.statusOnDuty', '工作中 (活跃)')} · ${shiftAnalysis.shift?.endStr ? `底线 ${shiftAnalysis.shift.endStr}` : ''}`;
+              ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : t('analytics.dutyFallback', '在岗')}`
+              : `${t('analytics.statusOnDuty', '工作中 (活跃)')}${shiftAnalysis.shift?.endStr ? t('analytics.statusCutoffSuffix', { time: shiftAnalysis.shift.endStr }, ` · 底线 ${shiftAnalysis.shift.endStr}`) : ''}`;
             statusColor = 'var(--accent-blue)';
           } else {
-            statusLabel = `${t('analytics.statusJustClockedIn', '今日已打卡')} (${shiftAnalysis.shift?.name || '在岗'})`;
+            statusLabel = `${t('analytics.statusJustClockedIn', '今日已打卡')} (${shiftAnalysis.shift?.name || t('analytics.dutyFallback', '在岗')})`;
             statusColor = 'var(--accent-emerald)';
           }
         }
@@ -915,27 +915,28 @@ export default function AnalyticsPage() {
         attendanceEvents: [...manualCheckins, ...logs],
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
-        workingDays: 22
+        workingDays: 22,
+        locale: isEn ? 'en' : 'zh'
       });
 
       const filename = `TalentFlow_Attendance_${activeMonthStr}.xlsx`;
-      await ExcelExporter.exportWorkbook({ filename, sheets });
+      await ExcelExporter.exportWorkbook({ filename, sheets, locale: isEn ? 'en' : 'zh' });
 
       // Audit Log Track (Non-blocking)
       try {
         await SystemLogger.audit(teamId, {
           action: 'EXPORT_ATTENDANCE_EXCEL',
           targetType: 'ATTENDANCE_REPORT',
-          details: `成功导出内部员工考勤出勤月报 (${filename})`
+          details: `Export monthly attendance report (${filename})`
         });
       } catch (logErr) {
         console.warn('Attendance audit log notice:', logErr);
       }
 
-      showToast(t('analytics.exportSuccess', `🎉 考勤报表 (${filename}) 已成功生成并下载！`));
+      showToast(t('analytics.exportSuccess', { filename }, `🎉 考勤报表 (${filename}) 已成功生成并下载！`));
     } catch (err) {
       console.error('Failed to export attendance excel:', err);
-      showToast(t('analytics.exportFailed', `导出失败: ${err.message}`), 'error');
+      showToast(`${t('analytics.exportFailed', '导出失败: ')}${err.message}`, 'error');
     } finally {
       setIsExportingExcel(false);
     }

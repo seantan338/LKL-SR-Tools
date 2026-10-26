@@ -114,3 +114,13 @@ test('9. 畸形配置与空参数安全兜底：无班次或残缺参数时自�
   assert.equal(malformedShift.endTime, '18:00');
   assert.equal(malformedShift.isLateArrival, true);
 });
+
+test('10. 国际化 (i18n) 双语标签支持验证', () => {
+  const t0905 = makeDate('09:05:00');
+  const shiftEn = CascadeShiftEngine.matchShift(t0905, DEFAULT_SHIFT_CONFIG, { locale: 'en' });
+  assert.ok(shiftEn.name.includes('(Late)'), '英文环境下迟到班次名称应包含 (Late)');
+
+  const resEn = CascadeShiftEngine.resolveDailyShift([], DEFAULT_SHIFT_CONFIG, { locale: 'en' });
+  assert.equal(resEn.complianceLabel, 'Absent', '英文环境下无记录标签应为 Absent');
+  assert.equal(resEn.clockInStr, 'Not Clocked');
+});
