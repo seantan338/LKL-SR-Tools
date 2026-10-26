@@ -20,6 +20,7 @@ export default function AttendanceModal() {
   const { user, userProfile, teamId, isOwner, isManager, isHqTeam } = useAuth();
   const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
   const { t, lang } = useI18n();
+  const isEn = lang === 'en';
   const [isOpen, setIsOpen] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
@@ -477,6 +478,8 @@ export default function AttendanceModal() {
     }
   };
 
+  if (!isOpen || !isHqTeam) return null;
+
   const hoursStr = String(currentTime.getHours()).padStart(2, '0');
   const minutesStr = String(currentTime.getMinutes()).padStart(2, '0');
   const secondsStr = String(currentTime.getSeconds()).padStart(2, '0');
@@ -548,45 +551,35 @@ export default function AttendanceModal() {
     };
   }
 
-  // Real-time dynamic shift matching based on current ticking clock
-  const liveShift = useMemo(() => {
-    try {
-      return CascadeShiftEngine.matchShift(currentTime, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || {
-        id: 'shift_d',
-        name: 'Shift D (9:00am - 6:00pm)',
-        baseName: 'Shift D (9:00am - 6:00pm)',
-        startTime: '09:00',
-        endTime: '18:00',
-        endMinutes: 1080,
-        endStr: '18:00:00',
-        isLateArrival: false
-      };
-    } catch (e) {
-      console.warn('Live shift match error fallback:', e);
-      return {
-        id: 'shift_d',
-        name: 'Shift D (9:00am - 6:00pm)',
-        baseName: 'Shift D (9:00am - 6:00pm)',
-        startTime: '09:00',
-        endTime: '18:00',
-        endMinutes: 1080,
-        endStr: '18:00:00',
-        isLateArrival: false
-      };
-    }
-  }, [currentTime, attendanceRules, isEn]);
+  // Real-time dynamic shift matching based on current ticking clock (plain variable, no hook needed)
+  const fallbackShift = {
+    id: 'shift_d',
+    name: 'Shift D (9:00am - 6:00pm)',
+    baseName: 'Shift D (9:00am - 6:00pm)',
+    startTime: '09:00',
+    endTime: '18:00',
+    endMinutes: 1080,
+    endStr: '18:00:00',
+    isLateArrival: false
+  };
+
+  let liveShift = fallbackShift;
+  try {
+    liveShift = CascadeShiftEngine.matchShift(currentTime, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || fallbackShift;
+  } catch (e) {
+    console.warn('Live shift match error fallback:', e);
+  }
 
   // If already clocked in today, show the anchored shift
-  const assignedShift = useMemo(() => {
-    if (!todayClockIn) return liveShift;
+  let assignedShift = liveShift;
+  if (todayClockIn) {
     try {
       const inDate = todayClockIn.timestamp?.toDate ? todayClockIn.timestamp.toDate() : new Date(todayClockIn.timestamp);
-      return CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || liveShift;
+      assignedShift = CascadeShiftEngine.matchShift(inDate, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' }) || liveShift;
     } catch (e) {
       console.warn('Assigned shift match error fallback:', e);
-      return liveShift;
     }
-  }, [todayClockIn, attendanceRules, liveShift, isEn]);
+  }
 
   const getActionConfig = (type) => {
     switch (type) {
@@ -623,8 +616,6 @@ export default function AttendanceModal() {
   };
 
   const currentAction = getActionConfig(activePunch);
-
-  if (!isOpen || !isHqTeam) return null;
 
   return (
     <div style={{
