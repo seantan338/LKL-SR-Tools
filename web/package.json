@@ -1,6 +1,6 @@
 {
   "name": "talent-flow",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "TALENT FLOW - Cloud-native Internship Recruitment & Candidate Management Web App",
   "private": true,
   "scripts": {

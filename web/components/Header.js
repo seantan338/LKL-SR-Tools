@@ -6,6 +6,7 @@ import { useNotifications } from '../lib/notification-context';
 import { useI18n } from '../lib/i18n-context';
 import { useAuth } from '../lib/auth-context';
 import SectionTitleWithHelp from './SectionTitleWithHelp';
+import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../lib/version';
 
 const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL || '/docs';
 
@@ -366,6 +367,48 @@ export default function Header({ toggleSidebar }) {
             )}
           </div>
         )}
+
+        {/* Global Version Badge */}
+        <div
+          className="header-version-pill"
+          title={
+            (t('header.versionBadgeTitle') || 'TALENT FLOW {version} (Build: {date}) - {codename}')
+              .replace('{version}', APP_VERSION)
+              .replace('{date}', BUILD_DATE)
+              .replace('{codename}', RELEASE_CODENAME)
+          }
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 11px',
+            borderRadius: '9999px',
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.22)',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: 'var(--accent-blue)',
+            letterSpacing: '0.02em',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+            lineHeight: 1,
+            flexShrink: 0,
+            cursor: 'default',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <span
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: '#10b981',
+              display: 'inline-block',
+              boxShadow: '0 0 6px rgba(16, 185, 129, 0.75)'
+            }}
+          />
+          <span>{APP_VERSION}</span>
+        </div>
 
         {/* Quick Refresh Data Action Button */}
         <button

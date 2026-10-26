@@ -16,6 +16,7 @@ import WhatsAppButton from '../../../components/WhatsAppButton';
 import MiniBlackHole from '../../../components/MiniBlackHole';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { authFetch } from '../../../lib/api-client';
+import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../../../lib/version';
 
 export default function SettingsPage() {
   const { teamId, user, isOwner, signInWithGoogleSheets } = useAuth();
@@ -2023,6 +2024,79 @@ function onEdit(e) {
                     <p style={{ margin: 0, fontSize: '0.76rem', color: '#475569', lineHeight: 1.5 }}>
                       {t('settingsPage.themeLightDesc', '高对比日光白净基底与柔和边界，白天明亮办公环境阅读清晰护眼')}
                     </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* System Version & Cloud Build Status Section (v1.6.0) */}
+            <div className="form-section">
+              <h4 style={{ fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 'var(--space-3)' }}>
+                {t('settingsPage.systemInfoTitle', '系统版本与云端构建状态')}
+              </h4>
+              <div style={{ padding: 'var(--space-5)', background: 'var(--card-bg, #ffffff)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-hairline)', boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ph-bold ph-git-commit" style={{ color: 'var(--accent-blue)' }}></i>
+                      <span>TALENT FLOW Cloud Suite</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.25)', padding: '2px 8px', borderRadius: '9999px' }}>
+                        {APP_VERSION}
+                      </span>
+                    </label>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                      {t('settingsPage.systemInfoDesc', '当前运行的 TALENT FLOW 前端客户端版本、发布代号及云端部署构建元数据')}
+                    </p>
+                  </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', color: 'var(--accent-emerald)', fontSize: '0.8rem', fontWeight: '600' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 8px rgba(16, 185, 129, 0.7)' }}></span>
+                    <span>{t('settingsPage.deploymentHealthy', '云端服务正常运行 (Active & Connected)')}</span>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '12px',
+                  padding: 'var(--space-3)',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-hairline)'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {t('settingsPage.appVersionLabel', '应用版本')}
+                    </span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                      {APP_VERSION}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {t('settingsPage.buildDateLabel', '构建日期')}
+                    </span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                      {BUILD_DATE}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {t('settingsPage.releaseCodenameLabel', '发行代号')}
+                    </span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--accent-blue)' }}>
+                      {RELEASE_CODENAME}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {t('settingsPage.environmentLabel', '运行环境')}
+                    </span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                      Cloud Production
+                    </span>
                   </div>
                 </div>
               </div>
