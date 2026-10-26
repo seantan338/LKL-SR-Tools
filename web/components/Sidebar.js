@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth-context';
 import { useI18n } from '../lib/i18n-context';
+import { APP_VERSION } from '../lib/version';
 
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
@@ -113,11 +114,23 @@ export default function Sidebar({ isOpen, closeSidebar }) {
           </div>
 
           <div className="sidebar-footer">
-            <div className="sidebar-data-status">
+            <div className="sidebar-data-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
               <div className="status-indicator">
                 <span className="status-dot"></span>
                 <span>{t('brand.statusConnected', 'Firebase Connected')}</span>
               </div>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: '700',
+                color: 'var(--accent-blue)',
+                background: 'rgba(59, 130, 246, 0.12)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                letterSpacing: '0.03em'
+              }}>
+                {APP_VERSION}
+              </span>
             </div>
 
             <Link href="/docs" className="sidebar-action-btn" onClick={closeSidebar}>
