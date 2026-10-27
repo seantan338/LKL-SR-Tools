@@ -13,9 +13,6 @@ const getApiUrl = (path) => {
   return path;
 };
 
-// Feature toggle: Temporarily disabled per user preference; set to true to re-enable 4-phase lunch clocking
-const ENABLE_LUNCH_PUNCH = false;
-
 export default function AttendanceModal() {
   const { user, userProfile, teamId, isOwner, isManager, isHqTeam } = useAuth();
   const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
@@ -39,6 +36,7 @@ export default function AttendanceModal() {
   const [attendanceRules, setAttendanceRules] = useState({
     enabled: true,
     allowWfh: true,
+    enableLunchPunch: false,
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
@@ -47,6 +45,8 @@ export default function AttendanceModal() {
     officeWifi: { allowedIps: [] },
     shiftConfig: DEFAULT_SHIFT_CONFIG
   });
+
+  const enableLunchPunch = Boolean(attendanceRules?.enableLunchPunch);
   const [toastMsg, setToastMsg] = useState('');
   const [appleHelpMsg, setAppleHelpMsg] = useState('');
   const [earlyClockOutWarning, setEarlyClockOutWarning] = useState(null);
@@ -183,14 +183,14 @@ export default function AttendanceModal() {
 
   // Recommended next punch action
   const recommendedPunchType = useMemo(() => {
-    if (ENABLE_LUNCH_PUNCH) {
+    if (enableLunchPunch) {
       if (!todayClockIn) return 'CLOCK_IN';
       if (!todayLunchOut) return 'LUNCH_OUT';
       if (!todayLunchIn) return 'LUNCH_IN';
       return 'CLOCK_OUT';
     }
     return !todayClockIn ? 'CLOCK_IN' : 'CLOCK_OUT';
-  }, [todayClockIn, todayLunchOut, todayLunchIn]);
+  }, [enableLunchPunch, todayClockIn, todayLunchOut, todayLunchIn]);
 
   const [selectedPunchType, setSelectedPunchType] = useState(null);
   const activePunch = selectedPunchType || recommendedPunchType;
@@ -539,14 +539,14 @@ export default function AttendanceModal() {
       dot: 'var(--accent-blue)',
       text: t('attendanceModal.statusClockedOut', { time: outTimeStr }, '今日已下班签退 ({time})')
     };
-  } else if (ENABLE_LUNCH_PUNCH && todayLunchOut && !todayLunchIn) {
+  } else if (enableLunchPunch && todayLunchOut && !todayLunchIn) {
     statusBadge = {
       bg: 'rgba(245, 158, 11, 0.15)',
       color: 'var(--accent-amber)',
       dot: 'var(--accent-amber)',
       text: t('attendanceModal.statusLunchOut', { time: lunchOutTimeStr }, '午休中 · 离开 ({time})')
     };
-  } else if (ENABLE_LUNCH_PUNCH && todayLunchIn) {
+  } else if (enableLunchPunch && todayLunchIn) {
     statusBadge = {
       bg: 'rgba(6, 182, 212, 0.15)',
       color: 'var(--accent-cyan, #06b6d4)',
@@ -772,8 +772,8 @@ export default function AttendanceModal() {
           {/* Today Attendance Grid (2 cards when lunch punch disabled, 4 cards when enabled) */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: ENABLE_LUNCH_PUNCH ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)',
-            gap: ENABLE_LUNCH_PUNCH ? '6px' : 'var(--space-3)',
+            gridTemplateColumns: enableLunchPunch ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)',
+            gap: enableLunchPunch ? '6px' : 'var(--space-3)',
             marginBottom: 'var(--space-4)',
             textAlign: 'center',
             fontSize: '11px'
@@ -783,24 +783,24 @@ export default function AttendanceModal() {
               onClick={() => setSelectedPunchType('CLOCK_IN')}
               style={{
                 background: activePunch === 'CLOCK_IN' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255,255,255,0.02)',
-                padding: ENABLE_LUNCH_PUNCH ? '8px 4px' : '12px 8px',
+                padding: enableLunchPunch ? '8px 4px' : '12px 8px',
                 borderRadius: 'var(--radius-md)',
                 border: activePunch === 'CLOCK_IN' ? '1px solid var(--accent-emerald)' : '1px solid var(--border-hairline)',
                 cursor: 'pointer',
                 transition: 'all 0.15s'
               }}
             >
-              <div style={{ color: inTimeStr ? 'var(--accent-emerald)' : 'var(--text-muted)', marginBottom: '3px', fontWeight: '600', fontSize: ENABLE_LUNCH_PUNCH ? '11px' : '13px' }}>
+              <div style={{ color: inTimeStr ? 'var(--accent-emerald)' : 'var(--text-muted)', marginBottom: '3px', fontWeight: '600', fontSize: enableLunchPunch ? '11px' : '13px' }}>
                 <i className="ph-bold ph-sign-in" style={{ marginRight: '3px' }}></i>
                 {t('attendanceModal.clockInLabel', '上班')}
               </div>
-              <div style={{ fontWeight: '700', color: inTimeStr ? 'var(--accent-emerald)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: ENABLE_LUNCH_PUNCH ? '11px' : '13px' }}>
+              <div style={{ fontWeight: '700', color: inTimeStr ? 'var(--accent-emerald)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: enableLunchPunch ? '11px' : '13px' }}>
                 {inTimeStr ? inTimeStr.slice(0, 5) : t('attendanceModal.notClockedIn', '未签到')}
               </div>
             </div>
 
             {/* Stage 2 & 3: Lunch Out & In (When enabled) */}
-            {ENABLE_LUNCH_PUNCH && (
+            {enableLunchPunch && (
               <>
                 <div
                   onClick={() => setSelectedPunchType('LUNCH_OUT')}
@@ -849,25 +849,25 @@ export default function AttendanceModal() {
               onClick={() => setSelectedPunchType('CLOCK_OUT')}
               style={{
                 background: activePunch === 'CLOCK_OUT' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255,255,255,0.02)',
-                padding: ENABLE_LUNCH_PUNCH ? '8px 4px' : '12px 8px',
+                padding: enableLunchPunch ? '8px 4px' : '12px 8px',
                 borderRadius: 'var(--radius-md)',
                 border: activePunch === 'CLOCK_OUT' ? '1px solid var(--accent-blue)' : '1px solid var(--border-hairline)',
                 cursor: 'pointer',
                 transition: 'all 0.15s'
               }}
             >
-              <div style={{ color: outTimeStr ? 'var(--accent-blue)' : 'var(--text-muted)', marginBottom: '3px', fontWeight: '600', fontSize: ENABLE_LUNCH_PUNCH ? '11px' : '12px' }}>
+              <div style={{ color: outTimeStr ? 'var(--accent-blue)' : 'var(--text-muted)', marginBottom: '3px', fontWeight: '600', fontSize: enableLunchPunch ? '11px' : '12px' }}>
                 <i className="ph-bold ph-sign-out" style={{ marginRight: '3px' }}></i>
                 {t('attendanceModal.clockOutLabel', '下班')}
               </div>
-              <div style={{ fontWeight: '700', color: outTimeStr ? 'var(--accent-blue)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: ENABLE_LUNCH_PUNCH ? '11px' : '13px' }}>
+              <div style={{ fontWeight: '700', color: outTimeStr ? 'var(--accent-blue)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: enableLunchPunch ? '11px' : '13px' }}>
                 {outTimeStr ? outTimeStr.slice(0, 5) : t('attendanceModal.pendingClockOut', '待签退')}
               </div>
             </div>
           </div>
 
           {/* Quick Action Selector Pills (Only shown when lunch punch is enabled) */}
-          {ENABLE_LUNCH_PUNCH && (
+          {enableLunchPunch && (
             <div style={{
               display: 'flex',
               gap: '4px',
@@ -1083,7 +1083,7 @@ export default function AttendanceModal() {
               </div>
             )}
 
-            {!ENABLE_LUNCH_PUNCH ? (
+            {!enableLunchPunch ? (
               !todayClockIn ? (
                 <button
                   className="btn btn-primary"

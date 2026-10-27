@@ -556,6 +556,7 @@ export const FirestoreStore = {
     const defaultRules = {
       enabled: true,
       allowWfh: true,
+      enableLunchPunch: false,
       maxDistanceMeters: 100,
       maxDriftCompensation: 40,
       officeLocations: [

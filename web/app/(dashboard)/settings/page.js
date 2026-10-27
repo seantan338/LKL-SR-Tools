@@ -19,7 +19,8 @@ import { authFetch } from '../../../lib/api-client';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../../../lib/version';
 
 export default function SettingsPage() {
-  const { teamId, user, isOwner, signInWithGoogleSheets } = useAuth();
+  const { teamId, user, isOwner, isManager, signInWithGoogleSheets } = useAuth();
+  const canManageAttendance = Boolean(isOwner || isManager);
   const { showToast, confirm } = useFeedback();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
@@ -47,6 +48,41 @@ export default function SettingsPage() {
 
   // Global Theme Selection State
   const [currentTheme, setCurrentTheme] = useState('dark');
+
+  // Attendance & Punch Mode Settings State
+  const [attendanceRules, setAttendanceRules] = useState(null);
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+
+  useEffect(() => {
+    if (!teamId) return;
+    const unsub = FirestoreStore.subscribeToAttendanceRules(teamId, (rules) => {
+      if (rules) setAttendanceRules(rules);
+    });
+    return () => unsub();
+  }, [teamId]);
+
+  const handleToggleLunchPunch = async (enabled) => {
+    if (!teamId || !attendanceRules) return;
+    try {
+      setIsSavingAttendance(true);
+      const updated = {
+        ...attendanceRules,
+        enableLunchPunch: enabled
+      };
+      await FirestoreStore.saveAttendanceRules(teamId, updated);
+      setAttendanceRules(updated);
+      showToast(
+        enabled
+          ? t('settingsPage.lunchPunchEnabledToast', '已启用午休打卡 (4段式打卡)，全员实时生效')
+          : t('settingsPage.lunchPunchDisabledToast', '已停用午休打卡 (恢复2段式打卡)，全员实时生效')
+      );
+    } catch (err) {
+      console.error('Failed to update attendance lunch punch rule:', err);
+      showToast(t('settingsPage.lunchPunchSaveError', '保存考勤设置失败，请稍后重试'));
+    } finally {
+      setIsSavingAttendance(false);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -2028,6 +2064,61 @@ function onEdit(e) {
                 </div>
               </div>
             </div>
+
+            {/* Attendance & Clock-In Preferences Section */}
+            {canManageAttendance && (
+              <div className="form-section">
+                <h4 style={{ fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 'var(--space-3)' }}>
+                  {t('settingsPage.attendanceSectionTitle', '考勤与打卡偏好配置')}
+                </h4>
+                <div style={{ padding: 'var(--space-5)', background: 'var(--card-bg, #ffffff)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-hairline)', boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="ph-bold ph-coffee" style={{ color: 'var(--accent-amber)' }}></i>
+                        <span>{t('analytics.lunchPunchSwitchTitle', '启用午休打卡 (4段式考勤)')}</span>
+                      </label>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6, maxWidth: '640px' }}>
+                        {t('analytics.lunchPunchSwitchDesc', '开启后考勤弹窗启用「上班 ➔ 午休离开 ➔ 午休返回 ➔ 下班」4段式打卡与午休状态追踪；关闭则自动恢复极简「上班 / 下班」2段式打卡。')}
+                      </p>
+                    </div>
+
+                    <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '24px', cursor: isSavingAttendance ? 'not-allowed' : 'pointer', flexShrink: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(attendanceRules?.enableLunchPunch)}
+                        disabled={isSavingAttendance || !attendanceRules}
+                        onChange={(e) => handleToggleLunchPunch(e.target.checked)}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                        background: Boolean(attendanceRules?.enableLunchPunch) ? 'var(--accent-amber)' : 'rgba(255,255,255,0.15)',
+                        borderRadius: '24px', transition: '0.3s'
+                      }}>
+                        <span style={{
+                          position: 'absolute', content: '""', height: '18px', width: '18px', left: Boolean(attendanceRules?.enableLunchPunch) ? '26px' : '3px', bottom: '3px',
+                          background: '#fff', borderRadius: '50%', transition: '0.3s'
+                        }}></span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Quick link to Analytics Attendance Rules */}
+                  <div style={{ paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      💡 {t('settingsPage.attendanceMoreHint', '需要配置考勤 Wi-Fi 出口 IP 白名单、地理围栏或阶梯弹性班次？')}
+                    </span>
+                    <a
+                      href="/analytics"
+                      style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}
+                    >
+                      {t('settingsPage.goToAnalyticsAttendance', '前往打卡记录看板进行高级配置 ➔')}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* System Version & Cloud Build Status Section (v1.6.0) */}
             <div className="form-section">

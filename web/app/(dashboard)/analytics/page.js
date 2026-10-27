@@ -53,6 +53,7 @@ export default function AnalyticsPage() {
   const [attendanceRules, setAttendanceRules] = useState({
     enabled: true,
     allowWfh: true,
+    enableLunchPunch: false,
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
@@ -2135,6 +2136,37 @@ export default function AnalyticsPage() {
                   }}>
                     <span style={{
                       position: 'absolute', content: '""', height: '18px', width: '18px', left: editingRules.allowWfh !== false ? '26px' : '3px', bottom: '3px',
+                      background: '#fff', borderRadius: '50%', transition: '0.3s'
+                    }}></span>
+                  </span>
+                </label>
+              </div>
+
+              {/* Enable Lunch Break 4-Phase Punch Switch */}
+              <div style={{ background: 'rgba(245, 158, 11, 0.06)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.25)', marginBottom: 'var(--space-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph-bold ph-coffee" style={{ color: 'var(--accent-amber)' }}></i>
+                    {t('analytics.lunchPunchSwitchTitle', '启用午休打卡 (4段式考勤)')}
+                  </div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    {t('analytics.lunchPunchSwitchDesc', '开启后考勤弹窗启用「上班 ➔ 午休离开 ➔ 午休返回 ➔ 下班」4段式打卡与午休状态追踪；关闭则自动恢复极简「上班 / 下班」2段式打卡。')}
+                  </div>
+                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '24px', cursor: 'pointer', flexShrink: 0, marginLeft: 'var(--space-3)' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editingRules.enableLunchPunch)}
+                    onChange={(e) => setEditingRules({ ...editingRules, enableLunchPunch: e.target.checked })}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    background: Boolean(editingRules.enableLunchPunch) ? 'var(--accent-amber)' : 'rgba(255,255,255,0.15)',
+                    borderRadius: '24px', transition: '0.3s'
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: '""', height: '18px', width: '18px', left: Boolean(editingRules.enableLunchPunch) ? '26px' : '3px', bottom: '3px',
                       background: '#fff', borderRadius: '50%', transition: '0.3s'
                     }}></span>
                   </span>
