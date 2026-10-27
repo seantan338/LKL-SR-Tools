@@ -77,6 +77,7 @@ export default function AnalyticsPage() {
   const [selectedOverrideShiftId, setSelectedOverrideShiftId] = useState('');
   const [overrideReasonInput, setOverrideReasonInput] = useState('');
   const [isSavingOverride, setIsSavingOverride] = useState(false);
+  const [earlyClockOutModal, setEarlyClockOutModal] = useState(null);
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -298,6 +299,11 @@ export default function AnalyticsPage() {
           manualClockOut: null,
           verifyMethod: meta.verifyMethod || null,
           verifySnapshot: meta.verifySnapshot || null,
+          allClockIns: [],
+          allClockOuts: [],
+          allLunchOuts: [],
+          allLunchIns: [],
+          allPunches: [],
           actions: []
         };
       }
@@ -307,27 +313,50 @@ export default function AnalyticsPage() {
       if (dateObj < rec.firstActionTime) rec.firstActionTime = dateObj;
       if (dateObj > rec.lastActionTime) rec.lastActionTime = dateObj;
 
-      if (actionType === 'CLOCK_IN' && !rec.manualClockIn) {
-        rec.manualClockIn = dateObj;
-        if (meta.verifyMethod) {
-          rec.verifyMethod = meta.verifyMethod;
-          rec.verifySnapshot = meta.verifySnapshot;
+      const timeStr = dateObj.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const punchItem = {
+        actionType,
+        time: dateObj,
+        timeStr,
+        verifyMethod: meta.verifyMethod || null,
+        verifySnapshot: meta.verifySnapshot || null,
+        note
+      };
+      rec.allPunches.push(punchItem);
+
+      if (actionType === 'CLOCK_IN' || actionType === 'CHECK_IN') {
+        rec.allClockIns.push(punchItem);
+        // 上班签到始终取当天最早的一次打卡
+        if (!rec.manualClockIn || dateObj < rec.manualClockIn) {
+          rec.manualClockIn = dateObj;
+          if (meta.verifyMethod) {
+            rec.verifyMethod = meta.verifyMethod;
+            rec.verifySnapshot = meta.verifySnapshot;
+          }
         }
       } else if (actionType === 'LUNCH_OUT') {
-        rec.manualLunchOut = dateObj;
+        rec.allLunchOuts.push(punchItem);
+        if (!rec.manualLunchOut || dateObj < rec.manualLunchOut) {
+          rec.manualLunchOut = dateObj;
+        }
       } else if (actionType === 'LUNCH_IN') {
-        rec.manualLunchIn = dateObj;
-      } else if (actionType === 'CLOCK_OUT') {
-        rec.manualClockOut = dateObj;
-        if (meta.verifyMethod && !rec.verifyMethod) {
-          rec.verifyMethod = meta.verifyMethod;
-          rec.verifySnapshot = meta.verifySnapshot;
+        rec.allLunchIns.push(punchItem);
+        if (!rec.manualLunchIn || dateObj > rec.manualLunchIn) {
+          rec.manualLunchIn = dateObj;
+        }
+      } else if (actionType === 'CLOCK_OUT' || actionType === 'CHECK_OUT') {
+        rec.allClockOuts.push(punchItem);
+        // 下班签退始终取当天最晚的一次打卡（支持多次打卡自动覆盖）
+        if (!rec.manualClockOut || dateObj > rec.manualClockOut) {
+          rec.manualClockOut = dateObj;
+          if (meta.verifyMethod) {
+            rec.verifyMethod = meta.verifyMethod;
+            rec.verifySnapshot = meta.verifySnapshot;
+          }
         }
       }
 
-      if (rec.actions.length < 5) {
-        rec.actions.push({ actionType, note, time: dateObj });
-      }
+      rec.actions.push({ actionType, note, time: dateObj });
     };
 
     // 1. Process explicit manual check-ins from dedicated collection
@@ -379,6 +408,11 @@ export default function AnalyticsPage() {
 
     const result = Object.values(recordMap).map(r => {
       const isToday = r.date === todayStr;
+
+      // 排序保留的所有打卡流水（升序）
+      r.allClockIns.sort((a, b) => a.time.getTime() - b.time.getTime());
+      r.allClockOuts.sort((a, b) => a.time.getTime() - b.time.getTime());
+      r.allPunches.sort((a, b) => a.time.getTime() - b.time.getTime());
       
       // 组装当日实际打卡事件流供 CascadeShiftEngine 判定
       const dayEvents = [];
@@ -760,6 +794,40 @@ export default function AnalyticsPage() {
       setIsClockingIn(false);
       setClockInStatusMsg('');
     }
+  };
+
+  // Top Bar Guarded Clock-Out Handler (提前签退防呆拦截确认)
+  const handleTopClockOut = (force = false) => {
+    if (force) {
+      setEarlyClockOutModal(null);
+      executeAttendanceCheckin('CLOCK_OUT');
+      return;
+    }
+
+    const canonical = resolveCanonicalPic(userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0], user?.uid, teamMembers);
+    const myTodayRecord = picAttendanceRecords.find(r => r.isToday && (r.userEmail === user?.email || r.picName === canonical.displayName));
+
+    if (myTodayRecord?.manualClockIn) {
+      const shift = myTodayRecord.shiftAnalysis?.shift || CascadeShiftEngine.matchShift(myTodayRecord.manualClockIn, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+      const now = new Date();
+      const nowMin = CascadeShiftEngine.getDateMinutesOfDay(now);
+
+      if (shift && typeof shift.endMinutes === 'number' && nowMin < shift.endMinutes) {
+        const diffSec = Math.round((shift.endMinutes - nowMin) * 60);
+        const desc = diffSec >= 60
+          ? t('attendanceModal.timeMinSec', { m: Math.floor(diffSec / 60), s: diffSec % 60 }, `${Math.floor(diffSec / 60)}分${diffSec % 60}秒`)
+          : t('attendanceModal.timeSec', { s: diffSec }, `${diffSec}秒`);
+
+        setEarlyClockOutModal({
+          shift,
+          diffSec,
+          desc
+        });
+        return;
+      }
+    }
+
+    executeAttendanceCheckin('CLOCK_OUT');
   };
 
   // 1-Click Detect and Append Current IP
@@ -1334,7 +1402,7 @@ export default function AnalyticsPage() {
               className="btn btn-sm btn-outline"
               style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px', fontWeight: '600' }}
               disabled={isClockingIn}
-              onClick={() => executeAttendanceCheckin('CLOCK_OUT')}
+              onClick={() => handleTopClockOut()}
               title={t('analytics.clockOutTitle', '下班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
             >
               <i className="ph-bold ph-sign-out"></i>
@@ -1723,15 +1791,49 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                {firstTimeStr}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                  {firstTimeStr}
+                                </span>
+                                {item.allClockIns && item.allClockIns.length > 1 && (
+                                  <span
+                                    style={{
+                                      fontSize: '10px',
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      background: 'rgba(16, 185, 129, 0.15)',
+                                      color: 'var(--accent-emerald)',
+                                      cursor: 'help'
+                                    }}
+                                    title={t('analytics.multipleClockInTip', { count: item.allClockIns.length, list: item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n') }, `共 ${item.allClockIns.length} 次签到打卡\n` + item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n'))}
+                                  >
+                                    x{item.allClockIns.length}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                               {clockOutTimeStr ? (
-                                <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                  {clockOutTimeStr}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                    {clockOutTimeStr}
+                                  </span>
+                                  {item.allClockOuts && item.allClockOuts.length > 1 && (
+                                    <span
+                                      style={{
+                                        fontSize: '10px',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(59, 130, 246, 0.15)',
+                                        color: 'var(--accent-blue)',
+                                        cursor: 'help'
+                                      }}
+                                      title={t('analytics.multipleClockOutTip', { count: item.allClockOuts.length, list: item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n') }, `共 ${item.allClockOuts.length} 次签退打卡\n` + item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n'))}
+                                    >
+                                      x{item.allClockOuts.length}
+                                    </span>
+                                  )}
+                                </div>
                               ) : (
                                 <span style={{ color: 'var(--text-muted)' }}>-</span>
                               )}
@@ -1876,8 +1978,11 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
-                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.actions.map(a => a.note).join('; ')}>
-                                {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '候选人状态更新与跟进')) : t('analytics.onlineProgressNote', '在线跟进')}
+                              <div
+                                style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                title={item.allPunches && item.allPunches.length > 0 ? item.allPunches.map(p => `[${p.timeStr}] ${p.actionType}: ${p.note || ''}`).join('\n') : item.actions.map(a => a.note).join('; ')}
+                              >
+                                {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '员工考勤打卡')) : t('analytics.onlineProgressNote', '在线跟进')}
                               </div>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
@@ -2623,6 +2728,66 @@ export default function AnalyticsPage() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Early Clock-Out Warning Modal (提前签退防呆拦截确认) */}
+      {earlyClockOutModal && (
+        <div className="modal-backdrop" onClick={() => setEarlyClockOutModal(null)}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', width: '90%', animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)', border: '1px solid rgba(239, 68, 68, 0.4)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: 'var(--space-3)' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                <i className="ph-bold ph-warning-circle" style={{ fontSize: '20px' }}></i>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: '#f87171' }}>
+                  {t('attendanceModal.earlyWarningTitle', '⚠️ 提前签退预警 (严格考核)')}
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                  {t('analytics.earlyCutoffNotice', '未达核定班次底线签退将触发违规记录')}
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 14px',
+              fontSize: '13px',
+              lineHeight: 1.6,
+              color: 'var(--text-primary)',
+              marginBottom: 'var(--space-4)',
+              border: '1px solid var(--border-subtle)'
+            }}>
+              {t('attendanceModal.earlyWarningText', {
+                end: earlyClockOutModal.shift?.endStr || '18:00',
+                desc: earlyClockOutModal.desc
+              }, `当前核定下班底线为 ${earlyClockOutModal.shift?.endStr || '18:00'}，距离达标还差 ${earlyClockOutModal.desc}。提前签退将直接按迟到/违规计入考勤！`)}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: '13px', fontWeight: '600' }}
+                onClick={() => setEarlyClockOutModal(null)}
+              >
+                {t('attendanceModal.earlyWait', '再等一下 (保住全勤)')}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ background: '#ef4444', color: '#fff', fontSize: '13px', fontWeight: '700', border: 'none' }}
+                onClick={() => handleTopClockOut(true)}
+              >
+                {t('attendanceModal.earlyForce', '坚持提前签退')}
+              </button>
+            </div>
           </div>
         </div>
       )}

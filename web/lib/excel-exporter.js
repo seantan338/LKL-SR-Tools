@@ -412,9 +412,16 @@ export const ExcelExporter = {
             ? labels.methodGps
             : log.verifyMethod || labels.methodRegular;
 
-      const verifyDetails = log.verifySnapshot?.ip
-        ? `IP: ${log.verifySnapshot.ip}; ${a.note || ''}`
-        : (a.note || '-');
+      // 提取全部打卡事件流水，多余打卡痕迹全保留
+      const punchFlow = Array.isArray(log.events) && log.events.length > 2
+        ? `[全部打卡: ${log.events.map(e => `${e.type === 'CLOCK_IN' ? '签到' : e.type === 'CLOCK_OUT' ? '签退' : e.type} ${e.dateObj ? e.dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}`).join('; ')}]`
+        : null;
+
+      const verifyDetails = [
+        log.verifySnapshot?.ip ? `IP: ${log.verifySnapshot.ip}` : null,
+        a.note ? a.note : null,
+        punchFlow
+      ].filter(Boolean).join('; ') || '-';
 
       return [
         log.dateStr,

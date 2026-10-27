@@ -136,11 +136,18 @@ export default function AttendanceModal() {
   }, [currentTime]);
 
   const todayClockIn = useMemo(() => {
-    return userRecords.find(r => {
+    const list = userRecords.filter(r => {
       const d = r.timestamp?.toDate ? r.timestamp.toDate() : new Date(r.timestamp);
       const str = d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
       return str === todayDateStr && (r.type === 'CLOCK_IN' || !r.type);
     });
+    if (list.length === 0) return null;
+    // 上班签到始终取当天最早的一次
+    return list.reduce((earliest, cur) => {
+      const curTime = cur.timestamp?.toDate ? cur.timestamp.toDate().getTime() : new Date(cur.timestamp).getTime();
+      const earTime = earliest.timestamp?.toDate ? earliest.timestamp.toDate().getTime() : new Date(earliest.timestamp).getTime();
+      return curTime < earTime ? cur : earliest;
+    }, list[0]);
   }, [userRecords, todayDateStr]);
 
   const todayLunchOut = useMemo(() => {
@@ -160,11 +167,18 @@ export default function AttendanceModal() {
   }, [userRecords, todayDateStr]);
 
   const todayClockOut = useMemo(() => {
-    return userRecords.find(r => {
+    const list = userRecords.filter(r => {
       const d = r.timestamp?.toDate ? r.timestamp.toDate() : new Date(r.timestamp);
       const str = d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
       return str === todayDateStr && r.type === 'CLOCK_OUT';
     });
+    if (list.length === 0) return null;
+    // 下班签退始终取当天最晚的一次
+    return list.reduce((latest, cur) => {
+      const curTime = cur.timestamp?.toDate ? cur.timestamp.toDate().getTime() : new Date(cur.timestamp).getTime();
+      const latTime = latest.timestamp?.toDate ? latest.timestamp.toDate().getTime() : new Date(latest.timestamp).getTime();
+      return curTime > latTime ? cur : latest;
+    }, list[0]);
   }, [userRecords, todayDateStr]);
 
   // Recommended next punch action
