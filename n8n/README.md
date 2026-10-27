@@ -97,7 +97,7 @@
 - **改名 / 删除的行**：表格里已找不到、但系统中仍在招聘的岗位会列在推送消息里，系统不会自动删除或关闭，由你确认处理。
 
 ### 设置步骤
-1. **Config 节点**：填写 `apiBaseUrl`（后端地址，例如 Zeabur 的 `https://xxx.zeabur.app`；本地 Docker n8n 可用 `http://host.docker.internal:8000`）和 `telegramChatId`。想先试跑可把 `dryRun` 设为 `true`。
+1. **Config 节点**：填写 `apiBaseUrl`（后端地址，例如 Zeabur 的 `https://xxx.zeabur.app`；本地 Docker n8n 可用 `http://host.docker.internal:8000`）和 `telegramChatId`。`dryRun` 默认为 `true`（只报告不写入），试跑确认后改为 `false`。
 2. **Sync Job Orders 节点** → Credential → 新建 **Header Auth**：Name = `X-API-Key`，Value = 后端环境变量 `INTERNAL_API_SECRET` 的值。
 3. **Telegram Notify 节点** → 选择已有的 Telegram Bot 凭据。
 4. 点 **Test workflow** 确认 Telegram 收到消息后，打开右上角 **Active**。
