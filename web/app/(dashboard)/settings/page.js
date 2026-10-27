@@ -1428,7 +1428,9 @@ function onEdit(e) {
                       <button className="btn btn-secondary btn-sm" onClick={handleFetchSheet} disabled={!sheetUrl || isFetchingSheet || isImporting}>
                         <i className={`ph-light ${isFetchingSheet ? 'ph-spinner ph-spin' : 'ph-download-simple'}`}></i> {t('settingsPage.fetchBtn', '拉取并预览数据')}
                       </button>
-                      {(sheetStatus === '该表格是私有的，需要授权。' || sheetStatus === t('settingsPage.privateSheetStatus')) && (
+                      {/* A private sheet's CSV export fails with a CORS error rather than a "Sign in" page, so the
+                          status never matches PRIVATE_SHEET — offer Google authorization whenever a URL is entered */}
+                      {sheetUrl && (
                         <button className="btn btn-secondary btn-sm" onClick={handleAuthAndFetchSheet} disabled={isFetchingSheet}>
                           <i className="ph-light ph-google-logo"></i> {t('settingsPage.authBtn')}
                         </button>
