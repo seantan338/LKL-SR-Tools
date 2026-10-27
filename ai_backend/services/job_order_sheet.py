@@ -198,6 +198,10 @@ def find_existing_job_order(existing: List[Dict[str, Any]], order: Dict[str, Any
     return None
 
 
+# Bookkeeping fields that never count as a change (sourceRow shifts whenever a row is inserted above it)
+UNTRACKED_FIELDS = {"sourceRow", "updatedAt", "createdAt", "id", "assignedTo"}
+
+
 def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_assigned_to: str = "system",
                       dry_run: bool = True) -> Dict[str, Any]:
     """
@@ -223,11 +227,11 @@ def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_as
         nonlocal batch, pending
         if batch is not None and pending:
             batch.commit()
-            logger.info(f"Committed {len(created) + len(updated)}/{len(orders)} job orders")
+            logger.info(f"Committed {len(created) + len(updated)} job order writes ({len(unchanged)} unchanged)")
             batch = db.batch()
             pending = 0
 
-    created, updated = [], []
+    created, updated, unchanged = [], [], []
     for order in orders:
         payload = dict(order)
         assigned_to = ""
@@ -241,13 +245,23 @@ def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_as
             assigned_to = default_assigned_to
 
         match = find_existing_job_order(existing, payload)
-        payload["updatedAt"] = firestore.SERVER_TIMESTAMP
         if match:
-            updated.append({"id": match["id"], "company": payload["company"], "position": payload["position"]})
+            # Only write orders whose sheet data actually changed, so a daily sync reports real changes
+            changed = {k: v for k, v in payload.items() if k not in UNTRACKED_FIELDS and match.get(k) != v}
+            if not changed:
+                unchanged.append(match["id"])
+                continue
+            item = {"id": match["id"], "company": payload["company"], "position": payload["position"],
+                    "changedFields": sorted(changed)}
+            if "status" in changed:
+                item["statusChange"] = [match.get("status"), changed["status"]]
+            updated.append(item)
+            payload["updatedAt"] = firestore.SERVER_TIMESTAMP
             if batch is not None:
                 batch.update(coll.document(match["id"]), payload)
                 pending += 1
         else:
+            payload["updatedAt"] = firestore.SERVER_TIMESTAMP
             order_id = str(uuid.uuid4())
             payload.update({"id": order_id, "assignedTo": assigned_to, "createdAt": firestore.SERVER_TIMESTAMP})
             created.append({"id": order_id, "company": payload["company"], "position": payload["position"]})
@@ -260,4 +274,4 @@ def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_as
             flush()
     flush()
 
-    return {"created": created, "updated": updated, "dryRun": dry_run}
+    return {"created": created, "updated": updated, "unchanged": len(unchanged), "dryRun": dry_run}

@@ -1,3 +1,4 @@
+import json
 import os
 from typing import List, Dict, Any, Optional
 from google.oauth2 import service_account
@@ -27,16 +28,26 @@ def get_sheets_service(credentials_path: Optional[str] = None):
         if os.path.exists(candidate_path):
             cred_file = candidate_path
 
-    if not os.path.exists(cred_file):
-        error_msg = (
-            f"Google Service Account 凭据文件未找到: '{cred_file}'。\n"
-            "请在 ai_backend 目录下放置 credentials.json，"
-            "或通过环境变量 GOOGLE_SERVICE_ACCOUNT_FILE 指定路径。"
-        )
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
+    if os.path.exists(cred_file):
+        creds = service_account.Credentials.from_service_account_file(cred_file, scopes=SCOPES)
+    else:
+        # Hosted deploys (Zeabur / Render) only carry the key as an env var; the Firebase Admin
+        # service account can read Sheets too once the sheet is shared with its client_email
+        raw_json = (os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+        firebase_key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json")
+        if raw_json:
+            creds = service_account.Credentials.from_service_account_info(json.loads(raw_json), scopes=SCOPES)
+        elif os.path.exists(firebase_key_file):
+            creds = service_account.Credentials.from_service_account_file(firebase_key_file, scopes=SCOPES)
+        else:
+            error_msg = (
+                f"Google Service Account 凭据文件未找到: '{cred_file}'。\n"
+                "请在 ai_backend 目录下放置 credentials.json，"
+                "或通过环境变量 GOOGLE_SERVICE_ACCOUNT_FILE / GOOGLE_SERVICE_ACCOUNT_JSON / FIREBASE_SERVICE_ACCOUNT_JSON 提供。"
+            )
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
 
-    creds = service_account.Credentials.from_service_account_file(cred_file, scopes=SCOPES)
     service = build("sheets", "v4", credentials=creds, cache_discovery=False)
     return service
 
