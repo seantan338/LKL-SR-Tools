@@ -51,11 +51,19 @@ export default function P0NoticeModal() {
 
   if (!activeNotice) return null;
 
-  const hasBilingual = Boolean(activeNotice.titleEn || activeNotice.contentEn);
+  const hasBilingual = Boolean(
+    (activeNotice.titleEn || activeNotice.contentEn) &&
+    (activeNotice.titleZh || activeNotice.contentZh || (activeNotice.title && activeNotice.title !== activeNotice.titleEn))
+  );
 
-  // 动态解析当前展示语言的标题与正文
-  const currentTitle = (viewLang === 'en' && activeNotice.titleEn) ? activeNotice.titleEn : activeNotice.title;
-  const currentContent = (viewLang === 'en' && activeNotice.contentEn) ? activeNotice.contentEn : activeNotice.content;
+  // 动态解析当前展示语言的标题与正文 (自适应回退：en模式优先取titleEn，zh模式优先取titleZh/title)
+  const currentTitle = viewLang === 'en'
+    ? (activeNotice.titleEn || activeNotice.title || activeNotice.titleZh || '')
+    : (activeNotice.titleZh || activeNotice.title || activeNotice.titleEn || '');
+
+  const currentContent = viewLang === 'en'
+    ? (activeNotice.contentEn || activeNotice.content || activeNotice.contentZh || '')
+    : (activeNotice.contentZh || activeNotice.content || activeNotice.contentEn || '');
 
   const handleAcknowledge = async () => {
     if (!user || isSubmitting) return;

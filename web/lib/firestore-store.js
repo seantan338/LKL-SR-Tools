@@ -812,6 +812,8 @@ export const FirestoreStore = {
       content: data.content || '',
       titleEn: data.titleEn || null,
       contentEn: data.contentEn || null,
+      titleZh: data.titleZh || null,
+      contentZh: data.contentZh || null,
       category: data.category || 'SUPERVISOR',
       priority: data.priority || 'P2_NORMAL',
       author: {

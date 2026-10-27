@@ -229,12 +229,15 @@ export default function AnnouncementsPage() {
   const [detailViewLang, setDetailViewLang] = useState(lang || 'zh'); // 详情弹窗当前查看语言 'zh' | 'en'
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 新建表单（增设双语栏位 titleEn & contentEn）
+  // 抽屉内双语编辑 Tab 状态（默认 English 主语言）
+  const [formLangTab, setFormLangTab] = useState('en'); // 'en' (default) | 'zh'
+
+  // 新建表单（English 为默认主字段，Chinese 为可选扩展）
   const [newNotice, setNewNotice] = useState({
-    title: '',
-    content: '',
     titleEn: '',
     contentEn: '',
+    titleZh: '',
+    contentZh: '',
     category: 'SUPERVISOR', // 'EXECUTIVE' | 'SUPERVISOR' | 'SYSTEM_UPDATE'
     priority: 'P2_NORMAL',   // 'P0_CRITICAL' | 'P1_HIGH' | 'P2_NORMAL' | 'P3_LOW'
     isPinned: false,
@@ -242,9 +245,6 @@ export default function AnnouncementsPage() {
     versionTag: '',
     changeTypes: ['feat']
   });
-
-  // 抽屉内双语栏位折叠/展开开关
-  const [isBilingualOpen, setIsBilingualOpen] = useState(false);
 
   // 右侧系统日志展开状态
   const [expandedLogId, setExpandedLogId] = useState('sys_v1_7_1');
@@ -328,8 +328,12 @@ export default function AnnouncementsPage() {
       if (categoryTab !== 'ALL' && item.category !== categoryTab) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const titleMatch = item.title?.toLowerCase().includes(q) || item.titleEn?.toLowerCase().includes(q);
-        const contentMatch = item.content?.toLowerCase().includes(q) || item.contentEn?.toLowerCase().includes(q);
+        const titleMatch = item.title?.toLowerCase().includes(q) ||
+                           item.titleEn?.toLowerCase().includes(q) ||
+                           item.titleZh?.toLowerCase().includes(q);
+        const contentMatch = item.content?.toLowerCase().includes(q) ||
+                             item.contentEn?.toLowerCase().includes(q) ||
+                             item.contentZh?.toLowerCase().includes(q);
         const authorMatch = item.author?.name?.toLowerCase().includes(q);
         if (!titleMatch && !contentMatch && !authorMatch) return false;
       }
@@ -337,19 +341,35 @@ export default function AnnouncementsPage() {
     });
   }, [businessAnnouncements, categoryTab, searchQuery]);
 
-  // 动态获取呈现的标题与正文（英文优先回退中文）
+  // 动态获取呈现的标题与正文（英文为默认语言，中文模式优先自适应呈现中文）
   const getDisplayTitle = (item, currentLang = lang) => {
+    if (!item) return '';
+    if (currentLang === 'zh' && item.titleZh?.trim()) {
+      return item.titleZh;
+    }
     if (currentLang === 'en' && item.titleEn?.trim()) {
       return item.titleEn;
     }
-    return item.title || item.titleEn || '';
+    return item.titleEn || item.title || item.titleZh || '';
   };
 
   const getDisplayContent = (item, currentLang = lang) => {
+    if (!item) return '';
+    if (currentLang === 'zh' && item.contentZh?.trim()) {
+      return item.contentZh;
+    }
     if (currentLang === 'en' && item.contentEn?.trim()) {
       return item.contentEn;
     }
-    return item.content || item.contentEn || '';
+    return item.contentEn || item.content || item.contentZh || '';
+  };
+
+  // 判断公告是否包含真正的双语（英文 + 中文）
+  const hasBilingual = (item) => {
+    if (!item) return false;
+    const hasEn = Boolean(item.titleEn?.trim() || item.contentEn?.trim());
+    const hasZh = Boolean(item.titleZh?.trim() || item.contentZh?.trim() || (item.title && item.title !== item.titleEn));
+    return hasEn && hasZh;
   };
 
   // 操作：标记知晓 / 收到
@@ -372,7 +392,8 @@ export default function AnnouncementsPage() {
   // 操作：打开详情弹窗
   const handleOpenDetail = (item) => {
     setDetailNotice(item);
-    setDetailViewLang(lang === 'en' && (item.titleEn || item.contentEn) ? 'en' : 'zh');
+    const preferZh = lang === 'zh' && (item.titleZh || item.contentZh || (item.title && item.title !== item.titleEn));
+    setDetailViewLang(preferZh ? 'zh' : 'en');
     if (user && (!myReads[item.id] || !myReads[item.id]?.ackAt)) {
       FirestoreStore.markAnnouncementRead(item.id, {
         uid: user.uid,
@@ -398,21 +419,34 @@ export default function AnnouncementsPage() {
     }
   };
 
-  // 操作：创建公告（支持双语存储）
+  // 操作：创建公告（默认 English 为主语言，可选填中文版）
   const handleCreateAnnouncement = async (e) => {
     e.preventDefault();
-    if (!newNotice.title.trim() || !newNotice.content.trim()) {
+    const enTitle = newNotice.titleEn.trim();
+    const enContent = newNotice.contentEn.trim();
+    const zhTitle = newNotice.titleZh.trim();
+    const zhContent = newNotice.contentZh.trim();
+
+    if (!enTitle && !zhTitle) {
       showToast(t('announcements.toastFillRequired', '请填写公告标题与内容'), 'warning');
+      setFormLangTab('en');
+      return;
+    }
+    if (!enContent && !zhContent) {
+      showToast(t('announcements.toastFillRequired', '请填写公告标题与内容'), 'warning');
+      setFormLangTab('en');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await FirestoreStore.createAnnouncement({
-        title: newNotice.title.trim(),
-        content: newNotice.content.trim(),
-        titleEn: newNotice.titleEn.trim() || null,
-        contentEn: newNotice.contentEn.trim() || null,
+        title: enTitle || zhTitle,
+        content: enContent || zhContent,
+        titleEn: enTitle || null,
+        contentEn: enContent || null,
+        titleZh: zhTitle || null,
+        contentZh: zhContent || null,
         category: newNotice.category,
         priority: newNotice.priority,
         isPinned: newNotice.isPinned,
@@ -431,10 +465,10 @@ export default function AnnouncementsPage() {
       showToast(t('announcements.toastCreateSuccess', '公告发布成功'), 'success');
       setIsCreateOpen(false);
       setNewNotice({
-        title: '',
-        content: '',
         titleEn: '',
         contentEn: '',
+        titleZh: '',
+        contentZh: '',
         category: 'SUPERVISOR',
         priority: 'P2_NORMAL',
         isPinned: false,
@@ -442,7 +476,7 @@ export default function AnnouncementsPage() {
         versionTag: '',
         changeTypes: ['feat']
       });
-      setIsBilingualOpen(false);
+      setFormLangTab('en');
     } catch (err) {
       console.error('Create announcement error:', err);
       showToast(t('announcements.toastCreateFailed', { msg: err.message }, `发布失败: ${err.message}`), 'error');
@@ -565,7 +599,7 @@ export default function AnnouncementsPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       {renderPriorityBadge(notice.priority)}
-                      {(notice.titleEn || notice.contentEn) && (
+                      {hasBilingual(notice) && (
                         <span style={{
                           fontSize: '0.7rem',
                           background: 'rgba(59, 130, 246, 0.18)',
@@ -749,7 +783,7 @@ export default function AnnouncementsPage() {
 
               {canManage && (
                 <button
-                  onClick={() => setIsCreateOpen(true)}
+                  onClick={() => { setFormLangTab('en'); setIsCreateOpen(true); }}
                   style={{
                     background: 'var(--accent-blue, #3b82f6)',
                     color: '#ffffff',
@@ -797,7 +831,7 @@ export default function AnnouncementsPage() {
 
                 const displayTitle = getDisplayTitle(item);
                 const displayContent = getDisplayContent(item);
-                const hasBilingual = Boolean(item.titleEn || item.contentEn);
+                const isBilingualItem = hasBilingual(item);
 
                 return (
                   <div
@@ -842,7 +876,7 @@ export default function AnnouncementsPage() {
                             <i className="ph-fill ph-push-pin"></i>
                           </span>
                         )}
-                        {hasBilingual && (
+                        {isBilingualItem && (
                           <span style={{
                             fontSize: '0.7rem',
                             background: 'rgba(59, 130, 246, 0.18)',
@@ -1385,8 +1419,8 @@ export default function AnnouncementsPage() {
                     : (detailNotice.category === 'SYSTEM_UPDATE' ? t('announcements.tabSystem', '系统更新') : t('announcements.tabSupervisor', '部门业务'))}
                 </span>
 
-                {/* 双语对照切换 Pill */}
-                {(detailNotice.titleEn || detailNotice.contentEn) && (
+                {/* 双语对照切换 Pill (English Default First, then Chinese) */}
+                {hasBilingual(detailNotice) && (
                   <div style={{
                     display: 'flex',
                     background: 'rgba(255,255,255,0.06)',
@@ -1395,22 +1429,6 @@ export default function AnnouncementsPage() {
                     marginLeft: '8px',
                     border: '1px solid rgba(255,255,255,0.1)'
                   }}>
-                    <button
-                      type="button"
-                      onClick={() => setDetailViewLang('zh')}
-                      style={{
-                        background: detailViewLang === 'zh' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
-                        color: detailViewLang === 'zh' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
-                        border: 'none',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: detailViewLang === 'zh' ? '700' : '500',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {t('announcements.langZh', '中文版')}
-                    </button>
                     <button
                       type="button"
                       onClick={() => setDetailViewLang('en')}
@@ -1426,6 +1444,22 @@ export default function AnnouncementsPage() {
                       }}
                     >
                       {t('announcements.langEn', 'English')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailViewLang('zh')}
+                      style={{
+                        background: detailViewLang === 'zh' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                        color: detailViewLang === 'zh' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
+                        border: 'none',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: detailViewLang === 'zh' ? '700' : '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {t('announcements.langZh', '中文版')}
                     </button>
                   </div>
                 )}
@@ -1649,138 +1683,178 @@ export default function AnnouncementsPage() {
                 </div>
               )}
 
-              {/* 默认语言标题 */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  {t('announcements.fieldTitle', '公告标题')} <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newNotice.title}
-                  onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                  placeholder={t('announcements.titlePlaceholder', '请输入醒目的通知标题...')}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(0,0,0,0.25)',
-                    border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
-                    borderRadius: '8px',
-                    padding: '9px 12px',
-                    color: '#ffffff',
-                    fontSize: '0.9rem'
-                  }}
-                />
-              </div>
-
-              {/* 默认语言正文 */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  {t('announcements.fieldContent', '正文内容 (支持 Markdown 与列表)')} <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <textarea
-                  required
-                  value={newNotice.content}
-                  onChange={(e) => setNewNotice({ ...newNotice, content: e.target.value })}
-                  placeholder={t('announcements.contentPlaceholder', '填写具体通报内容或功能更新说明 (支持 ### 标题、- 列表、**加粗**)...')}
-                  style={{
-                    width: '100%',
-                    minHeight: '120px',
-                    background: 'rgba(0,0,0,0.25)',
-                    border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
-                    borderRadius: '8px',
-                    padding: '10px 12px',
-                    color: '#ffffff',
-                    fontSize: '0.88rem',
-                    lineHeight: 1.6,
-                    resize: 'vertical'
-                  }}
-                ></textarea>
-              </div>
-
-              {/* 🌐 英文双语扩展栏位 (折叠/展开) */}
+              {/* 🌐 双语编辑 Tab 切换栏 (English 默认高亮，Chinese 可选) */}
               <div style={{
-                background: 'rgba(59, 130, 246, 0.05)',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
-                borderRadius: '8px',
-                overflow: 'hidden'
+                background: 'rgba(0,0,0,0.22)',
+                borderRadius: '10px',
+                padding: '4px',
+                border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+                display: 'flex',
+                gap: '4px'
               }}>
-                <div
-                  onClick={() => setIsBilingualOpen(!isBilingualOpen)}
+                <button
+                  type="button"
+                  onClick={() => setFormLangTab('en')}
                   style={{
-                    padding: '10px 14px',
+                    flex: 1,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '8px 12px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    fontSize: '0.84rem',
+                    fontWeight: formLangTab === 'en' ? '700' : '500',
+                    background: formLangTab === 'en' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                    color: formLangTab === 'en' ? '#ffffff' : 'var(--text-muted, #94a3b8)',
                     cursor: 'pointer',
-                    background: 'rgba(59, 130, 246, 0.08)'
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.95rem' }}>🌐</span>
-                    <span style={{ fontSize: '0.86rem', fontWeight: '700', color: 'var(--accent-blue, #60a5fa)' }}>
-                      {t('announcements.sectionBilingual', '🌐 英文双语内容 (English Version - 可选)')}
+                  <span>🌐</span>
+                  <span>{t('announcements.tabEnglishDefault', 'English (Default / Primary)')}</span>
+                  {(newNotice.titleEn.trim() && newNotice.contentEn.trim()) && (
+                    <span style={{ fontSize: '0.68rem', background: 'rgba(255,255,255,0.25)', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                      ✓
                     </span>
-                    {(newNotice.titleEn.trim() || newNotice.contentEn.trim()) && (
-                      <span style={{ fontSize: '0.7rem', background: '#22c55e', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  <i className={`ph-bold ph-caret-${isBilingualOpen ? 'up' : 'down'}`} style={{ color: 'var(--text-muted)' }}></i>
-                </div>
+                  )}
+                </button>
 
-                {isBilingualOpen && (
-                  <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(0,0,0,0.15)' }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      {t('announcements.bilingualTip', '若填写英文版本，切换为英文的员工将自动优先阅读英文标题与正文')}
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
-                        {t('announcements.fieldTitleEn', '英文标题 (English Title)')}
-                      </label>
-                      <input
-                        type="text"
-                        value={newNotice.titleEn}
-                        onChange={(e) => setNewNotice({ ...newNotice, titleEn: e.target.value })}
-                        placeholder={t('announcements.titleEnPlaceholder', '例如 Notice on Candidate Intake Adjustments...')}
-                        style={{
-                          width: '100%',
-                          background: 'rgba(0,0,0,0.25)',
-                          border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
-                          borderRadius: '6px',
-                          padding: '7px 10px',
-                          color: '#ffffff',
-                          fontSize: '0.85rem'
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
-                        {t('announcements.fieldContentEn', '英文正文 (English Content)')}
-                      </label>
-                      <textarea
-                        value={newNotice.contentEn}
-                        onChange={(e) => setNewNotice({ ...newNotice, contentEn: e.target.value })}
-                        placeholder={t('announcements.contentEnPlaceholder', 'Enter announcement details in English (Markdown supported)...')}
-                        style={{
-                          width: '100%',
-                          minHeight: '100px',
-                          background: 'rgba(0,0,0,0.25)',
-                          border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
-                          borderRadius: '6px',
-                          padding: '8px 10px',
-                          color: '#ffffff',
-                          fontSize: '0.85rem',
-                          lineHeight: 1.5,
-                          resize: 'vertical'
-                        }}
-                      ></textarea>
-                    </div>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setFormLangTab('zh')}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '8px 12px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    fontSize: '0.84rem',
+                    fontWeight: formLangTab === 'zh' ? '700' : '500',
+                    background: formLangTab === 'zh' ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                    color: formLangTab === 'zh' ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>🇨🇳</span>
+                  <span>{t('announcements.tabChineseOptional', '中文版 (Optional)')}</span>
+                  {(newNotice.titleZh.trim() || newNotice.contentZh.trim()) && (
+                    <span style={{ fontSize: '0.68rem', background: '#22c55e', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                      ✓
+                    </span>
+                  )}
+                </button>
               </div>
+
+              {/* 语言表单内容区 */}
+              {formLangTab === 'en' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* English Title */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      {t('announcements.fieldEnglishTitle', 'English Title')} <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newNotice.titleEn}
+                      onChange={(e) => setNewNotice({ ...newNotice, titleEn: e.target.value })}
+                      placeholder={t('announcements.titleEnPlaceholder', 'e.g. Notice on Candidate Intake Adjustments...')}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.25)',
+                        border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        color: '#ffffff',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* English Content */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      {t('announcements.fieldEnglishContent', 'English Content (Markdown supported)')} <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <textarea
+                      required
+                      value={newNotice.contentEn}
+                      onChange={(e) => setNewNotice({ ...newNotice, contentEn: e.target.value })}
+                      placeholder={t('announcements.contentEnPlaceholder', 'Enter notice details or release notes (supports ### title, - list, **bold**)...')}
+                      style={{
+                        width: '100%',
+                        minHeight: '140px',
+                        background: 'rgba(0,0,0,0.25)',
+                        border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        color: '#ffffff',
+                        fontSize: '0.88rem',
+                        lineHeight: 1.6,
+                        resize: 'vertical'
+                      }}
+                    ></textarea>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(59, 130, 246, 0.08)', padding: '8px 12px', borderRadius: '6px' }}>
+                    {t('announcements.chineseOptionalTip', '可选填。若填写中文版，切换为中文界面的员工将看到此中文版本；未填写则默认呈现英文。')}
+                  </div>
+
+                  {/* Chinese Title */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      {t('announcements.fieldChineseTitle', '中文标题 (可选 - Chinese Title)')}
+                    </label>
+                    <input
+                      type="text"
+                      value={newNotice.titleZh}
+                      onChange={(e) => setNewNotice({ ...newNotice, titleZh: e.target.value })}
+                      placeholder={t('announcements.titleZhPlaceholder', '例如：关于11月份候选人录入流程调整的通知...')}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.25)',
+                        border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        color: '#ffffff',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* Chinese Content */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
+                      {t('announcements.fieldChineseContent', '中文正文 (可选 - Markdown 支持)')}
+                    </label>
+                    <textarea
+                      value={newNotice.contentZh}
+                      onChange={(e) => setNewNotice({ ...newNotice, contentZh: e.target.value })}
+                      placeholder={t('announcements.contentZhPlaceholder', '填写中文通报内容或功能更新说明 (支持 ### 标题、- 列表、**加粗**)...')}
+                      style={{
+                        width: '100%',
+                        minHeight: '140px',
+                        background: 'rgba(0,0,0,0.25)',
+                        border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        color: '#ffffff',
+                        fontSize: '0.88rem',
+                        lineHeight: 1.6,
+                        resize: 'vertical'
+                      }}
+                    ></textarea>
+                  </div>
+                </div>
+              )}
 
               {/* 置顶与收到确认勾选 */}
               <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px' }}>
