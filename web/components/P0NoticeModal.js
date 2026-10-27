@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth-context';
+import { useI18n } from '../lib/i18n-context';
 import { FirestoreStore } from '../lib/firestore-store';
 
 /**
@@ -11,6 +12,7 @@ import { FirestoreStore } from '../lib/firestore-store';
  */
 export default function P0NoticeModal() {
   const { user, userProfile, teamId } = useAuth();
+  const { t, lang } = useI18n();
   const [announcements, setAnnouncements] = useState([]);
   const [myReads, setMyReads] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,7 +51,7 @@ export default function P0NoticeModal() {
     try {
       await FirestoreStore.acknowledgeAnnouncement(activeNotice.id, {
         uid: user.uid,
-        displayName: userProfile?.displayName || user.email || '用户',
+        displayName: userProfile?.displayName || user.email || t('announcements.teamMemberFallback', '团队成员'),
         photoURL: userProfile?.photoURL || '',
         teamId: teamId || 'default_team'
       });
@@ -59,6 +61,10 @@ export default function P0NoticeModal() {
       setIsSubmitting(false);
     }
   };
+
+  const formattedTime = activeNotice.createdAt
+    ? new Date(activeNotice.createdAt).toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', { hour12: false })
+    : t('announcements.timeRecent', '近期');
 
   return (
     <div style={{
@@ -107,10 +113,10 @@ export default function P0NoticeModal() {
               boxShadow: '0 0 10px #fff',
               animation: 'p0Pulse 1.2s infinite'
             }}></span>
-            <span>🚨 紧急重要通知 (P0 CRITICAL)</span>
+            <span>🚨 {t('announcements.p0BannerTitle', '紧急重要通知 (P0 CRITICAL)')}</span>
           </div>
           <span style={{ fontSize: '0.8rem', background: 'rgba(0,0,0,0.25)', padding: '2px 8px', borderRadius: '4px' }}>
-            强制知晓
+            {t('announcements.p0ForceBadge', '强制知晓')}
           </span>
         </div>
 
@@ -142,10 +148,10 @@ export default function P0NoticeModal() {
             />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary, #f1f5f9)' }}>
-                {activeNotice.author?.name || '管理团队'}
+                {activeNotice.author?.name || t('announcements.adminTeamFallback', '管理团队')}
               </span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
-                发布于 {activeNotice.createdAt ? new Date(activeNotice.createdAt).toLocaleString('zh-CN', { hour12: false }) : '近期'}
+                {t('announcements.postedAt', { time: formattedTime }, `发布于 ${formattedTime}`)}
               </span>
             </div>
           </div>
@@ -177,7 +183,7 @@ export default function P0NoticeModal() {
           gap: '16px'
         }}>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)' }}>
-            ⚠️ 本条消息需要您确认知晓后方可继续使用系统
+            {t('announcements.p0NoticeRequiredTip', '⚠️ 本条消息需要您确认知晓后方可继续使用系统')}
           </div>
           <button
             onClick={handleAcknowledge}
@@ -199,10 +205,10 @@ export default function P0NoticeModal() {
             }}
           >
             {isSubmitting ? (
-              <span>提交中...</span>
+              <span>{t('announcements.p0SubmittingBtn', '提交中...')}</span>
             ) : (
               <>
-                <span>✓ 我已阅读并知晓</span>
+                <span>{t('announcements.p0AcknowledgeBtn', '✓ 我已阅读并知晓')}</span>
               </>
             )}
           </button>

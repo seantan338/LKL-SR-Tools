@@ -8,18 +8,28 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { db } from '../../../lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 
-// 初始系统更新日志种子数据（同步自近期真实 CHANGELOG）
-const INITIAL_SYSTEM_CHANGELOG = [
+// 初始系统更新日志种子数据（支持中英自适应）
+const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
   {
     id: 'sys_v1_7_1',
     category: 'SYSTEM_UPDATE',
     priority: 'P2_NORMAL',
-    title: 'v1.7.1 考勤手滑误触防护闭环与最晚签退自动自愈',
+    title: isEn
+      ? 'v1.7.1 Accidental Clock-Out Guard & Latest-Wins Self Healing'
+      : 'v1.7.1 考勤手滑误触防护闭环与最晚签退自动自愈',
     versionTag: 'v1.7.1',
     changeTypes: ['feat', 'fix', 'opt'],
-    author: { name: '系统架构组', avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys171' },
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys171'
+    },
     createdAt: '2026-10-27T08:30:00Z',
-    content: `### 核心更新亮点：
+    content: isEn
+      ? `### Key Updates:
+- **Latest-Wins Self Healing**: If a teammate accidentally clocks out early, clocking out again at end-of-shift automatically takes effect. Zero manual correction cost.
+- **Full Punch History Trail**: Removes punch log truncation; full second-level punches are preserved with badge indicators (e.g. x2).
+- **Accidental Exit Interceptor**: Triggers a high-alert dialog when attempting to clock out earlier than scheduled exit time to protect full-attendance bonus.`
+      : `### 核心更新亮点：
 - **最晚签退自愈机制**：员工误触提前签退后，下班真正离开时再次打卡，系统自动以当天最晚记录生效覆盖，零人工介入。
 - **全量秒级打卡流水**：解除流水限制，每日考勤记录完整保存多次打卡历史并标记徽章（如 x2）。
 - **提前签退强防呆弹窗**：顶部快捷签退检测到早于下班底线时弹出高警示确认框，保护全勤奖。`,
@@ -30,12 +40,22 @@ const INITIAL_SYSTEM_CHANGELOG = [
     id: 'sys_v1_7_0',
     category: 'SYSTEM_UPDATE',
     priority: 'P2_NORMAL',
-    title: 'v1.7.0 纯净考勤记录重构与午夜12点缺卡分水岭',
+    title: isEn
+      ? 'v1.7.0 Pure Attendance Stream & Midnight Shift Cutoff'
+      : 'v1.7.0 纯净考勤记录重构与午夜12点缺卡分水岭',
     versionTag: 'v1.7.0',
     changeTypes: ['opt', 'fix'],
-    author: { name: '系统架构组', avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys170' },
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys170'
+    },
     createdAt: '2026-10-27T01:00:00Z',
-    content: `### 核心更新亮点：
+    content: isEn
+      ? `### Key Updates:
+- **Pure Attendance Stream Isolation**: Excludes daily candidate tracking operations; reports reflect only genuine punch actions.
+- **Clock-Out Blank Protection**: Durations remain clean and blank until explicit clock-out punch occurs.
+- **Midnight Status Cutoff**: Shifts in progress on current day are flagged as In-Progress; missed clock-out is finalized strictly after midnight.`
+      : `### 核心更新亮点：
 - **纯净考勤数据流隔离**：彻底剔除日常候选人跟进等非打卡日志，报表纯粹精准。
 - **下班签退与工时留白**：员工未签退前工时严格留白，签退后精确核算真实工时。
 - **午夜缺卡分水岭**：当日进行中判定为在岗状态，次日零点后未打卡才核定缺卡。`,
@@ -46,12 +66,22 @@ const INITIAL_SYSTEM_CHANGELOG = [
     id: 'sys_v1_6_9',
     category: 'SYSTEM_UPDATE',
     priority: 'P2_NORMAL',
-    title: 'v1.6.9 全局架构说明书全景重构与双语国际化矩阵',
+    title: isEn
+      ? 'v1.6.9 Global Architecture Documentation & Full Bilingual Matrix'
+      : 'v1.6.9 全局架构说明书全景重构与双语国际化矩阵',
     versionTag: 'v1.6.9',
     changeTypes: ['feat', 'opt'],
-    author: { name: '系统架构组', avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys169' },
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys169'
+    },
     createdAt: '2026-10-26T16:00:00Z',
-    content: `### 核心更新亮点：
+    content: isEn
+      ? `### Key Updates:
+- **Enterprise Cascade Shifts**: Supports 4-tier flexible work shifts with manager day-override snapshot audits.
+- **HQ Competitive Leaderboard**: Corporate attendance rank and sales performance boards go live.
+- **Full Bilingual Support**: Manuals and UI components feature seamless 100% bilingual toggle.`
+      : `### 核心更新亮点：
 - **企业级弹性排班体系**：支持 4 档弹性工时阶梯判定与主管单日改派审计。
 - **HQ 专属竞技排行榜**：公司本部考勤出勤率与销售成单排行看板上线。
 - **全站中英双语即时切换**：操作手册与工作台组件 100% 覆盖双语词条。`,
@@ -180,8 +210,9 @@ function renderFormattedInline(text) {
 
 export default function AnnouncementsPage() {
   const { user, userProfile, teamId, isOwner, isManager } = useAuth();
-  const { showToast, confirm } = useFeedback();
-  const { t } = useI18n();
+  const { showToast } = useFeedback();
+  const { t, lang } = useI18n();
+  const isEn = lang === 'en';
 
   // 是否具有发布/编辑公告权限 (管理层 / 主管)
   const canManage = isOwner || isManager || userProfile?.role === 'manager' || userProfile?.role === 'owner';
@@ -216,7 +247,7 @@ export default function AnnouncementsPage() {
   });
 
   // 右侧系统日志展开状态
-  const [expandedLogId, setExpandedLogId] = useState(INITIAL_SYSTEM_CHANGELOG[0]?.id || null);
+  const [expandedLogId, setExpandedLogId] = useState('sys_v1_7_1');
 
   // 1. 监听公告与已读记录
   useEffect(() => {
@@ -260,16 +291,17 @@ export default function AnnouncementsPage() {
 
   // 3. 计算已合并的系统更新日志（数据库中的系统更新 + 内置种子数据）
   const systemChangelogs = useMemo(() => {
+    const initialSeed = GET_INITIAL_SYSTEM_CHANGELOG(isEn);
     const fromDb = announcements.filter(a => a.category === 'SYSTEM_UPDATE');
     const existingIds = new Set(fromDb.map(a => a.id));
     const merged = [...fromDb];
-    INITIAL_SYSTEM_CHANGELOG.forEach(item => {
+    initialSeed.forEach(item => {
       if (!existingIds.has(item.id)) {
         merged.push(item);
       }
     });
     return merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [announcements]);
+  }, [announcements, isEn]);
 
   // 4. 计算业务公告流（管理层 / 主管，排除系统更新）
   const businessAnnouncements = useMemo(() => {
@@ -306,14 +338,14 @@ export default function AnnouncementsPage() {
     try {
       await FirestoreStore.acknowledgeAnnouncement(item.id, {
         uid: user.uid,
-        displayName: userProfile?.displayName || user.email || '团队成员',
+        displayName: userProfile?.displayName || user.email || t('announcements.teamMemberFallback', '团队成员'),
         photoURL: userProfile?.photoURL || '',
         teamId: teamId || 'default_team'
       });
-      showToast('已确认收到此公告', 'success');
+      showToast(t('announcements.toastAcknowledgeSuccess', '已确认收到此公告'), 'success');
     } catch (err) {
       console.error(err);
-      showToast('操作失败，请重试', 'error');
+      showToast(t('announcements.toastActionFailed', '操作失败，请重试'), 'error');
     }
   };
 
@@ -323,7 +355,7 @@ export default function AnnouncementsPage() {
     if (user && (!myReads[item.id] || !myReads[item.id]?.ackAt)) {
       FirestoreStore.markAnnouncementRead(item.id, {
         uid: user.uid,
-        displayName: userProfile?.displayName || user.email || '团队成员',
+        displayName: userProfile?.displayName || user.email || t('announcements.teamMemberFallback', '团队成员'),
         photoURL: userProfile?.photoURL || '',
         teamId: teamId || 'default_team'
       }, !item.requireAck).catch(() => {});
@@ -339,7 +371,7 @@ export default function AnnouncementsPage() {
       setTrackerReaders(readers || []);
     } catch (err) {
       console.error(err);
-      showToast('加载查岗名单失败', 'error');
+      showToast(t('announcements.toastLoadTrackerFailed', '加载查岗名单失败'), 'error');
     } finally {
       setLoadingReaders(false);
     }
@@ -349,7 +381,7 @@ export default function AnnouncementsPage() {
   const handleCreateAnnouncement = async (e) => {
     e.preventDefault();
     if (!newNotice.title.trim() || !newNotice.content.trim()) {
-      showToast('请填写公告标题与内容', 'warning');
+      showToast(t('announcements.toastFillRequired', '请填写公告标题与内容'), 'warning');
       return;
     }
 
@@ -368,12 +400,12 @@ export default function AnnouncementsPage() {
         teamId: newNotice.category === 'SYSTEM_UPDATE' ? 'ALL' : teamId,
         author: {
           id: user?.uid || '',
-          name: userProfile?.displayName || user?.email || '管理团队',
+          name: userProfile?.displayName || user?.email || t('announcements.adminTeamFallback', '管理团队'),
           avatarUrl: userProfile?.photoURL || ''
         }
       });
 
-      showToast('公告发布成功', 'success');
+      showToast(t('announcements.toastCreateSuccess', '公告发布成功'), 'success');
       setIsCreateOpen(false);
       setNewNotice({
         title: '',
@@ -387,7 +419,7 @@ export default function AnnouncementsPage() {
       });
     } catch (err) {
       console.error('Create announcement error:', err);
-      showToast('发布失败: ' + err.message, 'error');
+      showToast(t('announcements.toastCreateFailed', { msg: err.message }, `发布失败: ${err.message}`), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -411,7 +443,7 @@ export default function AnnouncementsPage() {
             gap: '4px'
           }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', animation: 'p0Pulse 1.2s infinite' }}></span>
-            P0 紧急
+            {t('announcements.p0Tag', 'P0 紧急')}
           </span>
         );
       case 'P1_HIGH':
@@ -425,7 +457,7 @@ export default function AnnouncementsPage() {
             fontSize: '0.75rem',
             fontWeight: '700'
           }}>
-            P1 重要
+            {t('announcements.p1Tag', 'P1 重要')}
           </span>
         );
       case 'P2_NORMAL':
@@ -439,7 +471,7 @@ export default function AnnouncementsPage() {
             fontSize: '0.75rem',
             fontWeight: '600'
           }}>
-            P2 常规
+            {t('announcements.p2Tag', 'P2 常规')}
           </span>
         );
       case 'P3_LOW':
@@ -453,7 +485,7 @@ export default function AnnouncementsPage() {
             borderRadius: '6px',
             fontSize: '0.75rem'
           }}>
-            P3 归档
+            {t('announcements.p3Tag', 'P3 归档')}
           </span>
         );
     }
@@ -500,14 +532,14 @@ export default function AnnouncementsPage() {
                     fontSize: '1.4rem',
                     flexShrink: 0
                   }}>
-                    {isP0 ? '🚨' : '📌'}
+                    {isP0 ? t('announcements.p0BannerIcon', '🚨') : t('announcements.p1BannerIcon', '📌')}
                   </div>
 
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       {renderPriorityBadge(notice.priority)}
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)' }}>
-                        {notice.createdAt ? new Date(notice.createdAt).toLocaleDateString('zh-CN') : ''}
+                        {notice.createdAt ? new Date(notice.createdAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN') : ''}
                       </span>
                     </div>
                     <h3
@@ -543,7 +575,7 @@ export default function AnnouncementsPage() {
                       fontWeight: '500'
                     }}
                   >
-                    查看详情
+                    {t('announcements.viewDetail', '查看详情')}
                   </button>
 
                   {notice.requireAck && (
@@ -562,7 +594,7 @@ export default function AnnouncementsPage() {
                         boxShadow: isAcked ? 'none' : '0 2px 8px rgba(0,0,0,0.3)'
                       }}
                     >
-                      {isAcked ? '✓ 已知晓' : '我已知晓'}
+                      {isAcked ? t('announcements.alreadyKnown', '✓ 已知晓') : t('announcements.iKnow', '我已知晓')}
                     </button>
                   )}
                 </div>
@@ -613,7 +645,7 @@ export default function AnnouncementsPage() {
                   cursor: 'pointer'
                 }}
               >
-                全部公告
+                {t('announcements.tabAll', '全部公告')}
               </button>
               <button
                 onClick={() => setCategoryTab('EXECUTIVE')}
@@ -628,7 +660,7 @@ export default function AnnouncementsPage() {
                   cursor: 'pointer'
                 }}
               >
-                高层通知
+                {t('announcements.tabExecutive', '高层通知')}
               </button>
               <button
                 onClick={() => setCategoryTab('SUPERVISOR')}
@@ -643,7 +675,7 @@ export default function AnnouncementsPage() {
                   cursor: 'pointer'
                 }}
               >
-                部门业务
+                {t('announcements.tabSupervisor', '部门业务')}
               </button>
             </div>
 
@@ -652,7 +684,7 @@ export default function AnnouncementsPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  placeholder="搜索公告标题或内容..."
+                  placeholder={t('announcements.searchPlaceholder', '搜索公告标题或内容...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
@@ -693,7 +725,7 @@ export default function AnnouncementsPage() {
                   }}
                 >
                   <i className="ph-bold ph-plus"></i>
-                  <span>发布公告</span>
+                  <span>{t('announcements.createBtn', '发布公告')}</span>
                 </button>
               )}
             </div>
@@ -710,7 +742,7 @@ export default function AnnouncementsPage() {
               color: 'var(--text-muted, #94a3b8)'
             }}>
               <i className="ph-light ph-tray" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', opacity: 0.6 }}></i>
-              <div>暂无相关公告通知</div>
+              <div>{t('announcements.emptyList', '暂无相关公告通知')}</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -719,7 +751,9 @@ export default function AnnouncementsPage() {
                 const isRead = Boolean(readRecord);
                 const isAcked = Boolean(readRecord?.ackAt);
                 const totalMembers = teamMembers.length || 15;
-                const ackCount = item.ackCount || 0;
+                const formattedTime = item.createdAt
+                  ? new Date(item.createdAt).toLocaleString(isEn ? 'en-US' : 'zh-CN', { hour12: false })
+                  : t('announcements.timeRecent', '近期');
 
                 return (
                   <div
@@ -750,17 +784,17 @@ export default function AnnouncementsPage() {
                         />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontSize: '0.92rem', fontWeight: '600', color: 'var(--text-primary, #ffffff)' }}>
-                            {item.author?.name || '管理员'}
+                            {item.author?.name || t('announcements.adminTeamFallback', '管理团队')}
                           </span>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
-                            {item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) : '近期'}
+                            {formattedTime}
                           </span>
                         </div>
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {item.isPinned && (
-                          <span style={{ color: 'var(--accent-amber, #f59e0b)', fontSize: '0.85rem' }} title="置顶公告">
+                          <span style={{ color: 'var(--accent-amber, #f59e0b)', fontSize: '0.85rem' }} title={t('announcements.pinnedNotice', '置顶公告')}>
                             <i className="ph-fill ph-push-pin"></i>
                           </span>
                         )}
@@ -840,13 +874,15 @@ export default function AnnouncementsPage() {
                             gap: '6px',
                             border: canManage ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
                           }}
-                          title={canManage ? '点击查看主管查岗名单' : ''}
+                          title={canManage ? t('announcements.trackerBtn', '查岗名单 ▾') : ''}
                         >
                           <i className="ph-light ph-users"></i>
-                          <span>已读 <strong>{item.readCount || 0}</strong>/{totalMembers} 人</span>
+                          <span>
+                            {t('announcements.readCountText', { read: item.readCount || 0, total: totalMembers }, `已读 ${item.readCount || 0}/${totalMembers} 人`)}
+                          </span>
                           {canManage && (
                             <span style={{ color: 'var(--accent-blue, #3b82f6)', fontSize: '0.75rem', fontWeight: '600' }}>
-                              查岗名单 ▾
+                              {t('announcements.trackerBtn', '查岗名单 ▾')}
                             </span>
                           )}
                         </div>
@@ -866,7 +902,7 @@ export default function AnnouncementsPage() {
                             cursor: 'pointer'
                           }}
                         >
-                          阅读正文
+                          {t('announcements.readBody', '阅读正文')}
                         </button>
 
                         {item.requireAck && (
@@ -890,10 +926,10 @@ export default function AnnouncementsPage() {
                             {isAcked ? (
                               <>
                                 <i className="ph-bold ph-check"></i>
-                                <span>已收到</span>
+                                <span>{t('announcements.alreadyReceived', '已收到')}</span>
                               </>
                             ) : (
-                              <span>收到 / 标记已阅</span>
+                              <span>{t('announcements.receiveAndRead', '收到 / 标记已阅')}</span>
                             )}
                           </button>
                         )}
@@ -941,7 +977,7 @@ export default function AnnouncementsPage() {
                 <i className="ph-fill ph-gear"></i>
               </div>
               <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary, #ffffff)' }}>
-                系统更新日志
+                {t('announcements.systemChangelogTitle', '系统更新日志')}
               </span>
             </div>
             <span style={{
@@ -952,7 +988,7 @@ export default function AnnouncementsPage() {
               borderRadius: '4px',
               fontWeight: '600'
             }}>
-              Timeline
+              {t('announcements.timelineBadge', 'Timeline')}
             </span>
           </div>
 
@@ -1008,7 +1044,7 @@ export default function AnnouncementsPage() {
                         {log.versionTag || 'v2.0'}
                       </span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
-                        {log.createdAt ? new Date(log.createdAt).toLocaleDateString('zh-CN') : ''}
+                        {log.createdAt ? new Date(log.createdAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN') : ''}
                       </span>
                     </div>
 
@@ -1016,17 +1052,17 @@ export default function AnnouncementsPage() {
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
                       {log.changeTypes?.includes('feat') && (
                         <span style={{ fontSize: '0.68rem', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '1px 5px', borderRadius: '3px' }}>
-                          新功能
+                          {t('announcements.tagFeat', '新功能')}
                         </span>
                       )}
                       {log.changeTypes?.includes('opt') && (
                         <span style={{ fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '1px 5px', borderRadius: '3px' }}>
-                          优化
+                          {t('announcements.tagOpt', '优化')}
                         </span>
                       )}
                       {log.changeTypes?.includes('fix') && (
                         <span style={{ fontSize: '0.68rem', background: 'rgba(148, 163, 184, 0.15)', color: '#cbd5e1', padding: '1px 5px', borderRadius: '3px' }}>
-                          修复
+                          {t('announcements.tagFix', '修复')}
                         </span>
                       )}
                     </div>
@@ -1110,10 +1146,10 @@ export default function AnnouncementsPage() {
             }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary, #ffffff)' }}>
-                  📊 主管查岗名单与知晓跟踪
+                  {t('announcements.trackerModalTitle', '📊 主管查岗名单与知晓跟踪')}
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)' }}>
-                  公告：{trackerNotice.title}
+                  {t('announcements.trackerNoticeLabel', { title: trackerNotice.title }, `公告：${trackerNotice.title}`)}
                 </span>
               </div>
               <button
@@ -1127,19 +1163,21 @@ export default function AnnouncementsPage() {
             {/* 内容区 */}
             <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
               {loadingReaders ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>正在同步团队查岗数据...</div>
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  {t('announcements.loadingTrackerData', '正在同步团队查岗数据...')}
+                </div>
               ) : (
                 (() => {
                   const ackedUids = new Set(trackerReaders.filter(r => r.ackAt).map(r => r.userId));
-                  const readUids = new Set(trackerReaders.map(r => r.userId));
 
                   const ackedList = teamMembers.filter(m => ackedUids.has(m.uid));
                   const unackedList = teamMembers.filter(m => !ackedUids.has(m.uid));
 
                   const copyUnreadList = () => {
                     const names = unackedList.map(u => u.displayName || u.email).join('、');
-                    navigator.clipboard.writeText(`未读公告【${trackerNotice.title}】的成员名单：${names}`);
-                    showToast('已复制未读名单至剪贴板', 'info');
+                    const text = t('announcements.copyPrefix', { title: trackerNotice.title, names }, `未读公告【${trackerNotice.title}】的成员名单：${names}`);
+                    navigator.clipboard.writeText(text);
+                    showToast(t('announcements.toastCopySuccess', '已复制未读名单至剪贴板'), 'info');
                   };
 
                   return (
@@ -1147,10 +1185,10 @@ export default function AnnouncementsPage() {
                       {/* 进度条 */}
                       <div style={{ marginBottom: '20px', background: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
-                          <span>全员已知晓率</span>
+                          <span>{t('announcements.overallAckRate', '全员已知晓率')}</span>
                           <strong style={{ color: 'var(--accent-blue, #60a5fa)' }}>
                             {teamMembers.length ? Math.round((ackedList.length / teamMembers.length) * 100) : 0}% 
-                            ({ackedList.length} / {teamMembers.length} 人)
+                            ({ackedList.length} / {teamMembers.length})
                           </strong>
                         </div>
                         <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -1168,11 +1206,13 @@ export default function AnnouncementsPage() {
                         {/* 🟢 已知晓成员 */}
                         <div style={{ background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '10px', padding: '14px' }}>
                           <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#4ade80', marginBottom: '10px' }}>
-                            🟢 已知晓确认 ({ackedList.length} 人)
+                            {t('announcements.ackedTitle', { count: ackedList.length }, `🟢 已知晓确认 (${ackedList.length} 人)`)}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
                             {ackedList.length === 0 ? (
-                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>暂无人员确认</div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                {t('announcements.noOneAcked', '暂无人员确认')}
+                              </div>
                             ) : (
                               ackedList.map(member => (
                                 <div key={member.uid} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
@@ -1192,7 +1232,7 @@ export default function AnnouncementsPage() {
                         <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', padding: '14px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                             <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#f87171' }}>
-                              🔴 尚未知晓 ({unackedList.length} 人)
+                              {t('announcements.unackedTitle', { count: unackedList.length }, `🔴 尚未知晓 (${unackedList.length} 人)`)}
                             </div>
                             {unackedList.length > 0 && (
                               <button
@@ -1207,13 +1247,15 @@ export default function AnnouncementsPage() {
                                   cursor: 'pointer'
                                 }}
                               >
-                                复制名单
+                                {t('announcements.copyListBtn', '复制名单')}
                               </button>
                             )}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
                             {unackedList.length === 0 ? (
-                              <div style={{ fontSize: '0.8rem', color: '#4ade80' }}>🎉 全员已全部完成知晓确认！</div>
+                              <div style={{ fontSize: '0.8rem', color: '#4ade80' }}>
+                                {t('announcements.allMembersAcked', '🎉 全员已全部完成知晓确认！')}
+                              </div>
                             ) : (
                               unackedList.map(member => (
                                 <div key={member.uid} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
@@ -1279,7 +1321,9 @@ export default function AnnouncementsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {renderPriorityBadge(detailNotice.priority)}
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  {detailNotice.category === 'EXECUTIVE' ? '高层通知' : (detailNotice.category === 'SYSTEM_UPDATE' ? '系统更新' : '部门业务')}
+                  {detailNotice.category === 'EXECUTIVE'
+                    ? t('announcements.tabExecutive', '高层通知')
+                    : (detailNotice.category === 'SYSTEM_UPDATE' ? t('announcements.tabSystem', '系统更新') : t('announcements.tabSupervisor', '部门业务'))}
                 </span>
               </div>
               <button
@@ -1312,10 +1356,12 @@ export default function AnnouncementsPage() {
                 />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary, #f1f5f9)' }}>
-                    {detailNotice.author?.name || '管理员'}
+                    {detailNotice.author?.name || t('announcements.adminTeamFallback', '管理团队')}
                   </span>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
-                    发布于 {detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString('zh-CN', { hour12: false }) : ''}
+                    {t('announcements.postedAt', {
+                      time: detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString(isEn ? 'en-US' : 'zh-CN', { hour12: false }) : ''
+                    }, `发布于 ${detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString(isEn ? 'en-US' : 'zh-CN', { hour12: false }) : ''}`)}
                   </span>
                 </div>
               </div>
@@ -1344,7 +1390,7 @@ export default function AnnouncementsPage() {
                   cursor: 'pointer'
                 }}
               >
-                关闭
+                {t('announcements.detailModalClose', '关闭')}
               </button>
 
               {detailNotice.requireAck && (
@@ -1365,7 +1411,7 @@ export default function AnnouncementsPage() {
                     cursor: Boolean(myReads[detailNotice.id]?.ackAt) ? 'default' : 'pointer'
                   }}
                 >
-                  {Boolean(myReads[detailNotice.id]?.ackAt) ? '✓ 已确认知晓' : '我已知晓并确认'}
+                  {Boolean(myReads[detailNotice.id]?.ackAt) ? t('announcements.alreadyKnown', '✓ 已确认知晓') : t('announcements.detailModalAckBtn', '我已知晓并确认')}
                 </button>
               )}
             </div>
@@ -1409,7 +1455,7 @@ export default function AnnouncementsPage() {
               justifyContent: 'space-between'
             }}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-primary, #ffffff)' }}>
-                📢 发布新公告 / 系统更新
+                {t('announcements.createModalTitle', '📢 发布新公告 / 系统更新')}
               </h3>
               <button
                 onClick={() => setIsCreateOpen(false)}
@@ -1423,13 +1469,13 @@ export default function AnnouncementsPage() {
             <form onSubmit={handleCreateAnnouncement} style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  公告类型
+                  {t('announcements.fieldCategory', '公告类型')}
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                   {[
-                    { id: 'SUPERVISOR', label: '部门业务' },
-                    { id: 'EXECUTIVE', label: '高层通知' },
-                    { id: 'SYSTEM_UPDATE', label: '系统更新' }
+                    { id: 'SUPERVISOR', label: t('announcements.fieldCategorySupervisor', '部门业务') },
+                    { id: 'EXECUTIVE', label: t('announcements.fieldCategoryExecutive', '高层通知') },
+                    { id: 'SYSTEM_UPDATE', label: t('announcements.fieldCategorySystem', '系统更新') }
                   ].map(tab => (
                     <button
                       type="button"
@@ -1454,7 +1500,7 @@ export default function AnnouncementsPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  优先级 (Priority)
+                  {t('announcements.fieldPriority', '优先级 (Priority)')}
                 </label>
                 <select
                   value={newNotice.priority}
@@ -1469,23 +1515,23 @@ export default function AnnouncementsPage() {
                     fontSize: '0.88rem'
                   }}
                 >
-                  <option value="P2_NORMAL">P2 - 普通 (常规公告，列表正常展现)</option>
-                  <option value="P1_HIGH">P1 - 重要 (琥珀色高亮，置顶推荐)</option>
-                  <option value="P0_CRITICAL">P0 - 紧急 (红色呼吸边框，登录阻断强触达)</option>
-                  <option value="P3_LOW">P3 - 归档/次要 (浅灰紧凑，不主动打扰)</option>
+                  <option value="P2_NORMAL">{t('announcements.optP2Normal', 'P2 - 普通 (常规公告，列表正常展现)')}</option>
+                  <option value="P1_HIGH">{t('announcements.optP1High', 'P1 - 重要 (琥珀色高亮，置顶推荐)')}</option>
+                  <option value="P0_CRITICAL">{t('announcements.optP0Critical', 'P0 - 紧急 (红色呼吸边框，登录阻断强触达)')}</option>
+                  <option value="P3_LOW">{t('announcements.optP3Low', 'P3 - 归档/次要 (浅灰紧凑，不主动打扰)')}</option>
                 </select>
               </div>
 
               {newNotice.category === 'SYSTEM_UPDATE' && (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                    版本号 (如 v2.2.0)
+                    {t('announcements.fieldVersionTag', '版本号 (如 v2.2.0)')}
                   </label>
                   <input
                     type="text"
                     value={newNotice.versionTag}
                     onChange={(e) => setNewNotice({ ...newNotice, versionTag: e.target.value })}
-                    placeholder="例如 v2.2.0"
+                    placeholder={t('announcements.versionTagPlaceholder', '例如 v2.2.0')}
                     style={{
                       width: '100%',
                       background: 'rgba(0,0,0,0.25)',
@@ -1501,14 +1547,14 @@ export default function AnnouncementsPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  公告标题
+                  {t('announcements.fieldTitle', '公告标题')}
                 </label>
                 <input
                   type="text"
                   required
                   value={newNotice.title}
                   onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                  placeholder="请输入醒目的通知标题..."
+                  placeholder={t('announcements.titlePlaceholder', '请输入醒目的通知标题...')}
                   style={{
                     width: '100%',
                     background: 'rgba(0,0,0,0.25)',
@@ -1523,13 +1569,13 @@ export default function AnnouncementsPage() {
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  正文内容 (支持 Markdown 与列表)
+                  {t('announcements.fieldContent', '正文内容 (支持 Markdown 与列表)')}
                 </label>
                 <textarea
                   required
                   value={newNotice.content}
                   onChange={(e) => setNewNotice({ ...newNotice, content: e.target.value })}
-                  placeholder="填写具体通报内容或功能更新说明 (支持 ### 标题、- 列表、**加粗**)..."
+                  placeholder={t('announcements.contentPlaceholder', '填写具体通报内容或功能更新说明 (支持 ### 标题、- 列表、**加粗**)...')}
                   style={{
                     width: '100%',
                     flex: 1,
@@ -1553,7 +1599,7 @@ export default function AnnouncementsPage() {
                     checked={newNotice.isPinned}
                     onChange={(e) => setNewNotice({ ...newNotice, isPinned: e.target.checked })}
                   />
-                  <span>置顶公告</span>
+                  <span>{t('announcements.checkIsPinned', '置顶公告')}</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
                   <input
@@ -1561,7 +1607,7 @@ export default function AnnouncementsPage() {
                     checked={newNotice.requireAck}
                     onChange={(e) => setNewNotice({ ...newNotice, requireAck: e.target.checked })}
                   />
-                  <span>要求点击“收到/已阅”</span>
+                  <span>{t('announcements.checkRequireAck', '要求点击“收到/已阅”')}</span>
                 </label>
               </div>
 
@@ -1579,7 +1625,7 @@ export default function AnnouncementsPage() {
                     cursor: 'pointer'
                   }}
                 >
-                  取消
+                  {t('announcements.cancelBtn', '取消')}
                 </button>
                 <button
                   type="submit"
@@ -1596,7 +1642,7 @@ export default function AnnouncementsPage() {
                     boxShadow: '0 2px 10px rgba(59, 130, 246, 0.4)'
                   }}
                 >
-                  {isSubmitting ? '发布中...' : '立即发布'}
+                  {isSubmitting ? t('announcements.submittingBtn', '发布中...') : t('announcements.submitBtn', '立即发布')}
                 </button>
               </div>
             </form>
