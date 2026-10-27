@@ -15,12 +15,14 @@ import OrdersCardsView from '../../../components/orders/OrdersCardsView';
 import OrdersTableView from '../../../components/orders/OrdersTableView';
 import OrdersGroupedView from '../../../components/orders/OrdersGroupedView';
 import OrdersSplitView from '../../../components/orders/OrdersSplitView';
+import OrdersKanbanView from '../../../components/orders/OrdersKanbanView';
+import OrdersCompactView from '../../../components/orders/OrdersCompactView';
 import { useOrdersViewPrefs } from '../../../lib/orders-view-prefs';
 import { buildFilterOptions, defaultSortDir, groupOrders, matchesFilter, sortOrders } from '../../../lib/order-view.mjs';
 import { useI18n } from '../../../lib/i18n-context';
 
-// Cards / rows per page; the grouped view pages through groups instead
-const PAGE_SIZES = { cards: 30, table: 50, grouped: 20, split: 50 };
+// Cards / rows per page; the grouped view pages through groups, the kanban shows "more" per column instead
+const PAGE_SIZES = { cards: 30, table: 50, grouped: 20, split: 50, kanban: null, compact: 100 };
 
 export default function OrdersPage() {
   const [mounted, setMounted] = useState(false);
@@ -479,7 +481,7 @@ export default function OrdersPage() {
   const { view } = viewPrefs;
   const orderGroups = view === 'grouped' ? groupOrders(filteredOrders, viewPrefs.groupBy) : [];
   const pageItems = view === 'grouped' ? orderGroups : filteredOrders;
-  const pageSize = PAGE_SIZES[view];
+  const pageSize = PAGE_SIZES[view] ?? Math.max(pageItems.length, 1);
   const pageCount = Math.max(1, Math.ceil(pageItems.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pagedItems = pageItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -686,6 +688,12 @@ export default function OrdersPage() {
               canEdit={!isReadOnlyView}
               keyboardEnabled={!isModalOpen && !isDrawerOpen && !isDuplicateModalOpen}
             />
+          )}
+          {view === 'kanban' && (
+            <OrdersKanbanView orders={pagedItems} onOpen={openDrawer} onQuickStatusChange={handleQuickStatusChange} canEdit={!isReadOnlyView} />
+          )}
+          {view === 'compact' && (
+            <OrdersCompactView orders={pagedItems} onOpen={openDrawer} />
           )}
           <OrdersPagination page={currentPage} pageCount={pageCount} onChange={handlePageChange} />
         </>

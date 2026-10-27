@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   NONE,
+  bucketByStatus,
   buildFilterOptions,
   groupOrders,
   matchesFilter,
@@ -64,4 +65,11 @@ test('groups by company with active jobs first and status counts', () => {
 test('groups by status in status order and puts blank groups last', () => {
   assert.deepEqual(groupOrders(orders, 'status').map((g) => g.key), ['urgent', 'open', 'closed']);
   assert.deepEqual(groupOrders(orders, 'location').map((g) => g.key), ['singapore', 'seri kembangan', NONE]);
+});
+
+test('buckets orders into kanban columns, unknown status as open', () => {
+  const buckets = bucketByStatus([...orders, { id: 'e', status: 'archived' }, { id: 'f' }]);
+  assert.deepEqual(Object.keys(buckets), ['open', 'urgent', 'paused', 'filled', 'closed']);
+  assert.deepEqual(Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, ids(v)])),
+    { open: ['b', 'd', 'e', 'f'], urgent: ['c'], paused: [], filled: [], closed: ['a'] });
 });

@@ -8,7 +8,9 @@ const VIEW_OPTIONS = [
   { key: 'cards', icon: 'ph-squares-four', labelKey: 'ordersView.viewCards' },
   { key: 'table', icon: 'ph-table', labelKey: 'ordersView.viewTable' },
   { key: 'grouped', icon: 'ph-stack', labelKey: 'ordersView.viewGrouped' },
-  { key: 'split', icon: 'ph-columns', labelKey: 'ordersView.viewSplit' }
+  { key: 'split', icon: 'ph-columns', labelKey: 'ordersView.viewSplit' },
+  { key: 'kanban', icon: 'ph-kanban', labelKey: 'ordersView.viewKanban' },
+  { key: 'compact', icon: 'ph-list-dashes', labelKey: 'ordersView.viewCompact' }
 ];
 
 const SORT_LABEL_KEYS = {
