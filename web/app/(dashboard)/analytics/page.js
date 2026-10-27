@@ -330,17 +330,45 @@ export default function AnalyticsPage() {
       }
     };
 
-    // 1. Process explicit manual check-ins only (pure attendance without system operation logs)
+    // 1. Process explicit manual check-ins from dedicated collection
+    const VALID_PUNCH_ACTIONS = ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'];
     manualCheckins.forEach(chk => {
+      const punchAction = chk.type || chk.action || 'CLOCK_IN';
+      if (!VALID_PUNCH_ACTIONS.includes(punchAction)) return;
       addEvent(
         chk.picName || chk.userName,
         chk.userEmail,
         chk.timestamp,
-        chk.type || 'CLOCK_IN',
+        punchAction,
         chk.note || t('analytics.defaultProgressNote', '员工考勤打卡'),
         {
           verifyMethod: chk.verifyMethod,
-          verifySnapshot: chk.verifySnapshot
+          verifySnapshot: chk.verifySnapshot,
+          uid: chk.userId || chk.uid
+        }
+      );
+    });
+
+    // 2. Process authentic punch records from logs collection (strictly targetType === 'ATTENDANCE')
+    // All system activities (candidate operations, stage movements, audit records) are strictly excluded!
+    logs.forEach(l => {
+      if (l.isDeleted) return;
+      const punchAction = l.action || l.type;
+      if (l.targetType !== 'ATTENDANCE' || !VALID_PUNCH_ACTIONS.includes(punchAction)) {
+        return; // Exclude non-attendance system activities
+      }
+
+      const name = l.user?.displayName || (l.user?.email ? l.user.email.split('@')[0] : t('analytics.defaultEmployeeName', '内部员工'));
+      addEvent(
+        name,
+        l.user?.email || l.userEmail,
+        l.timestamp,
+        punchAction,
+        l.details || l.note || t('analytics.defaultProgressNote', '员工考勤打卡'),
+        {
+          verifyMethod: l.verifyMethod,
+          verifySnapshot: l.verifySnapshot,
+          uid: l.userId || l.user?.uid
         }
       );
     });
@@ -429,7 +457,7 @@ export default function AnalyticsPage() {
 
     // Sort by date desc, then by first action time desc
     return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
-  }, [manualCheckins, teamMembers, attendanceRules, lang, t]);
+  }, [logs, manualCheckins, teamMembers, attendanceRules, lang, t]);
 
   // Filtered attendance list
   const filteredAttendance = useMemo(() => {
@@ -924,9 +952,12 @@ export default function AnalyticsPage() {
       const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
 
+      const attendanceLogs = logs.filter(l => !l.isDeleted && l.targetType === 'ATTENDANCE' && ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'].includes(l.action || l.type));
+      const combinedAttendance = [...manualCheckins, ...attendanceLogs];
+
       const sheets = ExcelExporter.buildAttendanceReportData({
         monthStr: activeMonthStr,
-        attendanceEvents: manualCheckins,
+        attendanceEvents: combinedAttendance,
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
         shiftOverrides: attendanceRules.shiftOverrides || {},
