@@ -8,6 +8,10 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from logger import setup_logger
+
+logger = setup_logger(__name__)
+
 # Exact (normalized) header matches only, so "Company Background" never lands in `company`.
 FIELD_ALIASES = {
     "company": ["company name", "company", "client", "client name", "employer", "公司", "公司名称", "客户", "企业"],
@@ -211,6 +215,18 @@ def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_as
         data["id"] = d.id
         existing.append(data)
 
+    # Batched writes (Firestore allows 500 ops per batch): one round trip per 400 orders instead of per order
+    batch = None if dry_run else db.batch()
+    pending = 0
+
+    def flush():
+        nonlocal batch, pending
+        if batch is not None and pending:
+            batch.commit()
+            logger.info(f"Committed {len(created) + len(updated)}/{len(orders)} job orders")
+            batch = db.batch()
+            pending = 0
+
     created, updated = [], []
     for order in orders:
         payload = dict(order)
@@ -228,14 +244,20 @@ def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_as
         payload["updatedAt"] = firestore.SERVER_TIMESTAMP
         if match:
             updated.append({"id": match["id"], "company": payload["company"], "position": payload["position"]})
-            if not dry_run:
-                coll.document(match["id"]).update(payload)
+            if batch is not None:
+                batch.update(coll.document(match["id"]), payload)
+                pending += 1
         else:
             order_id = str(uuid.uuid4())
             payload.update({"id": order_id, "assignedTo": assigned_to, "createdAt": firestore.SERVER_TIMESTAMP})
             created.append({"id": order_id, "company": payload["company"], "position": payload["position"]})
-            if not dry_run:
-                coll.document(order_id).set(payload)
+            if batch is not None:
+                batch.set(coll.document(order_id), payload)
+                pending += 1
             existing.append({"id": order_id, "sheetKey": payload["sheetKey"]})
+
+        if pending >= 400:
+            flush()
+    flush()
 
     return {"created": created, "updated": updated, "dryRun": dry_run}
