@@ -10,6 +10,7 @@ import { useFeedback } from '../lib/feedback-context';
 import { useAuth } from '../lib/auth-context';
 import MatchParameterModal from './MatchParameterModal';
 import MatchResultPanel from './MatchResultPanel';
+import OrderDetailContent from './orders/OrderDetailContent';
 
 export default function OrderDrawer({ order, isOpen, onClose, onEdit, onQuickStatusChange, onViewCandidate }) {
   const [mounted, setMounted] = useState(false);
@@ -111,93 +112,7 @@ export default function OrderDrawer({ order, isOpen, onClose, onEdit, onQuickSta
                 }}
               />
 
-              {/* Quick Metrics */}
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
-                gap: 'var(--space-4)',
-                background: 'var(--bg-card)',
-                padding: 'var(--space-5)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-subtle)'
-              }}>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>{t('components.orderDrawer.salary')}</div>
-                  <div style={{ color: 'var(--accent-emerald)', fontWeight: '600' }}>{order.salary || t('components.orderDrawer.notSet')}</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>{t('components.orderDrawer.location')}</div>
-                  <div style={{ color: 'var(--text-primary)' }}>{order.location || t('components.orderDrawer.notSet')}</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>{t('components.orderDrawer.headcount')}</div>
-                  <div style={{ color: 'var(--accent-amber)' }}>{order.headcount || 1} {t('orders.pax')}</div>
-                </div>
-              </div>
-
-              <div>
-                <h4 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="ph-light ph-clock" style={{ color: 'var(--accent-amber)' }}></i> {t('components.orderDrawer.workHours')}
-                </h4>
-                <div style={{ 
-                  background: 'rgba(255,255,255,0.02)', 
-                  padding: 'var(--space-4)', 
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)',
-                  lineHeight: '1.6',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {order.workHours || t('components.orderDrawer.noWorkHours')}
-                </div>
-              </div>
-
-              <div>
-                <h4 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <i className="ph-light ph-list-checks" style={{ color: 'var(--accent-blue)' }}></i> {t('components.orderDrawer.reqs')}
-                </h4>
-                <div style={{ 
-                  background: 'rgba(255,255,255,0.02)', 
-                  padding: 'var(--space-4)', 
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)',
-                  lineHeight: '1.6',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {order.requirements || t('components.orderDrawer.noReqs')}
-                </div>
-              </div>
-
-              {order.benefits && (
-                <div>
-                  <h4 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="ph-light ph-gift" style={{ color: 'var(--accent-rose)' }}></i> {t('components.orderDrawer.benefits')}
-                  </h4>
-                  <div style={{ 
-                    background: 'rgba(255,255,255,0.02)', 
-                    padding: 'var(--space-4)', 
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--text-sm)',
-                    lineHeight: '1.6',
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {order.benefits}
-                  </div>
-                </div>
-              )}
-
-              {order.notes && (
-                <div style={{ 
-                  borderTop: '1px dashed var(--border-subtle)', 
-                  paddingTop: 'var(--space-5)', 
-                  marginTop: 'var(--space-2)' 
-                }}>
-                  <h4 style={{ color: 'var(--text-primary)', marginBottom: 'var(--space-2)', fontSize: 'var(--text-sm)' }}>{t('components.orderDrawer.teamNotes')}</h4>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{order.notes}</div>
-                </div>
-              )}
+              <OrderDetailContent order={order} />
 
             </div>
           ) : (
