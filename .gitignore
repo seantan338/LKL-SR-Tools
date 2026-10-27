@@ -97,3 +97,6 @@ ai_backend/uploads/resumes/
 ~$*.xlsx
 # Archived One-off Scripts
 scripts/archive/
+
+# Local job order import preview (sync_job_orders.ps1)
+ai_backend/preview.csv

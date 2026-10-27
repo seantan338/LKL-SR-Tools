@@ -12,6 +12,7 @@ from services.job_order_sheet import (
     map_sheet_rows_to_job_orders,
     normalize_job_order_status,
     parse_sheet_timestamp,
+    upsert_job_orders,
 )
 
 # Header row of "Job Order 2026" > Database
@@ -87,6 +88,93 @@ class JobOrderSheetTests(unittest.TestCase):
         self.assertEqual(find_existing_job_order(existing, {"company": "psa", "position": "lashing specialist", "location": ""})["id"], "a")
         self.assertIsNone(find_existing_job_order(existing, {"company": "PSA", "position": "Welder", "location": ""}))
         self.assertEqual(job_order_sheet_key({"company": " PSA ", "position": "Lashing  Specialist", "location": "TBD"}), "psa::lashing specialist::")
+
+
+class _FakeDoc:
+    def __init__(self, coll, doc_id):
+        self.coll, self.id = coll, doc_id
+
+    def collection(self, name):
+        return self.coll.db.collection(f"{self.coll.path}/{self.id}/{name}")
+
+
+class _FakeSnap:
+    def __init__(self, doc_id, data):
+        self.id, self._data = doc_id, data
+
+    def to_dict(self):
+        return dict(self._data)
+
+
+class _FakeColl:
+    def __init__(self, db, path):
+        self.db, self.path, self.docs = db, path, {}
+
+    def document(self, doc_id):
+        return _FakeDoc(self, doc_id)
+
+    def stream(self):
+        return [_FakeSnap(k, v) for k, v in self.docs.items()]
+
+
+class _FakeBatch:
+    def __init__(self, db):
+        self.db, self.ops = db, []
+
+    def set(self, ref, data):
+        self.ops.append(("set", ref, data))
+
+    def update(self, ref, data):
+        self.ops.append(("update", ref, data))
+
+    def commit(self):
+        self.db.commits.append(len(self.ops))
+        for op, ref, data in self.ops:
+            if op == "set":
+                ref.coll.docs[ref.id] = dict(data)
+            else:
+                ref.coll.docs[ref.id].update(data)
+
+
+class _FakeDB:
+    def __init__(self):
+        self.colls, self.commits = {}, []
+
+    def collection(self, path):
+        return self.colls.setdefault(path, _FakeColl(self, path))
+
+    def batch(self):
+        return _FakeBatch(self)
+
+
+class UpsertTests(unittest.TestCase):
+    def setUp(self):
+        from unittest import mock
+        patcher = mock.patch("services.identity_service.get_team_members", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _orders(self, n):
+        rows = [["Co", "Open", f"Role {i}", "-", "KL"] for i in range(n)]
+        return map_sheet_rows_to_job_orders(HEADERS, rows)["orders"]
+
+    def test_dry_run_writes_nothing(self):
+        db = _FakeDB()
+        res = upsert_job_orders(db, "default_team", self._orders(3), dry_run=True)
+        self.assertEqual(len(res["created"]), 3)
+        self.assertEqual(db.commits, [])
+
+    def test_batches_and_reimport_updates(self):
+        db = _FakeDB()
+        res = upsert_job_orders(db, "default_team", self._orders(450), dry_run=False)
+        self.assertEqual(len(res["created"]), 450)
+        self.assertEqual(db.commits, [400, 50])
+        coll = db.collection("teams/default_team/job_orders")
+        self.assertEqual(len(coll.docs), 450)
+
+        res = upsert_job_orders(db, "default_team", self._orders(451), dry_run=False)
+        self.assertEqual((len(res["created"]), len(res["updated"])), (1, 450))
+        self.assertEqual(len(coll.docs), 451)
 
 
 if __name__ == "__main__":
