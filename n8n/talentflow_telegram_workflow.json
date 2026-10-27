@@ -57,7 +57,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 60000
+          "timeout": 180000
         }
       },
       "id": "1a2b3c4d-0003-4000-8000-000000000003",

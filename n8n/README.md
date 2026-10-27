@@ -81,6 +81,7 @@
    var backendUrl = 'https://unsafe-islamist-idealist.ngrok-free.dev/webhook/sheets-sync';
    ```
 4. **运作效果**：Google 表格编辑后，n8n 实时抓取并通过 `http://host.docker.internal:8000/api/sheets/webhook` 转发至 FastAPI，实现 Telegram 简历与 Google 表格同步无缝共存。
+5. **Job Order 表格**：表头含 `Company Name` + `Job Title` 的表格（如 `Job Order 2026 > Database`）会被后端自动识别，只同步被编辑的那一行到 Job Orders（按「公司 + 职位 + 地点」匹配），不会被当成候选人解析。
 
 
 
@@ -93,6 +94,7 @@
 - **导入文件**：`n8n/talentflow_job_order_daily_sync_workflow.json`
 - **流程**：`Daily 08:00` / `Run Now (Test)` → `Config` → `Sync Job Orders`（`POST /api/sheets/import-job-orders`）→ `Sync OK?` → Telegram 推送摘要或失败原因
 - **同步规则**：按「公司 + 职位 + 地点」匹配；只新建新岗位、只更新内容有变化的岗位，不会重复；缺公司名或职位的行会跳过，并在推送消息里列出行号。
+- **改名 / 删除的行**：表格里已找不到、但系统中仍在招聘的岗位会列在推送消息里，系统不会自动删除或关闭，由你确认处理。
 
 ### 设置步骤
 1. **Config 节点**：填写 `apiBaseUrl`（后端地址，例如 Zeabur 的 `https://xxx.zeabur.app`；本地 Docker n8n 可用 `http://host.docker.internal:8000`）和 `telegramChatId`。想先试跑可把 `dryRun` 设为 `true`。

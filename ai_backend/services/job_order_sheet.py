@@ -203,21 +203,37 @@ UNTRACKED_FIELDS = {"sourceRow", "updatedAt", "createdAt", "id", "assignedTo"}
 
 
 def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_assigned_to: str = "system",
-                      dry_run: bool = True) -> Dict[str, Any]:
+                      dry_run: bool = True, existing_docs: Optional[List[Dict[str, Any]]] = None,
+                      report_orphans: bool = False) -> Dict[str, Any]:
     """
     Writes mapped orders into teams/{team_id}/job_orders, updating existing ones matched by
     company + position + location instead of creating duplicates. Mirrors FirestoreStore.addJobOrder/updateJobOrder.
+    existing_docs lets a caller pass a pre-filtered set instead of reading the whole collection.
+    report_orphans (full-sheet syncs only) lists sheet-imported orders whose row is no longer in the sheet.
     """
     import uuid
     from firebase_admin import firestore
     from services.identity_service import resolve_canonical_pic
 
     coll = db.collection("teams").document(team_id).collection("job_orders")
-    existing = []
-    for d in coll.stream():
-        data = d.to_dict() or {}
-        data["id"] = d.id
-        existing.append(data)
+    if existing_docs is not None:
+        existing = list(existing_docs)
+    else:
+        existing = []
+        for d in coll.stream():
+            data = d.to_dict() or {}
+            data["id"] = d.id
+            existing.append(data)
+    # Report-only: a renamed or deleted sheet row leaves its old order behind; never auto-delete
+    orphans = []
+    if report_orphans:
+        sheet_keys = {o.get("sheetKey") or job_order_sheet_key(o) for o in orders}
+        orphans = [
+            {"id": o["id"], "company": o.get("company", ""), "position": o.get("position", ""), "status": o.get("status", "")}
+            for o in existing
+            if o.get("importSource") == "google_sheet" and o.get("status") not in ("closed", "filled")
+            and (o.get("sheetKey") or job_order_sheet_key(o)) not in sheet_keys
+        ]
 
     # Batched writes (Firestore allows 500 ops per batch): one round trip per 400 orders instead of per order
     batch = None if dry_run else db.batch()
@@ -274,4 +290,28 @@ def upsert_job_orders(db, team_id: str, orders: List[Dict[str, Any]], default_as
             flush()
     flush()
 
-    return {"created": created, "updated": updated, "unchanged": len(unchanged), "dryRun": dry_run}
+    return {"created": created, "updated": updated, "unchanged": len(unchanged), "orphans": orphans, "dryRun": dry_run}
+
+
+def sync_job_order_rows(db, team_id: str, headers: List[Any], rows: List[List[Any]], first_row_number: int = 2) -> Dict[str, Any]:
+    """
+    Real-time path for a Google Sheets onEdit webhook on a Job Order sheet: maps only the edited
+    row(s) and upserts them, looking existing orders up by sheetKey instead of reading the collection.
+    """
+    mapped = map_sheet_rows_to_job_orders(headers, rows, row_offset=first_row_number)
+    coll = db.collection("teams").document(team_id).collection("job_orders")
+    existing = []
+    for order in mapped["orders"]:
+        key = order["sheetKey"]
+        docs = list(coll.where("sheetKey", "==", key).limit(1).stream())
+        if not docs and not key.endswith("::"):
+            # Location typed after company + title: adopt the order created while location was still blank
+            docs = list(coll.where("sheetKey", "==", key.rsplit("::", 1)[0] + "::").limit(1).stream())
+        for d in docs:
+            data = d.to_dict() or {}
+            data["id"] = d.id
+            data["sheetKey"] = key
+            existing.append(data)
+    result = upsert_job_orders(db, team_id, mapped["orders"], dry_run=False, existing_docs=existing)
+    result["skipped"] = mapped["skipped"]
+    return result

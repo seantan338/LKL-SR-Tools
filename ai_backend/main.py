@@ -799,6 +799,28 @@ from fastapi import BackgroundTasks
 
 async def process_webhook_in_background(req: SheetsWebhookRequest):
     try:
+        # A Job Order sheet (Company Name + Job Title headers) must never be parsed as candidates
+        from services.job_order_sheet import detect_job_order_columns
+        header_row = req.headers[0] if req.headers else []
+        if detect_job_order_columns(header_row):
+            from fastapi.concurrency import run_in_threadpool
+            from firebase_admin_init import get_firestore_client
+            from services.job_order_sheet import sync_job_order_rows
+            import re as _re
+
+            row_match = _re.search(r"\d+", req.range or "")
+            first_row = int(row_match.group()) if row_match else 2
+            res = await run_in_threadpool(
+                sync_job_order_rows, get_firestore_client(), req.teamId or "default_team",
+                header_row, req.values, first_row,
+            )
+            logger.info(
+                f"Sheets webhook routed to job orders for '{req.sheetName}' row {first_row}: "
+                f"{len(res['created'])} new, {len(res['updated'])} updated, {res['unchanged']} unchanged, "
+                f"{len(res['skipped'])} skipped"
+            )
+            return
+
         # 合并表头与数据行，向大模型提供最高精度的列语义上下文
         all_rows = []
         if req.headers and len(req.headers) > 0 and req.headers != req.values:
@@ -901,7 +923,7 @@ async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dic
     # Blocking Firestore / Sheets I/O stays off the event loop
     result = await run_in_threadpool(
         upsert_job_orders, db, req.teamId, mapped["orders"],
-        default_assigned_to=req.assignedTo or "system", dry_run=bool(req.dryRun),
+        default_assigned_to=req.assignedTo or "system", dry_run=bool(req.dryRun), report_orphans=True,
     )
     return {
         "status": "success",
@@ -915,6 +937,9 @@ async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dic
         # Capped so an n8n / Telegram summary stays readable
         "createdItems": result["created"][:30],
         "updatedItems": result["updated"][:30],
+        # Sheet-imported orders whose row was renamed or deleted; reported, never auto-deleted
+        "orphans": len(result["orphans"]),
+        "orphanItems": result["orphans"][:30],
     }
 
 @app.post("/api/sheets/webhook")
