@@ -21,15 +21,27 @@
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "string": [],
-          "number": [],
-          "custom": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
             {
-              "value": "={{ Boolean($json.message && ($json.message.document || $json.message.photo || ($json.message.text && $json.message.text.length >= 80))) }}"
+              "id": "is-resume-message",
+              "leftValue": "={{ Boolean($json.message && ($json.message.document || $json.message.photo || ($json.message.text && $json.message.text.length >= 80))) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "id": "1a2b3c4d-0002-4000-8000-000000000002",
       "name": "Is Resume Document / Photo / Text?",
