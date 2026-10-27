@@ -1258,6 +1258,7 @@ export const zh = {
     moreRowsCount: '... 还有 {count} 行数据',
     forceImportBtn: '按上述映射强制导入 ({count}行)',
     aiCleanBtn: '✨ AI 智能清洗解析 (推荐)',
+    directJobOrderBtn: '按表头直接导入岗位 (免 AI，可重复同步)',
     
     aiPreviewTitle: 'AI 清洗预览 (已适配标准 12 列，可直接校验编辑)',
     batchSetCompanyLabel: '🏢 批量设置本批候选人意向企业：',
@@ -3466,6 +3467,7 @@ export const en = {
     moreRowsCount: '... and {count} more rows',
     forceImportBtn: 'Force Import by Mapping ({count} rows)',
     aiCleanBtn: '✨ AI Smart Clean & Parse (Recommended)',
+    directJobOrderBtn: 'Import Job Orders by Column (no AI, re-sync safe)',
     
     aiPreviewTitle: 'AI Cleaned Preview (Normalized to 12 Standard Columns, Editable)',
     batchSetCompanyLabel: '🏢 Batch Set Target Company for This Batch:',
