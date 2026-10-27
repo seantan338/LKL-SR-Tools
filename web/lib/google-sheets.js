@@ -108,7 +108,7 @@ export const GoogleSheetsAPI = {
    * Requires OAuth access_token with 'https://www.googleapis.com/auth/spreadsheets.readonly' scope
    */
   async fetchPrivateSheetData(spreadsheetId, accessToken, range = 'A1:Z1000') {
-    const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
     
     try {
       const response = await fetch(apiUrl, {
