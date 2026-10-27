@@ -9,7 +9,7 @@ import { GROUP_FIELDS, SORT_KEYS } from './order-view.mjs';
  */
 const STORAGE_KEY = 'talent_flow_orders_view';
 
-export const ORDER_VIEW_MODES = ['cards', 'table', 'grouped', 'split'];
+export const ORDER_VIEW_MODES = ['cards', 'table', 'grouped', 'split', 'kanban', 'compact'];
 
 export const DEFAULT_ORDERS_VIEW_PREFS = {
   view: 'cards',

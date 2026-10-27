@@ -646,6 +646,131 @@
   overflow-y: auto;
 }
 
+/* Kanban view: one column per status */
+.orders-kanban {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+  align-items: flex-start;
+}
+
+.orders-kanban-column {
+  display: flex;
+  flex: 1 0 250px;
+  flex-direction: column;
+  min-width: 250px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bezel-core-bg);
+}
+
+.orders-kanban-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+}
+
+.orders-kanban-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 120px;
+  padding: var(--space-3);
+  transition: background-color var(--duration-fast) var(--ease-spring);
+}
+
+.orders-kanban-list.drag-over {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.orders-kanban-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-elevated);
+  transition: border-color var(--duration-fast) var(--ease-spring), box-shadow var(--duration-fast) var(--ease-spring);
+}
+
+.orders-kanban-card:hover {
+  border-color: var(--border-subtle);
+}
+
+.orders-kanban-card.dragging {
+  border-color: var(--accent-blue);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.orders-kanban-empty {
+  padding: var(--space-4) var(--space-2);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+/* Compact view: one dense line per job */
+.orders-compact {
+  overflow: hidden;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bezel-core-bg);
+}
+
+.orders-compact-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 7px var(--space-4);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.orders-compact-row + .orders-compact-row {
+  border-top: 1px solid var(--border-hairline);
+}
+
+.orders-compact-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.orders-compact-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.orders-compact-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orders-compact-salary {
+  flex-shrink: 0;
+  color: var(--accent-emerald);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.orders-compact-status {
+  flex-shrink: 0;
+  min-width: 64px;
+  font-size: var(--text-xs);
+  text-align: right;
+  white-space: nowrap;
+}
+
 .orders-pagination {
   display: flex;
   align-items: center;
@@ -673,6 +798,14 @@
 
   .orders-view-summary {
     margin-left: 0;
+  }
+
+  .orders-compact-row {
+    padding: 9px var(--space-3);
+  }
+
+  .orders-compact-salary {
+    display: none;
   }
 }
 

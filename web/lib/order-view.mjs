@@ -114,6 +114,21 @@ export function buildFilterOptions(orders, field) {
   );
 }
 
+/** Kanban columns, left to right */
+export const KANBAN_STATUSES = ['open', 'urgent', 'paused', 'filled', 'closed'];
+
+/**
+ * Buckets orders into the kanban columns, keeping their current order inside each column.
+ * A missing or unknown status lands in "open", the same way the status badge shows it.
+ */
+export function bucketByStatus(orders) {
+  const buckets = Object.fromEntries(KANBAN_STATUSES.map(status => [status, []]));
+  for (const order of orders) {
+    buckets[KANBAN_STATUSES.includes(order.status) ? order.status : 'open'].push(order);
+  }
+  return buckets;
+}
+
 export const GROUP_FIELDS = ['company', 'pic', 'status', 'location'];
 
 /**
