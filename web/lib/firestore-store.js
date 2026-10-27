@@ -1,7 +1,7 @@
 import { db } from './firebase';
 import { 
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
-  query, where, orderBy, onSnapshot, serverTimestamp, writeBatch 
+  query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, increment 
 } from 'firebase/firestore';
 import { Utils } from './utils';
 import { mergeInterviewReminder } from './interview-reminder.mjs';
@@ -749,7 +749,194 @@ export const FirestoreStore = {
     } catch (_) {}
 
     return payload;
+  },
+
+  // --- Announcements ---
+
+  subscribeToAnnouncements(teamId, callback) {
+    const announcementsRef = collection(db, 'announcements');
+    const q = query(announcementsRef, orderBy('createdAt', 'desc'));
+
+    return onSnapshot(q, (snapshot) => {
+      const list = [];
+      const now = new Date().toISOString();
+      for (const d of snapshot.docs) {
+        const item = { ...d.data(), id: d.id };
+        if (item.isDeleted) continue;
+        
+        // 租户过滤：'ALL' 全局可见，或者与当前用户 teamId 相同
+        if (item.teamId && item.teamId !== 'ALL' && teamId && item.teamId !== teamId) {
+          continue;
+        }
+
+        // 检查是否过期，若过期则置顶失效
+        if (item.expiresAt && item.expiresAt < now) {
+          item.isPinned = false;
+        }
+
+        list.push(item);
+      }
+      callback(list);
+    }, (err) => {
+      console.warn("subscribeToAnnouncements error:", err);
+      callback([]);
+    });
+  },
+
+  subscribeToMyAnnouncementReads(userId, callback) {
+    if (!userId) {
+      callback({});
+      return () => {};
+    }
+    const readsRef = collection(db, 'announcement_reads');
+    const q = query(readsRef, where('userId', '==', userId));
+
+    return onSnapshot(q, (snapshot) => {
+      const readMap = {};
+      for (const d of snapshot.docs) {
+        const item = d.data();
+        readMap[item.announcementId] = item;
+      }
+      callback(readMap);
+    }, (err) => {
+      console.warn("subscribeToMyAnnouncementReads error:", err);
+      callback({});
+    });
+  },
+
+  async createAnnouncement(data) {
+    const id = data.id || `ann_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const payload = sanitizeFirestoreData({
+      id,
+      title: data.title || '',
+      content: data.content || '',
+      category: data.category || 'SUPERVISOR',
+      priority: data.priority || 'P2_NORMAL',
+      author: {
+        id: data.author?.id || '',
+        name: data.author?.name || '管理员',
+        avatarUrl: data.author?.avatarUrl || ''
+      },
+      versionTag: data.versionTag || null,
+      changeTypes: data.changeTypes || [],
+      targetScope: data.targetScope || 'ALL',
+      teamId: data.teamId || 'ALL',
+      requireAck: Boolean(data.requireAck),
+      isPinned: Boolean(data.isPinned),
+      readCount: 0,
+      ackCount: 0,
+      createdAt: data.createdAt || new Date().toISOString(),
+      expiresAt: data.expiresAt || null,
+      isDeleted: false
+    });
+
+    await setDoc(doc(db, 'announcements', id), payload);
+    return payload;
+  },
+
+  async updateAnnouncement(id, updates) {
+    if (!id) return;
+    const payload = sanitizeFirestoreData({
+      ...updates,
+      updatedAt: new Date().toISOString()
+    });
+    await updateDoc(doc(db, 'announcements', id), payload);
+    return payload;
+  },
+
+  async deleteAnnouncement(id, user) {
+    if (!id) return;
+    await updateDoc(doc(db, 'announcements', id), {
+      isDeleted: true,
+      deletedAt: new Date().toISOString(),
+      deletedBy: user?.uid || '',
+      deletedByName: user?.displayName || user?.email || ''
+    });
+  },
+
+  async markAnnouncementRead(announcementId, user, autoAcknowledge = false) {
+    if (!announcementId || !user?.uid) return;
+    const readDocId = `${announcementId}_${user.uid}`;
+    const docRef = doc(db, 'announcement_reads', readDocId);
+
+    const snap = await getDoc(docRef);
+    const now = new Date().toISOString();
+
+    if (!snap.exists()) {
+      await setDoc(docRef, sanitizeFirestoreData({
+        id: readDocId,
+        announcementId,
+        userId: user.uid,
+        userName: user.displayName || user.email || '团队成员',
+        userAvatar: user.photoURL || '',
+        teamId: user.teamId || '',
+        readAt: now,
+        ackAt: autoAcknowledge ? now : null
+      }));
+
+      try {
+        const updateObj = { readCount: increment(1) };
+        if (autoAcknowledge) updateObj.ackCount = increment(1);
+        await updateDoc(doc(db, 'announcements', announcementId), updateObj);
+      } catch (err) {
+        console.warn("Could not increment readCount:", err);
+      }
+    } else if (autoAcknowledge && !snap.data().ackAt) {
+      await updateDoc(docRef, { ackAt: now });
+      try {
+        await updateDoc(doc(db, 'announcements', announcementId), { ackCount: increment(1) });
+      } catch (err) {
+        console.warn("Could not increment ackCount:", err);
+      }
+    }
+  },
+
+  async acknowledgeAnnouncement(announcementId, user) {
+    if (!announcementId || !user?.uid) return;
+    const readDocId = `${announcementId}_${user.uid}`;
+    const docRef = doc(db, 'announcement_reads', readDocId);
+    const now = new Date().toISOString();
+
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      await setDoc(docRef, sanitizeFirestoreData({
+        id: readDocId,
+        announcementId,
+        userId: user.uid,
+        userName: user.displayName || user.email || '团队成员',
+        userAvatar: user.photoURL || '',
+        teamId: user.teamId || '',
+        readAt: now,
+        ackAt: now
+      }));
+      try {
+        await updateDoc(doc(db, 'announcements', announcementId), {
+          readCount: increment(1),
+          ackCount: increment(1)
+        });
+      } catch (err) {
+        console.warn("Could not increment ack/read count:", err);
+      }
+    } else {
+      if (!snap.data().ackAt) {
+        await updateDoc(docRef, { ackAt: now });
+        try {
+          await updateDoc(doc(db, 'announcements', announcementId), {
+            ackCount: increment(1)
+          });
+        } catch (err) {
+          console.warn("Could not increment ackCount:", err);
+        }
+      }
+    }
+  },
+
+  async getAnnouncementReaders(announcementId) {
+    if (!announcementId) return [];
+    const readsRef = collection(db, 'announcement_reads');
+    const q = query(readsRef, where('announcementId', '==', announcementId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
   }
+
 };
-
-

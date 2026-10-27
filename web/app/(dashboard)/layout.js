@@ -7,6 +7,7 @@ import NotificationPanel from '../../components/NotificationPanel';
 import GlobalQuickFab from '../../components/GlobalQuickFab';
 import AttendanceModal from '../../components/AttendanceModal';
 import MobileTabBar from '../../components/MobileTabBar';
+import P0NoticeModal from '../../components/P0NoticeModal';
 import { NotificationProvider } from '../../lib/notification-context';
 import { useAuth } from '../../lib/auth-context';
 import { useI18n } from '../../lib/i18n-context';
@@ -98,6 +99,7 @@ export default function DashboardLayout({ children }) {
       <GlobalQuickFab />
       <AttendanceModal />
       <MobileTabBar onOpenMenu={toggleSidebar} />
+      <P0NoticeModal />
     </NotificationProvider>
   );
 }

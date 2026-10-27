@@ -361,6 +361,7 @@ export const zh = {
   nav: {
     sectionManagement: '管理视图',
     overview: '工作台概览',
+    announcements: '公告通知',
     orders: '招聘订单',
     aiParser: 'AI 职位生成',
     cvAutofill: 'CV 简历解析',
@@ -2442,6 +2443,7 @@ export const en = {
   nav: {
     sectionManagement: 'MANAGEMENT',
     overview: 'Overview',
+    announcements: 'Announcements',
     orders: 'Job Orders',
     aiParser: 'AI Job Parser',
     cvAutofill: 'CV Auto Fill',
