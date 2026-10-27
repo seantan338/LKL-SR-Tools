@@ -172,9 +172,29 @@ class UpsertTests(unittest.TestCase):
         coll = db.collection("teams/default_team/job_orders")
         self.assertEqual(len(coll.docs), 450)
 
+        # Re-importing the same sheet plus one new row writes only the new row
+        commits_before = len(db.commits)
         res = upsert_job_orders(db, "default_team", self._orders(451), dry_run=False)
-        self.assertEqual((len(res["created"]), len(res["updated"])), (1, 450))
+        self.assertEqual((len(res["created"]), len(res["updated"]), res["unchanged"]), (1, 0, 450))
+        self.assertEqual(db.commits[commits_before:], [1])
         self.assertEqual(len(coll.docs), 451)
+
+    def test_only_changed_orders_are_updated(self):
+        db = _FakeDB()
+        upsert_job_orders(db, "default_team", self._orders(3), dry_run=False)
+        orders = self._orders(3)
+        orders[1]["status"] = "closed"
+        orders[2]["salary"] = "RM5000"
+        for o in orders:
+            o["sourceRow"] += 10  # a row inserted above shifts every sourceRow; not a change
+        res = upsert_job_orders(db, "default_team", orders, dry_run=False)
+        self.assertEqual((len(res["created"]), res["unchanged"]), (0, 1))
+        self.assertEqual([(u["position"], u["changedFields"]) for u in res["updated"]],
+                         [("Role 1", ["status"]), ("Role 2", ["salary"])])
+        self.assertEqual(res["updated"][0]["statusChange"], ["open", "closed"])
+        stored = {d["position"]: d for d in db.collection("teams/default_team/job_orders").docs.values()}
+        self.assertEqual(stored["Role 1"]["status"], "closed")
+        self.assertEqual(stored["Role 2"]["salary"], "RM5000")
 
 
 if __name__ == "__main__":

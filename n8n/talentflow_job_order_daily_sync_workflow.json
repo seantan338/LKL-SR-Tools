@@ -1,0 +1,319 @@
+{
+  "name": "Talent Flow - Job Order Daily Sync (Google Sheets → Firestore)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000001",
+      "name": "Daily 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4d5e6f7a-0001-4000-8000-000000000002",
+      "name": "Run Now (Test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000101",
+              "name": "apiBaseUrl",
+              "value": "https://YOUR-AI-BACKEND.zeabur.app",
+              "type": "string"
+            },
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000102",
+              "name": "spreadsheetId",
+              "value": "1Fc3_q77r8Eph665aqqmeDqEalRjEFBDhIZ3-F2qxYt8",
+              "type": "string"
+            },
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000103",
+              "name": "sheetName",
+              "value": "Database",
+              "type": "string"
+            },
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000104",
+              "name": "teamId",
+              "value": "default_team",
+              "type": "string"
+            },
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000105",
+              "name": "dryRun",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000106",
+              "name": "telegramChatId",
+              "value": "YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000003",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        500,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.apiBaseUrl.replace(/\\/+$/, '') }}/api/sheets/import-job-orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ spreadsheetId: $json.spreadsheetId, sheetName: $json.sheetName, teamId: $json.teamId, dryRun: $json.dryRun }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000004",
+      "name": "Sync Job Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4d5e6f7a-0001-4000-8000-000000000201",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000005",
+      "name": "Sync OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns the /api/sheets/import-job-orders response into a short Telegram message\nconst r = $input.first().json;\nconst label = s => ({ open: 'Open', urgent: 'Urgent', closed: 'Closed', paused: 'Paused', filled: 'Filled' }[s] || s || '-');\nconst updatedItems = r.updatedItems || [];\nconst lines = [];\n\nlines.push(`${r.dryRun ? '🧪 [DRY RUN] ' : ''}✅ Job Order 每日同步完成`);\nlines.push(`共 ${r.created + r.updated + r.unchanged} 个岗位：新建 ${r.created}，有变更 ${r.updated}，无变化 ${r.unchanged}`);\n\nconst createdItems = r.createdItems || [];\nif (createdItems.length) {\n  lines.push('', '🆕 新岗位：');\n  createdItems.slice(0, 15).forEach(i => lines.push(`• ${i.company} – ${i.position}`));\n  if (r.created > 15) lines.push(`…另 ${r.created - 15} 个`);\n}\n\nconst statusChanges = updatedItems.filter(u => u.statusChange);\nif (statusChanges.length) {\n  lines.push('', '🔄 状态变化：');\n  statusChanges.slice(0, 15).forEach(u => lines.push(`• ${u.company} – ${u.position}: ${label(u.statusChange[0])} → ${label(u.statusChange[1])}`));\n}\n\nconst otherChanges = updatedItems.filter(u => !u.statusChange);\nif (otherChanges.length) {\n  lines.push('', '✏️ 内容更新：');\n  otherChanges.slice(0, 10).forEach(u => lines.push(`• ${u.company} – ${u.position} (${u.changedFields.join(', ')})`));\n}\nif (r.updated > updatedItems.length) lines.push(`…共 ${r.updated} 个岗位有变更`);\n\nconst skipped = r.skipped || [];\nif (skipped.length) {\n  const rows = skipped.slice(0, 20).map(s => s.row).join(', ');\n  lines.push('', `⚠️ 跳过 ${skipped.length} 行（缺公司名或职位），请在表格补齐：第 ${rows}${skipped.length > 20 ? '…' : ''} 行`);\n}\n\n// Telegram caps a message at 4096 characters\nreturn [{ json: { text: lines.join('\\n').slice(0, 4000) } }];"
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000006",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Both a { status: \"error\" } response and an HTTP failure (after retries) land here\nconst j = $input.first().json;\nconst err = j.message || (j.error && (j.error.message || j.error.description)) || JSON.stringify(j).slice(0, 500);\nreturn [{ json: { text: `❌ Job Order 每日同步失败\\n${err}\\n\\n请查看 n8n 的 Executions 记录或后端日志。`.slice(0, 4000) } }];"
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000007",
+      "name": "Build Failure Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Config').first().json.telegramChatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000008",
+      "name": "Telegram Notify",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1460,
+        340
+      ],
+      "webhookId": "talentflow-job-order-sync-notify"
+    },
+    {
+      "parameters": {
+        "content": "## Talent Flow - Job Order 每日自动同步\n\n**流程**：每天 08:00 (Asia/Kuala_Lumpur) → 调用后端 `POST /api/sheets/import-job-orders` → 读取 `Job Order 2026 > Database` → 按「公司 + 职位 + 地点」写入 Firestore（只新建 / 更新有变化的岗位，不会重复）→ Telegram 推送结果。\n\n### 首次设置（3 步）\n1. **Config 节点**：填 `apiBaseUrl`（Zeabur 后端地址）和 `telegramChatId`。\n2. **Sync Job Orders 节点** → Credential → 新建 *Header Auth*：Name = `X-API-Key`，Value = 后端环境变量 `INTERNAL_API_SECRET` 的值。\n3. **Telegram Notify 节点** → 选择已有的 Telegram Bot 凭据。\n\n先点 **Test workflow**（可把 Config 里 `dryRun` 设为 true 试跑），确认 Telegram 收到消息后再打开右上角 **Active**。\n\n### 后端要求\n- 环境变量 `INTERNAL_API_SECRET` 已设置。\n- `FIREBASE_SERVICE_ACCOUNT_JSON` 已设置，并把表格共享给该 key 的 `client_email`（Viewer），且 GCP 项目已启用 Google Sheets API。",
+        "height": 420,
+        "width": 620
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000009",
+      "name": "Setup Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        -160
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 08:00": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Now (Test)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Sync Job Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Job Orders": {
+      "main": [
+        [
+          {
+            "node": "Sync OK?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Failure Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync OK?": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Failure Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Message": {
+      "main": [
+        [
+          {
+            "node": "Telegram Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kuala_Lumpur"
+  },
+  "versionId": "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f70",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "talentflow_orchestrator"
+  },
+  "tags": [
+    {
+      "createdAt": "2026-10-06T00:00:00.000Z",
+      "updatedAt": "2026-10-06T00:00:00.000Z",
+      "id": "talentflow",
+      "name": "Talent Flow"
+    }
+  ]
+}

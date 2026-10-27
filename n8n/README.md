@@ -83,3 +83,29 @@
 4. **运作效果**：Google 表格编辑后，n8n 实时抓取并通过 `http://host.docker.internal:8000/api/sheets/webhook` 转发至 FastAPI，实现 Telegram 简历与 Google 表格同步无缝共存。
 
 
+
+---
+
+## 7. Job Order 每日自动同步工作流 (Google Sheets → Firestore)
+
+每天 08:00（Asia/Kuala_Lumpur）把 `Job Order 2026 > Database` 同步进系统，并把结果推送到 Telegram。
+
+- **导入文件**：`n8n/talentflow_job_order_daily_sync_workflow.json`
+- **流程**：`Daily 08:00` / `Run Now (Test)` → `Config` → `Sync Job Orders`（`POST /api/sheets/import-job-orders`）→ `Sync OK?` → Telegram 推送摘要或失败原因
+- **同步规则**：按「公司 + 职位 + 地点」匹配；只新建新岗位、只更新内容有变化的岗位，不会重复；缺公司名或职位的行会跳过，并在推送消息里列出行号。
+
+### 设置步骤
+1. **Config 节点**：填写 `apiBaseUrl`（后端地址，例如 Zeabur 的 `https://xxx.zeabur.app`；本地 Docker n8n 可用 `http://host.docker.internal:8000`）和 `telegramChatId`。想先试跑可把 `dryRun` 设为 `true`。
+2. **Sync Job Orders 节点** → Credential → 新建 **Header Auth**：Name = `X-API-Key`，Value = 后端环境变量 `INTERNAL_API_SECRET` 的值。
+3. **Telegram Notify 节点** → 选择已有的 Telegram Bot 凭据。
+4. 点 **Test workflow** 确认 Telegram 收到消息后，打开右上角 **Active**。
+
+### 后端前提
+| 环境变量 | 用途 |
+| :--- | :--- |
+| `INTERNAL_API_SECRET` | n8n 调用接口的密钥（与 Header Auth 的值一致） |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | 写 Firestore；没有 `credentials.json` 时也用它读 Google Sheets |
+
+表格需共享给该 service account 的 `client_email`（Viewer），且对应 GCP 项目需启用 **Google Sheets API**。
+
+本地手动同步可直接运行 `ai_backend\sync_job_orders.ps1`（`-Apply` 写入）。

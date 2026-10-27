@@ -881,8 +881,10 @@ async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dic
     from firebase_admin_init import get_firestore_client
 
     logger.info(f"Received request at /api/sheets/import-job-orders for {req.spreadsheetId} / {req.sheetName} (dryRun={req.dryRun})")
+    from fastapi.concurrency import run_in_threadpool
+
     try:
-        values = get_sheet_values(req.spreadsheetId, req.sheetName)
+        values = await run_in_threadpool(get_sheet_values, req.spreadsheetId, req.sheetName)
     except FileNotFoundError as fnf:
         return {"status": "error", "message": str(fnf)}
     if len(values) < 2:
@@ -896,7 +898,11 @@ async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dic
     if db is None:
         return {"status": "error", "message": "Firestore 未配置 / Firebase Admin credentials not configured"}
 
-    result = upsert_job_orders(db, req.teamId, mapped["orders"], default_assigned_to=req.assignedTo or "system", dry_run=bool(req.dryRun))
+    # Blocking Firestore / Sheets I/O stays off the event loop
+    result = await run_in_threadpool(
+        upsert_job_orders, db, req.teamId, mapped["orders"],
+        default_assigned_to=req.assignedTo or "system", dry_run=bool(req.dryRun),
+    )
     return {
         "status": "success",
         "dryRun": result["dryRun"],
@@ -905,6 +911,10 @@ async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dic
         "skipped": mapped["skipped"],
         "created": len(result["created"]),
         "updated": len(result["updated"]),
+        "unchanged": result["unchanged"],
+        # Capped so an n8n / Telegram summary stays readable
+        "createdItems": result["created"][:30],
+        "updatedItems": result["updated"][:30],
     }
 
 @app.post("/api/sheets/webhook")
