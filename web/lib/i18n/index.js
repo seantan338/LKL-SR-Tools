@@ -94,7 +94,23 @@ export const zh = {
     langZh: '中文版',
     langEn: 'English',
     hasBilingualBadge: '双语',
-    teamMemberFallback: '团队成员'
+    teamMemberFallback: '团队成员',
+    btnEdit: '编辑',
+    btnDelete: '删除',
+    editModalTitle: '📢 编辑公告 / 系统更新',
+    btnSaveEdit: '保存修改',
+    btnSaving: '保存中...',
+    deleteConfirmTitle: '删除公告确认',
+    deleteConfirmDesc: '确定要删除此公告吗？删除后所有团队成员将不再可见，此操作不可撤销。',
+    deleteConfirmBtn: '确认删除',
+    deleteCancelBtn: '取消',
+    toastEditSuccess: '公告修改已保存',
+    toastEditFailed: '修改保存失败: {msg}',
+    toastDeleteSuccess: '公告已成功删除',
+    toastDeleteFailed: '删除失败: {msg}',
+    btnMarkAllRead: '全部标为已读',
+    toastMarkAllSuccess: '已将所有未读公告标记为已读',
+    toastMarkAllNone: '当前暂无未读公告'
   },
   team: {
 
@@ -2281,7 +2297,23 @@ export const en = {
     langZh: 'Chinese',
     langEn: 'English',
     hasBilingualBadge: 'Bilingual',
-    teamMemberFallback: 'Teammate'
+    teamMemberFallback: 'Teammate',
+    btnEdit: 'Edit',
+    btnDelete: 'Delete',
+    editModalTitle: '📢 Edit Announcement / Update',
+    btnSaveEdit: 'Save Changes',
+    btnSaving: 'Saving...',
+    deleteConfirmTitle: 'Confirm Delete Announcement',
+    deleteConfirmDesc: 'Are you sure you want to delete this announcement? It will no longer be visible to team members. This action cannot be undone.',
+    deleteConfirmBtn: 'Confirm Delete',
+    deleteCancelBtn: 'Cancel',
+    toastEditSuccess: 'Announcement updated successfully',
+    toastEditFailed: 'Failed to update: {msg}',
+    toastDeleteSuccess: 'Announcement deleted successfully',
+    toastDeleteFailed: 'Failed to delete: {msg}',
+    btnMarkAllRead: 'Mark All Read',
+    toastMarkAllSuccess: 'All unread announcements marked as read',
+    toastMarkAllNone: 'No unread announcements to mark'
   },
   team: {
 

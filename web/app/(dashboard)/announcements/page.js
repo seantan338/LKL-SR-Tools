@@ -222,6 +222,10 @@ export default function AnnouncementsPage() {
 
   // 抽屉与模态框状态
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingNoticeId, setEditingNoticeId] = useState(null); // 当前正在编辑的公告 ID
+  const [deleteTargetNotice, setDeleteTargetNotice] = useState(null); // 待确认删除的公告对象
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [trackerNotice, setTrackerNotice] = useState(null); // 选中的查岗公告
   const [trackerReaders, setTrackerReaders] = useState([]);
   const [loadingReaders, setLoadingReaders] = useState(false);
@@ -419,8 +423,75 @@ export default function AnnouncementsPage() {
     }
   };
 
-  // 操作：创建公告（默认 English 为主语言，可选填中文版）
-  const handleCreateAnnouncement = async (e) => {
+  // 抽屉管理：重置并关闭抽屉
+  const closeDrawer = () => {
+    setIsCreateOpen(false);
+    setEditingNoticeId(null);
+    setNewNotice({
+      titleEn: '',
+      contentEn: '',
+      titleZh: '',
+      contentZh: '',
+      category: 'SUPERVISOR',
+      priority: 'P2_NORMAL',
+      isPinned: false,
+      requireAck: true,
+      versionTag: '',
+      changeTypes: ['feat']
+    });
+    setFormLangTab('en');
+  };
+
+  // 操作：打开新建公告抽屉
+  const handleOpenCreate = () => {
+    setEditingNoticeId(null);
+    setNewNotice({
+      titleEn: '',
+      contentEn: '',
+      titleZh: '',
+      contentZh: '',
+      category: 'SUPERVISOR',
+      priority: 'P2_NORMAL',
+      isPinned: false,
+      requireAck: true,
+      versionTag: '',
+      changeTypes: ['feat']
+    });
+    setFormLangTab('en');
+    setIsCreateOpen(true);
+  };
+
+  // 操作：打开编辑公告抽屉
+  const handleOpenEdit = (item) => {
+    setEditingNoticeId(item.id);
+    const titleEn = item.titleEn || (item.title && item.title !== item.titleZh ? item.title : '') || '';
+    const contentEn = item.contentEn || (item.content && item.content !== item.contentZh ? item.content : '') || '';
+    const titleZh = item.titleZh || (item.title && item.title === item.titleZh ? item.title : '') || '';
+    const contentZh = item.contentZh || (item.content && item.content === item.contentZh ? item.content : '') || '';
+
+    setNewNotice({
+      titleEn,
+      contentEn,
+      titleZh,
+      contentZh,
+      category: item.category || 'SUPERVISOR',
+      priority: item.priority || 'P2_NORMAL',
+      isPinned: Boolean(item.isPinned),
+      requireAck: item.requireAck !== undefined ? Boolean(item.requireAck) : true,
+      versionTag: item.versionTag || '',
+      changeTypes: item.changeTypes || ['feat']
+    });
+
+    if (!titleEn && !contentEn && (titleZh || contentZh)) {
+      setFormLangTab('zh');
+    } else {
+      setFormLangTab('en');
+    }
+    setIsCreateOpen(true);
+  };
+
+  // 操作：提交创建或编辑公告（默认 English 为主语言，可选填中文版）
+  const handleSubmitAnnouncement = async (e) => {
     e.preventDefault();
     const enTitle = newNotice.titleEn.trim();
     const enContent = newNotice.contentEn.trim();
@@ -440,48 +511,115 @@ export default function AnnouncementsPage() {
 
     setIsSubmitting(true);
     try {
-      await FirestoreStore.createAnnouncement({
-        title: enTitle || zhTitle,
-        content: enContent || zhContent,
-        titleEn: enTitle || null,
-        contentEn: enContent || null,
-        titleZh: zhTitle || null,
-        contentZh: zhContent || null,
-        category: newNotice.category,
-        priority: newNotice.priority,
-        isPinned: newNotice.isPinned,
-        requireAck: newNotice.requireAck,
-        versionTag: newNotice.category === 'SYSTEM_UPDATE' ? (newNotice.versionTag.trim() || 'v2.0.0') : null,
-        changeTypes: newNotice.category === 'SYSTEM_UPDATE' ? newNotice.changeTypes : [],
-        targetScope: 'ALL',
-        teamId: newNotice.category === 'SYSTEM_UPDATE' ? 'ALL' : teamId,
-        author: {
-          id: user?.uid || '',
-          name: userProfile?.displayName || user?.email || t('announcements.adminTeamFallback', '管理团队'),
-          avatarUrl: userProfile?.photoURL || ''
-        }
-      });
+      if (editingNoticeId) {
+        await FirestoreStore.updateAnnouncement(editingNoticeId, {
+          title: enTitle || zhTitle,
+          content: enContent || zhContent,
+          titleEn: enTitle || null,
+          contentEn: enContent || null,
+          titleZh: zhTitle || null,
+          contentZh: zhContent || null,
+          category: newNotice.category,
+          priority: newNotice.priority,
+          isPinned: newNotice.isPinned,
+          requireAck: newNotice.requireAck,
+          versionTag: newNotice.category === 'SYSTEM_UPDATE' ? (newNotice.versionTag.trim() || 'v2.0.0') : null,
+          changeTypes: newNotice.category === 'SYSTEM_UPDATE' ? newNotice.changeTypes : [],
+          teamId: newNotice.category === 'SYSTEM_UPDATE' ? 'ALL' : teamId
+        });
+        showToast(t('announcements.toastEditSuccess', '公告修改已保存'), 'success');
+      } else {
+        await FirestoreStore.createAnnouncement({
+          title: enTitle || zhTitle,
+          content: enContent || zhContent,
+          titleEn: enTitle || null,
+          contentEn: enContent || null,
+          titleZh: zhTitle || null,
+          contentZh: zhContent || null,
+          category: newNotice.category,
+          priority: newNotice.priority,
+          isPinned: newNotice.isPinned,
+          requireAck: newNotice.requireAck,
+          versionTag: newNotice.category === 'SYSTEM_UPDATE' ? (newNotice.versionTag.trim() || 'v2.0.0') : null,
+          changeTypes: newNotice.category === 'SYSTEM_UPDATE' ? newNotice.changeTypes : [],
+          targetScope: 'ALL',
+          teamId: newNotice.category === 'SYSTEM_UPDATE' ? 'ALL' : teamId,
+          author: {
+            id: user?.uid || '',
+            name: userProfile?.displayName || user?.email || t('announcements.adminTeamFallback', '管理团队'),
+            avatarUrl: userProfile?.photoURL || ''
+          }
+        });
+        showToast(t('announcements.toastCreateSuccess', '公告发布成功'), 'success');
+      }
 
-      showToast(t('announcements.toastCreateSuccess', '公告发布成功'), 'success');
-      setIsCreateOpen(false);
-      setNewNotice({
-        titleEn: '',
-        contentEn: '',
-        titleZh: '',
-        contentZh: '',
-        category: 'SUPERVISOR',
-        priority: 'P2_NORMAL',
-        isPinned: false,
-        requireAck: true,
-        versionTag: '',
-        changeTypes: ['feat']
-      });
-      setFormLangTab('en');
+      closeDrawer();
     } catch (err) {
-      console.error('Create announcement error:', err);
-      showToast(t('announcements.toastCreateFailed', { msg: err.message }, `发布失败: ${err.message}`), 'error');
+      console.error('Submit announcement error:', err);
+      showToast(
+        editingNoticeId
+          ? t('announcements.toastEditFailed', { msg: err.message }, `修改保存失败: ${err.message}`)
+          : t('announcements.toastCreateFailed', { msg: err.message }, `发布失败: ${err.message}`),
+        'error'
+      );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // 操作：执行软删除确认
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetNotice || !user) return;
+    setIsDeleting(true);
+    try {
+      await FirestoreStore.deleteAnnouncement(deleteTargetNotice.id, {
+        uid: user.uid,
+        displayName: userProfile?.displayName || user.email || ''
+      });
+      showToast(t('announcements.toastDeleteSuccess', '公告已成功删除'), 'success');
+      setDeleteTargetNotice(null);
+    } catch (err) {
+      console.error('Delete announcement error:', err);
+      showToast(t('announcements.toastDeleteFailed', { msg: err.message }, `删除失败: ${err.message}`), 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // 操作：一键将所有未读公告标记为已读/已知晓
+  const handleMarkAllAsRead = async () => {
+    if (!user?.uid) return;
+    const unreadItems = businessAnnouncements.filter(item => {
+      if (item.priority === 'P3_LOW') return false;
+      const read = myReads[item.id];
+      if (!read) return true;
+      if (item.requireAck && !read.ackAt) return true;
+      return false;
+    });
+
+    if (unreadItems.length === 0) {
+      showToast(t('announcements.toastMarkAllNone', '当前暂无未读公告'), 'info');
+      return;
+    }
+
+    setIsMarkingAll(true);
+    try {
+      await Promise.all(
+        unreadItems.map(item =>
+          FirestoreStore.acknowledgeAnnouncement(item.id, {
+            uid: user.uid,
+            displayName: userProfile?.displayName || user.email || t('announcements.teamMemberFallback', '团队成员'),
+            photoURL: userProfile?.photoURL || '',
+            teamId: teamId || 'default_team'
+          })
+        )
+      );
+      showToast(t('announcements.toastMarkAllSuccess', '已将所有未读公告标记为已读'), 'success');
+    } catch (err) {
+      console.error('Mark all as read error:', err);
+      showToast(t('announcements.toastActionFailed', '操作失败，请重试'), 'error');
+    } finally {
+      setIsMarkingAll(false);
     }
   };
 
@@ -781,9 +919,35 @@ export default function AnnouncementsPage() {
                 }}></i>
               </div>
 
+              {/* 一键全部标为已读按钮 */}
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                disabled={isMarkingAll}
+                title={t('announcements.btnMarkAllRead', '全部标为已读')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))',
+                  color: 'var(--text-secondary, #cbd5e1)',
+                  borderRadius: '8px',
+                  padding: '7px 12px',
+                  fontSize: '0.82rem',
+                  fontWeight: '500',
+                  cursor: isMarkingAll ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <i className={isMarkingAll ? "ph-bold ph-spinner" : "ph-bold ph-checks"} style={{ animation: isMarkingAll ? 'spin 1s linear infinite' : 'none' }}></i>
+                <span>{t('announcements.btnMarkAllRead', '全部标为已读')}</span>
+              </button>
+
               {canManage && (
                 <button
-                  onClick={() => { setFormLangTab('en'); setIsCreateOpen(true); }}
+                  onClick={handleOpenCreate}
                   style={{
                     background: 'var(--accent-blue, #3b82f6)',
                     color: '#ffffff',
@@ -832,6 +996,7 @@ export default function AnnouncementsPage() {
                 const displayTitle = getDisplayTitle(item);
                 const displayContent = getDisplayContent(item);
                 const isBilingualItem = hasBilingual(item);
+                const canEditOrDelete = canManage || (item.author?.id && item.author.id === user?.uid);
 
                 return (
                   <div
@@ -981,6 +1146,52 @@ export default function AnnouncementsPage() {
 
                       {/* 互动操作按钮 */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {canEditOrDelete && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(item)}
+                              title={t('announcements.btnEdit', '编辑')}
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid rgba(59, 130, 246, 0.25)',
+                                color: 'var(--accent-blue, #60a5fa)',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <i className="ph-bold ph-pencil-simple"></i>
+                              <span>{t('announcements.btnEdit', '编辑')}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTargetNotice(item)}
+                              title={t('announcements.btnDelete', '删除')}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#f87171',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <i className="ph-bold ph-trash"></i>
+                              <span>{t('announcements.btnDelete', '删除')}</span>
+                            </button>
+                          </>
+                        )}
+
                         <button
                           onClick={() => handleOpenDetail(item)}
                           style={{
@@ -1126,16 +1337,38 @@ export default function AnnouncementsPage() {
                   }}>
                     {/* 版本与日期 */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{
-                        fontSize: '0.85rem',
-                        fontWeight: '700',
-                        color: 'var(--accent-blue, #60a5fa)',
-                        background: 'rgba(59, 130, 246, 0.12)',
-                        padding: '1px 6px',
-                        borderRadius: '4px'
-                      }}>
-                        {log.versionTag || 'v2.0'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                          fontSize: '0.85rem',
+                          fontWeight: '700',
+                          color: 'var(--accent-blue, #60a5fa)',
+                          background: 'rgba(59, 130, 246, 0.12)',
+                          padding: '1px 6px',
+                          borderRadius: '4px'
+                        }}>
+                          {log.versionTag || 'v2.0'}
+                        </span>
+                        {!log.id?.startsWith('sys_v1_') && (canManage || (log.author?.id && log.author.id === user?.uid)) && (
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenEdit(log); }}
+                              title={t('announcements.btnEdit', '编辑')}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--accent-blue, #60a5fa)', cursor: 'pointer', fontSize: '0.82rem', padding: '1px 4px' }}
+                            >
+                              <i className="ph-bold ph-pencil-simple"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTargetNotice(log); }}
+                              title={t('announcements.btnDelete', '删除')}
+                              style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '0.82rem', padding: '1px 4px' }}
+                            >
+                              <i className="ph-bold ph-trash"></i>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
                         {log.createdAt ? new Date(log.createdAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN') : ''}
                       </span>
@@ -1593,10 +1826,10 @@ export default function AnnouncementsPage() {
               justifyContent: 'space-between'
             }}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-primary, #ffffff)' }}>
-                {t('announcements.createModalTitle', '📢 发布新公告 / 系统更新')}
+                {editingNoticeId ? t('announcements.editModalTitle', '📢 编辑公告 / 系统更新') : t('announcements.createModalTitle', '📢 发布新公告 / 系统更新')}
               </h3>
               <button
-                onClick={() => setIsCreateOpen(false)}
+                onClick={closeDrawer}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '1.3rem', cursor: 'pointer' }}
               >
                 ✕
@@ -1604,7 +1837,7 @@ export default function AnnouncementsPage() {
             </div>
 
             {/* 表单主体 */}
-            <form onSubmit={handleCreateAnnouncement} style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleSubmitAnnouncement} style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
                   {t('announcements.fieldCategory', '公告类型')}
@@ -1879,7 +2112,7 @@ export default function AnnouncementsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={closeDrawer}
                   style={{
                     background: 'rgba(255,255,255,0.08)',
                     border: 'none',
@@ -1907,10 +2140,131 @@ export default function AnnouncementsPage() {
                     boxShadow: '0 2px 10px rgba(59, 130, 246, 0.4)'
                   }}
                 >
-                  {isSubmitting ? t('announcements.submittingBtn', '发布中...') : t('announcements.submitBtn', '立即发布')}
+                  {isSubmitting
+                    ? (editingNoticeId ? t('announcements.btnSaving', '保存中...') : t('announcements.submittingBtn', '发布中...'))
+                    : (editingNoticeId ? t('announcements.btnSaveEdit', '保存修改') : t('announcements.submitBtn', '立即发布'))}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          模态框 4：删除公告确认模态框 (杜绝原生 window.confirm)
+          ======================================================== */}
+      {deleteTargetNotice && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10001,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-surface, #1e293b)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(239, 68, 68, 0.15)',
+            borderRadius: '14px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            color: '#ffffff'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444',
+                fontSize: '1.4rem'
+              }}>
+                <i className="ph-bold ph-trash"></i>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>
+                  {t('announcements.deleteConfirmTitle', '删除公告确认')}
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)' }}>
+                  {getDisplayTitle(deleteTargetNotice)}
+                </p>
+              </div>
+            </div>
+
+            <p style={{
+              fontSize: '0.88rem',
+              lineHeight: 1.6,
+              color: 'var(--text-secondary, #cbd5e1)',
+              marginBottom: '20px',
+              padding: '12px',
+              background: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}>
+              {t('announcements.deleteConfirmDesc', '确定要删除此公告吗？删除后所有团队成员将不再可见，此操作不可撤销。')}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteTargetNotice(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {t('announcements.deleteCancelBtn', '取消')}
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                style={{
+                  background: '#ef4444',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '8px 18px',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <i className="ph-bold ph-spinner" style={{ animation: 'spin 1s linear infinite' }}></i>
+                    <span>{t('announcements.btnSaving', '处理中...')}</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="ph-bold ph-trash"></i>
+                    <span>{t('announcements.deleteConfirmBtn', '确认删除')}</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

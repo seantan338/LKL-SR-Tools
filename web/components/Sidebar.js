@@ -11,23 +11,28 @@ import { FirestoreStore } from '../lib/firestore-store';
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { userProfile, signOut, isOwner, isHqTeam } = useAuth();
+  const { user, userProfile, teamId: authTeamId, signOut, isOwner, isHqTeam } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const [theme, setTheme] = useState('dark');
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
 
   useEffect(() => {
-    if (!userProfile?.uid && !userProfile?.id) return;
-    const uid = userProfile.uid || userProfile.id;
-    const teamId = userProfile.teamId || 'default_team';
+    const uid = user?.uid || userProfile?.uid || userProfile?.id;
+    if (!uid) return;
+    const teamId = authTeamId || userProfile?.teamId || 'default_team';
 
     let allAnnouncements = [];
     let myReads = {};
 
     const updateCount = () => {
       const unread = allAnnouncements.filter(item => {
+        if (item.isDeleted) return false;
         if (item.priority === 'P3_LOW') return false; // P3 不主动打扰
-        return !myReads[item.id];
+        if (item.category === 'SYSTEM_UPDATE') return false; // 系统更新由独立日志轴承载，不阻塞红点
+        const read = myReads[item.id];
+        if (!read) return true;
+        if (item.requireAck && !read.ackAt) return true;
+        return false;
       });
       setUnreadAnnouncementsCount(unread.length);
     };
@@ -46,7 +51,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       unsubAnn();
       unsubReads();
     };
-  }, [userProfile]);
+  }, [user?.uid, userProfile?.uid, userProfile?.id, authTeamId, userProfile?.teamId]);
 
   useEffect(() => {
     const current = document.documentElement.getAttribute('data-theme') || (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 'dark';
