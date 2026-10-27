@@ -23,6 +23,7 @@ export default function AnalyticsPage() {
   const router = useRouter();
   const { teamId, role, isOwner, isManager, user, userProfile, isHqTeam } = useAuth();
   const canWfh = userProfile?.allowWfhPunch !== undefined ? Boolean(userProfile.allowWfhPunch) : Boolean(isOwner || isManager);
+  const canManageAttendance = Boolean(isOwner || isManager);
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
@@ -52,6 +53,7 @@ export default function AnalyticsPage() {
   const [attendanceRules, setAttendanceRules] = useState({
     enabled: true,
     allowWfh: true,
+    enableLunchPunch: false,
     maxDistanceMeters: 100,
     maxDriftCompensation: 40,
     officeLocations: [
@@ -69,6 +71,14 @@ export default function AnalyticsPage() {
   const [isDetectingIp, setIsDetectingIp] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
+
+  // Shift Override Modal State (主管人工改派单日核定班次)
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [overrideTargetRecord, setOverrideTargetRecord] = useState(null);
+  const [selectedOverrideShiftId, setSelectedOverrideShiftId] = useState('');
+  const [overrideReasonInput, setOverrideReasonInput] = useState('');
+  const [isSavingOverride, setIsSavingOverride] = useState(false);
+  const [earlyClockOutModal, setEarlyClockOutModal] = useState(null);
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -290,6 +300,11 @@ export default function AnalyticsPage() {
           manualClockOut: null,
           verifyMethod: meta.verifyMethod || null,
           verifySnapshot: meta.verifySnapshot || null,
+          allClockIns: [],
+          allClockOuts: [],
+          allLunchOuts: [],
+          allLunchIns: [],
+          allPunches: [],
           actions: []
         };
       }
@@ -299,52 +314,93 @@ export default function AnalyticsPage() {
       if (dateObj < rec.firstActionTime) rec.firstActionTime = dateObj;
       if (dateObj > rec.lastActionTime) rec.lastActionTime = dateObj;
 
-      if (actionType === 'CLOCK_IN' && !rec.manualClockIn) {
-        rec.manualClockIn = dateObj;
-        if (meta.verifyMethod) {
-          rec.verifyMethod = meta.verifyMethod;
-          rec.verifySnapshot = meta.verifySnapshot;
+      const timeStr = dateObj.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const punchItem = {
+        actionType,
+        time: dateObj,
+        timeStr,
+        verifyMethod: meta.verifyMethod || null,
+        verifySnapshot: meta.verifySnapshot || null,
+        note
+      };
+      rec.allPunches.push(punchItem);
+
+      if (actionType === 'CLOCK_IN' || actionType === 'CHECK_IN') {
+        rec.allClockIns.push(punchItem);
+        // 上班签到始终取当天最早的一次打卡
+        if (!rec.manualClockIn || dateObj < rec.manualClockIn) {
+          rec.manualClockIn = dateObj;
+          if (meta.verifyMethod) {
+            rec.verifyMethod = meta.verifyMethod;
+            rec.verifySnapshot = meta.verifySnapshot;
+          }
         }
       } else if (actionType === 'LUNCH_OUT') {
-        rec.manualLunchOut = dateObj;
+        rec.allLunchOuts.push(punchItem);
+        if (!rec.manualLunchOut || dateObj < rec.manualLunchOut) {
+          rec.manualLunchOut = dateObj;
+        }
       } else if (actionType === 'LUNCH_IN') {
-        rec.manualLunchIn = dateObj;
-      } else if (actionType === 'CLOCK_OUT') {
-        rec.manualClockOut = dateObj;
-        if (meta.verifyMethod && !rec.verifyMethod) {
-          rec.verifyMethod = meta.verifyMethod;
-          rec.verifySnapshot = meta.verifySnapshot;
+        rec.allLunchIns.push(punchItem);
+        if (!rec.manualLunchIn || dateObj > rec.manualLunchIn) {
+          rec.manualLunchIn = dateObj;
+        }
+      } else if (actionType === 'CLOCK_OUT' || actionType === 'CHECK_OUT') {
+        rec.allClockOuts.push(punchItem);
+        // 下班签退始终取当天最晚的一次打卡（支持多次打卡自动覆盖）
+        if (!rec.manualClockOut || dateObj > rec.manualClockOut) {
+          rec.manualClockOut = dateObj;
+          if (meta.verifyMethod) {
+            rec.verifyMethod = meta.verifyMethod;
+            rec.verifySnapshot = meta.verifySnapshot;
+          }
         }
       }
 
-      if (rec.actions.length < 5) {
-        rec.actions.push({ actionType, note, time: dateObj });
-      }
+      rec.actions.push({ actionType, note, time: dateObj });
     };
 
-    // 1. Process explicit manual check-ins
+    // 1. Process explicit manual check-ins from dedicated collection
+    const VALID_PUNCH_ACTIONS = ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'];
     manualCheckins.forEach(chk => {
+      const punchAction = chk.type || chk.action || 'CLOCK_IN';
+      if (!VALID_PUNCH_ACTIONS.includes(punchAction)) return;
       addEvent(
         chk.picName || chk.userName,
         chk.userEmail,
         chk.timestamp,
-        chk.type || 'CLOCK_IN',
+        punchAction,
         chk.note || t('analytics.defaultProgressNote', '员工考勤打卡'),
         {
           verifyMethod: chk.verifyMethod,
-          verifySnapshot: chk.verifySnapshot
+          verifySnapshot: chk.verifySnapshot,
+          uid: chk.userId || chk.uid
         }
       );
     });
 
-    // 2. Synthesize daily clock-in traces from system operation logs
+    // 2. Process authentic punch records from logs collection (strictly targetType === 'ATTENDANCE')
+    // All system activities (candidate operations, stage movements, audit records) are strictly excluded!
     logs.forEach(l => {
       if (l.isDeleted) return;
+      const punchAction = l.action || l.type;
+      if (l.targetType !== 'ATTENDANCE' || !VALID_PUNCH_ACTIONS.includes(punchAction)) {
+        return; // Exclude non-attendance system activities
+      }
+
       const name = l.user?.displayName || (l.user?.email ? l.user.email.split('@')[0] : t('analytics.defaultEmployeeName', '内部员工'));
-      addEvent(name, l.user?.email, l.timestamp, l.action || 'SYSTEM_LOG', l.targetName || l.details, {
-        verifyMethod: l.verifyMethod,
-        verifySnapshot: l.verifySnapshot
-      });
+      addEvent(
+        name,
+        l.user?.email || l.userEmail,
+        l.timestamp,
+        punchAction,
+        l.details || l.note || t('analytics.defaultProgressNote', '员工考勤打卡'),
+        {
+          verifyMethod: l.verifyMethod,
+          verifySnapshot: l.verifySnapshot,
+          uid: l.userId || l.user?.uid
+        }
+      );
     });
 
     // Format & finalize records
@@ -353,59 +409,79 @@ export default function AnalyticsPage() {
 
     const result = Object.values(recordMap).map(r => {
       const isToday = r.date === todayStr;
+
+      // 排序保留的所有打卡流水（升序）
+      r.allClockIns.sort((a, b) => a.time.getTime() - b.time.getTime());
+      r.allClockOuts.sort((a, b) => a.time.getTime() - b.time.getTime());
+      r.allPunches.sort((a, b) => a.time.getTime() - b.time.getTime());
       
-      // 组装当日打卡事件流供 CascadeShiftEngine 判定
+      // 组装当日实际打卡事件流供 CascadeShiftEngine 判定
       const dayEvents = [];
       if (r.manualClockIn) dayEvents.push({ type: 'CLOCK_IN', timestamp: r.manualClockIn });
       if (r.manualLunchOut) dayEvents.push({ type: 'LUNCH_OUT', timestamp: r.manualLunchOut });
       if (r.manualLunchIn) dayEvents.push({ type: 'LUNCH_IN', timestamp: r.manualLunchIn });
       if (r.manualClockOut) dayEvents.push({ type: 'CLOCK_OUT', timestamp: r.manualClockOut });
-      if (dayEvents.length === 0) {
-        dayEvents.push({ type: 'CLOCK_IN', timestamp: r.firstActionTime });
-        if (r.lastActionTime > r.firstActionTime) {
-          dayEvents.push({ type: 'CLOCK_OUT', timestamp: r.lastActionTime });
+
+      // 检查该人员在当日是否存在主管人工改派班次
+      const overrideKey = `${r.date}__${r.picName}`;
+      const overrideKeyEmail = r.userEmail ? `${r.date}__${r.userEmail}` : null;
+      const overrideData = (attendanceRules?.shiftOverrides && (attendanceRules.shiftOverrides[overrideKey] || (overrideKeyEmail && attendanceRules.shiftOverrides[overrideKeyEmail]))) || null;
+
+      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(
+        dayEvents,
+        attendanceRules.shiftConfig,
+        { locale: isEn ? 'en' : 'zh', overrideShift: overrideData, isToday }
+      );
+
+      // 工时跨度：在明确签退之前严格显示为空 (null)；明确签退后才计算有效工时
+      let durationHours = null;
+      if (r.manualClockOut) {
+        if (shiftAnalysis.durationHours !== null) {
+          durationHours = shiftAnalysis.durationHours;
+        } else if (r.manualClockIn) {
+          const diffMs = r.manualClockOut.getTime() - r.manualClockIn.getTime();
+          durationHours = Number((diffMs / (1000 * 60 * 60)).toFixed(1));
         }
       }
 
-      const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(dayEvents, attendanceRules.shiftConfig, { locale: isEn ? 'en' : 'zh' });
-
-      // Calculate work duration
-      const diffMs = r.lastActionTime.getTime() - r.firstActionTime.getTime();
-      const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(1);
-
       // Determine status
-      let status = 'completed'; // 已打卡/全天完成
+      let status = 'completed';
       let statusLabel = shiftAnalysis.complianceLabel || t('analytics.statusFullShift', '正常完成');
       let statusColor = shiftAnalysis.isViolation ? '#ef4444' : shiftAnalysis.isMissingPunch ? 'var(--accent-amber)' : 'var(--accent-emerald)';
 
       if (isToday) {
-        // If employee has clocked lunch out and not yet clocked lunch in
+        // 当天进行中（未到午夜 12 点）：未签退不算缺卡
         if (r.manualLunchOut && !r.manualLunchIn) {
           status = 'lunch';
           statusLabel = t('analytics.statusOnLunch', '午休中 (离岗)');
           statusColor = 'var(--accent-amber)';
         } else if (r.manualClockOut) {
-          // 今日已签退，严格显示最终合规判定（包含提前签退绝杀）
+          // 今日已签退，显示最终合规判定
           statusLabel = shiftAnalysis.complianceLabel;
           statusColor = shiftAnalysis.isViolation ? '#ef4444' : 'var(--accent-emerald)';
         } else {
-          const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
-          if (minutesSinceLast < 120) {
-            status = 'online';
-            statusLabel = r.manualLunchIn
-              ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : t('analytics.dutyFallback', '在岗')}`
-              : `${t('analytics.statusOnDuty', '工作中 (活跃)')}${shiftAnalysis.shift?.endStr ? t('analytics.statusCutoffSuffix', { time: shiftAnalysis.shift.endStr }, ` · 底线 ${shiftAnalysis.shift.endStr}`) : ''}`;
-            statusColor = 'var(--accent-blue)';
-          } else {
-            statusLabel = `${t('analytics.statusJustClockedIn', '今日已打卡')} (${shiftAnalysis.shift?.name || t('analytics.dutyFallback', '在岗')})`;
-            statusColor = 'var(--accent-emerald)';
-          }
+          // 今日在岗中，待下班打卡，绝不算作缺卡
+          status = 'online';
+          statusLabel = r.manualLunchIn
+            ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : t('analytics.dutyFallback', '在岗')}`
+            : `${t('analytics.statusOnDuty', '工作中 (在岗)')}${shiftAnalysis.shift?.endStr ? t('analytics.statusCutoffSuffix', { time: shiftAnalysis.shift.endStr }, ` · 底线 ${shiftAnalysis.shift.endStr}`) : ''}`;
+          statusColor = 'var(--accent-blue)';
+        }
+      } else {
+        // 历史日期（已过凌晨 12 点）：若仍未签退，才正式判定为未签退 (缺卡)
+        if (!r.manualClockOut) {
+          status = 'missed_out';
+          statusLabel = shiftAnalysis.complianceLabel || t('analytics.statusMissedOut', '未签退 (缺卡)');
+          statusColor = '#ef4444';
         }
       }
 
       return {
         ...r,
-        durationHours: shiftAnalysis.durationHours !== null ? shiftAnalysis.durationHours : Number(diffHours),
+        overrideKey,
+        overrideData,
+        isOverridden: Boolean(overrideData),
+        durationHours,
         shiftAnalysis,
         status,
         statusLabel,
@@ -416,7 +492,7 @@ export default function AnalyticsPage() {
 
     // Sort by date desc, then by first action time desc
     return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
-  }, [logs, manualCheckins, teamMembers, lang, t]);
+  }, [logs, manualCheckins, teamMembers, attendanceRules, lang, t]);
 
   // Filtered attendance list
   const filteredAttendance = useMemo(() => {
@@ -721,6 +797,40 @@ export default function AnalyticsPage() {
     }
   };
 
+  // Top Bar Guarded Clock-Out Handler (提前签退防呆拦截确认)
+  const handleTopClockOut = (force = false) => {
+    if (force) {
+      setEarlyClockOutModal(null);
+      executeAttendanceCheckin('CLOCK_OUT');
+      return;
+    }
+
+    const canonical = resolveCanonicalPic(userProfile?.displayName || userProfile?.name || user?.email?.split('@')[0], user?.uid, teamMembers);
+    const myTodayRecord = picAttendanceRecords.find(r => r.isToday && (r.userEmail === user?.email || r.picName === canonical.displayName));
+
+    if (myTodayRecord?.manualClockIn) {
+      const shift = myTodayRecord.shiftAnalysis?.shift || CascadeShiftEngine.matchShift(myTodayRecord.manualClockIn, attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
+      const now = new Date();
+      const nowMin = CascadeShiftEngine.getDateMinutesOfDay(now);
+
+      if (shift && typeof shift.endMinutes === 'number' && nowMin < shift.endMinutes) {
+        const diffSec = Math.round((shift.endMinutes - nowMin) * 60);
+        const desc = diffSec >= 60
+          ? t('attendanceModal.timeMinSec', { m: Math.floor(diffSec / 60), s: diffSec % 60 }, `${Math.floor(diffSec / 60)}分${diffSec % 60}秒`)
+          : t('attendanceModal.timeSec', { s: diffSec }, `${diffSec}秒`);
+
+        setEarlyClockOutModal({
+          shift,
+          diffSec,
+          desc
+        });
+        return;
+      }
+    }
+
+    executeAttendanceCheckin('CLOCK_OUT');
+  };
+
   // 1-Click Detect and Append Current IP
   const handleDetectCurrentIp = async () => {
     setIsDetectingIp(true);
@@ -911,11 +1021,15 @@ export default function AnalyticsPage() {
       const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
 
+      const attendanceLogs = logs.filter(l => !l.isDeleted && l.targetType === 'ATTENDANCE' && ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'].includes(l.action || l.type));
+      const combinedAttendance = [...manualCheckins, ...attendanceLogs];
+
       const sheets = ExcelExporter.buildAttendanceReportData({
         monthStr: activeMonthStr,
-        attendanceEvents: [...manualCheckins, ...logs],
+        attendanceEvents: combinedAttendance,
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
+        shiftOverrides: attendanceRules.shiftOverrides || {},
         workingDays: 22,
         locale: isEn ? 'en' : 'zh'
       });
@@ -943,13 +1057,128 @@ export default function AnalyticsPage() {
     }
   };
 
-  // Save Settings to Firestore
+  // --- Flexible Shifts Row Handlers (考勤规则班次行编辑) ---
+  const handleUpdateShiftRow = (index, field, value) => {
+    if (!editingRules) return;
+    const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+    currentShifts[index] = { ...currentShifts[index], [field]: value };
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: currentShifts
+      }
+    });
+  };
+
+  const handleAddShiftRow = () => {
+    if (!editingRules) return;
+    const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+    const lastShift = currentShifts[currentShifts.length - 1];
+    let newStart = '09:30';
+    let newEnd = '18:30';
+    if (lastShift && lastShift.startTime) {
+      const lastStartMin = CascadeShiftEngine.parseTimeToMinutes(lastShift.startTime);
+      const nextStartMin = Math.min(23 * 60 + 30, lastStartMin + 30);
+      const nextEndMin = Math.min(23 * 60 + 59, nextStartMin + 9 * 60);
+      const pad = (n) => String(n).padStart(2, '0');
+      newStart = `${pad(Math.floor(nextStartMin / 60))}:${pad(nextStartMin % 60)}`;
+      newEnd = `${pad(Math.floor(nextEndMin / 60))}:${pad(nextEndMin % 60)}`;
+    }
+    const charCode = 65 + currentShifts.length;
+    const charLetter = charCode <= 90 ? String.fromCharCode(charCode) : `${currentShifts.length + 1}`;
+    currentShifts.push({
+      id: `shift_${Date.now()}`,
+      name: `Shift ${charLetter} (${newStart} - ${newEnd})`,
+      startTime: newStart,
+      endTime: newEnd
+    });
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: currentShifts
+      }
+    });
+  };
+
+  const handleRemoveShiftRow = (index) => {
+    if (!editingRules) return;
+    const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+    if (currentShifts.length <= 1) return;
+    currentShifts.splice(index, 1);
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: currentShifts
+      }
+    });
+  };
+
+  const handleResetDefaultShifts = () => {
+    if (!editingRules) return;
+    setEditingRules({
+      ...editingRules,
+      shiftConfig: {
+        ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+        shifts: DEFAULT_SHIFT_CONFIG.shifts
+      }
+    });
+  };
+
+  // Save Settings to Firestore (带班次合法性校验与排序)
   const handleSaveSettings = async () => {
     if (!teamId) return;
     setIsSavingRules(true);
     try {
-      await FirestoreStore.saveAttendanceRules(teamId, editingRules);
-      setAttendanceRules(editingRules);
+      const currentShifts = [...(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts)];
+      if (currentShifts.length === 0) {
+        showToast(t('analytics.errShiftEmpty', '至少需要保留一个班次档位'), 'error');
+        setIsSavingRules(false);
+        return;
+      }
+
+      for (let i = 0; i < currentShifts.length; i++) {
+        const s = currentShifts[i];
+        if (!s.name || !s.name.trim()) {
+          showToast(t('analytics.errShiftNameEmpty', `第 ${i + 1} 档班次名称不能为空`), 'error');
+          setIsSavingRules(false);
+          return;
+        }
+        if (!s.startTime || !s.endTime) {
+          showToast(t('analytics.errShiftTimeEmpty', `第 ${i + 1} 档班次上下班时间不能为空`), 'error');
+          setIsSavingRules(false);
+          return;
+        }
+        const sMin = CascadeShiftEngine.parseTimeToMinutes(s.startTime);
+        const eMin = CascadeShiftEngine.parseTimeToMinutes(s.endTime);
+        if (eMin <= sMin) {
+          showToast(t('analytics.errShiftTimeOrder', `【${s.name}】下班底线时间必须晚于上班签到时间`), 'error');
+          setIsSavingRules(false);
+          return;
+        }
+      }
+
+      // 按签到时间由早到晚自动升序排序，并赋予唯一 id
+      currentShifts.sort((a, b) => CascadeShiftEngine.parseTimeToMinutes(a.startTime) - CascadeShiftEngine.parseTimeToMinutes(b.startTime));
+      const cleanShifts = currentShifts.map((s, idx) => ({
+        id: s.id || `shift_${Date.now()}_${idx}`,
+        name: s.name.trim(),
+        startTime: s.startTime,
+        endTime: s.endTime
+      }));
+
+      const finalRules = {
+        ...editingRules,
+        shiftConfig: {
+          ...(editingRules.shiftConfig || DEFAULT_SHIFT_CONFIG),
+          shifts: cleanShifts
+        }
+      };
+
+      await FirestoreStore.saveAttendanceRules(teamId, finalRules);
+      setAttendanceRules(finalRules);
       setIsSettingsOpen(false);
       showToast(t('analytics.rulesSavedToast', '考勤规则与网络设置已保存并全员实时生效'));
     } catch (err) {
@@ -957,6 +1186,80 @@ export default function AnalyticsPage() {
       showToast(t('analytics.saveRulesFailed', '保存失败: ') + err.message, 'error');
     } finally {
       setIsSavingRules(false);
+    }
+  };
+
+  // --- Shift Override Handlers (主管人工改派单日班次) ---
+  const handleOpenOverrideModal = (record) => {
+    setOverrideTargetRecord(record);
+    const existingOverride = record.overrideData;
+    if (existingOverride && existingOverride.shiftId) {
+      setSelectedOverrideShiftId(existingOverride.shiftId);
+      setOverrideReasonInput(existingOverride.reason || '');
+    } else {
+      setSelectedOverrideShiftId(record.shiftAnalysis?.shift?.id || '');
+      setOverrideReasonInput('');
+    }
+    setOverrideModalOpen(true);
+  };
+
+  const handleSaveShiftOverride = async () => {
+    if (!teamId || !overrideTargetRecord) return;
+    setIsSavingOverride(true);
+    try {
+      const overrideKey = overrideTargetRecord.overrideKey || `${overrideTargetRecord.date}__${overrideTargetRecord.picName}`;
+      
+      if (selectedOverrideShiftId === '__AUTO__') {
+        await FirestoreStore.saveShiftOverride(teamId, overrideKey, null);
+        try {
+          await SystemLogger.audit(teamId, {
+            action: 'SHIFT_OVERRIDE_RESET',
+            targetType: 'ATTENDANCE',
+            targetName: overrideTargetRecord.picName,
+            details: `主管 ${user?.email || '管理员'} 清除了 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的人工改派班次，恢复系统自动核定。`
+          });
+        } catch (_) {}
+        showToast(t('analytics.overrideResetToast', '已恢复系统自动核定班次'));
+      } else {
+        const allShifts = attendanceRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts;
+        const targetShift = allShifts.find(s => s.id === selectedOverrideShiftId) || {
+          id: selectedOverrideShiftId,
+          name: selectedOverrideShiftId,
+          startTime: '09:00',
+          endTime: '18:00'
+        };
+
+        const overridePayload = {
+          shiftId: targetShift.id,
+          shiftName: targetShift.name,
+          startTime: targetShift.startTime,
+          endTime: targetShift.endTime,
+          reason: overrideReasonInput.trim() || t('analytics.defaultOverrideReason', '主管特批调整'),
+          overrideBy: user?.email || userProfile?.displayName || '主管',
+          overrideAt: new Date().toISOString()
+        };
+
+        await FirestoreStore.saveShiftOverride(teamId, overrideKey, overridePayload);
+
+        try {
+          await SystemLogger.audit(teamId, {
+            action: 'SHIFT_OVERRIDE',
+            targetType: 'ATTENDANCE',
+            targetName: overrideTargetRecord.picName,
+            details: `主管 ${user?.email || '管理员'} 将 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的班次调整为【${targetShift.name}】。原因：${overrideReasonInput.trim() || '主管特批'}`
+          });
+        } catch (_) {}
+
+        showToast(t('analytics.overrideSuccessToast', `已将 ${overrideTargetRecord.picName} 的班次调整为 ${targetShift.name}`));
+      }
+
+      setOverrideModalOpen(false);
+      setOverrideTargetRecord(null);
+    } catch (err) {
+      console.error('Failed to save shift override:', err);
+      showToast(t('analytics.overrideFailToast', '班次调整失败: ') + err.message, 'error');
+    } finally {
+      setIsSavingOverride(false);
     }
   };
 
@@ -1100,7 +1403,7 @@ export default function AnalyticsPage() {
               className="btn btn-sm btn-outline"
               style={{ border: '1px solid var(--accent-blue)', color: 'var(--accent-blue)', gap: '5px', fontWeight: '600' }}
               disabled={isClockingIn}
-              onClick={() => executeAttendanceCheckin('CLOCK_OUT')}
+              onClick={() => handleTopClockOut()}
               title={t('analytics.clockOutTitle', '下班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
             >
               <i className="ph-bold ph-sign-out"></i>
@@ -1398,11 +1701,11 @@ export default function AnalyticsPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)' }}></i>
-                  {t('analytics.attendanceTableTitle', '顾问考勤打卡明细与系统日常活跃记录')}
+                  {t('analytics.attendanceTableTitle', '顾问考勤打卡明细')}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡/活跃记录')).replace('{count}', filteredAttendance.length)}
+                    {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡记录')).replace('{count}', filteredAttendance.length)}
                   </span>
                   {isHqTeam && (isOwner || isManager) && (
                     <button
@@ -1442,32 +1745,33 @@ export default function AnalyticsPage() {
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttPic', '打卡人 (PIC)')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttDate', '考勤日期')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colLastActive', '最后活跃时间')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colClockOut', '下班签退')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时跨度')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colActionCount', '当日系统操作量')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colVerifyMethod', '核验凭证')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定阶梯班次')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colMainProgress', '当日主要工作推进')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>{t('analytics.colAction', '操作')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingLogs ? (
                       <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan="10" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }}></i>
                           {t('analytics.loadingLogs', '正在加载实时打卡记录...')}
                         </td>
                       </tr>
                     ) : filteredAttendance.length === 0 ? (
                       <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan="10" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           {t('analytics.emptyAttendance', '所选时间范围内暂无打卡记录，可点击上方「上班签到」立即打卡')}
                         </td>
                       </tr>
                     ) : (
                       filteredAttendance.map((item, idx) => {
-                        const firstTimeStr = item.firstActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                        const lastTimeStr = item.lastActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const firstTimeStr = (item.manualClockIn || item.firstActionTime)?.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '-';
+                        const clockOutTimeStr = item.manualClockOut ? item.manualClockOut.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
                         
                         return (
                           <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
@@ -1488,22 +1792,59 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                {firstTimeStr}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                  {firstTimeStr}
+                                </span>
+                                {item.allClockIns && item.allClockIns.length > 1 && (
+                                  <span
+                                    style={{
+                                      fontSize: '10px',
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      background: 'rgba(16, 185, 129, 0.15)',
+                                      color: 'var(--accent-emerald)',
+                                      cursor: 'help'
+                                    }}
+                                    title={t('analytics.multipleClockInTip', { count: item.allClockIns.length, list: item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n') }, `共 ${item.allClockIns.length} 次签到打卡\n` + item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n'))}
+                                  >
+                                    x{item.allClockIns.length}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                {lastTimeStr}
-                              </span>
+                              {clockOutTimeStr ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                    {clockOutTimeStr}
+                                  </span>
+                                  {item.allClockOuts && item.allClockOuts.length > 1 && (
+                                    <span
+                                      style={{
+                                        fontSize: '10px',
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(59, 130, 246, 0.15)',
+                                        color: 'var(--accent-blue)',
+                                        cursor: 'help'
+                                      }}
+                                      title={t('analytics.multipleClockOutTip', { count: item.allClockOuts.length, list: item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n') }, `共 ${item.allClockOuts.length} 次签退打卡\n` + item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n'))}
+                                    >
+                                      x{item.allClockOuts.length}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                              )}
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
-                              {item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')}
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', fontSize: '12px' }}>
-                                {item.actionCount} {t('analytics.unitActions', '次业务流转')}
-                              </span>
+                              {item.manualClockOut && item.durationHours !== null && item.durationHours !== undefined ? (
+                                item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                              )}
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                               {item.verifyMethod === 'WFH' ? (
@@ -1585,6 +1926,37 @@ export default function AnalyticsPage() {
                               )}
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                  {item.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                                </span>
+                                {item.isOverridden ? (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: '700',
+                                    color: '#c084fc',
+                                    background: 'rgba(168, 85, 247, 0.15)',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    width: 'fit-content',
+                                    border: '1px solid rgba(168, 85, 247, 0.3)'
+                                  }} title={`调整人: ${item.overrideData?.overrideBy || '主管'}\n原因: ${item.overrideData?.reason || '无'}\n时间: ${item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''}`}>
+                                    <i className="ph-bold ph-pencil-simple"></i>
+                                    {t('analytics.tagOverridden', '主管调整')}
+                                  </span>
+                                ) : (
+                                  item.shiftAnalysis?.shift?.endStr ? (
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                      底线 {item.shiftAnalysis.shift.endStr}
+                                    </span>
+                                  ) : null
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                               <span style={{
                                 padding: '2px 8px',
                                 borderRadius: '4px',
@@ -1607,9 +1979,28 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
-                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.actions.map(a => a.note).join('; ')}>
-                                {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '候选人状态更新与跟进')) : t('analytics.onlineProgressNote', '在线跟进')}
+                              <div
+                                style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                title={item.allPunches && item.allPunches.length > 0 ? item.allPunches.map(p => `[${p.timeStr}] ${p.actionType}: ${p.note || ''}`).join('\n') : item.actions.map(a => a.note).join('; ')}
+                              >
+                                {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '员工考勤打卡')) : t('analytics.onlineProgressNote', '在线跟进')}
                               </div>
+                            </td>
+                            <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
+                              {canManageAttendance ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
+                                  title={t('analytics.btnOverrideShift', '调整核定班次')}
+                                  onClick={() => handleOpenOverrideModal(item)}
+                                >
+                                  <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
+                                  {t('analytics.btnEditShift', '改班')}
+                                </button>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1745,6 +2136,37 @@ export default function AnalyticsPage() {
                   }}>
                     <span style={{
                       position: 'absolute', content: '""', height: '18px', width: '18px', left: editingRules.allowWfh !== false ? '26px' : '3px', bottom: '3px',
+                      background: '#fff', borderRadius: '50%', transition: '0.3s'
+                    }}></span>
+                  </span>
+                </label>
+              </div>
+
+              {/* Enable Lunch Break 4-Phase Punch Switch */}
+              <div style={{ background: 'rgba(245, 158, 11, 0.06)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.25)', marginBottom: 'var(--space-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph-bold ph-coffee" style={{ color: 'var(--accent-amber)' }}></i>
+                    {t('analytics.lunchPunchSwitchTitle', '启用午休打卡 (4段式考勤)')}
+                  </div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    {t('analytics.lunchPunchSwitchDesc', '开启后考勤弹窗启用「上班 ➔ 午休离开 ➔ 午休返回 ➔ 下班」4段式打卡与午休状态追踪；关闭则自动恢复极简「上班 / 下班」2段式打卡。')}
+                  </div>
+                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: '48px', height: '24px', cursor: 'pointer', flexShrink: 0, marginLeft: 'var(--space-3)' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editingRules.enableLunchPunch)}
+                    onChange={(e) => setEditingRules({ ...editingRules, enableLunchPunch: e.target.checked })}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                    background: Boolean(editingRules.enableLunchPunch) ? 'var(--accent-amber)' : 'rgba(255,255,255,0.15)',
+                    borderRadius: '24px', transition: '0.3s'
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: '""', height: '18px', width: '18px', left: Boolean(editingRules.enableLunchPunch) ? '26px' : '3px', bottom: '3px',
                       background: '#fff', borderRadius: '50%', transition: '0.3s'
                     }}></span>
                   </span>
@@ -2080,18 +2502,76 @@ export default function AnalyticsPage() {
 
                 {/* Shifts Table */}
                 <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', overflow: 'hidden', marginBottom: 'var(--space-3)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 40px', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
                     <span>{t('analytics.colShiftName', '阶梯班次档位')}</span>
-                    <span>{t('analytics.colShiftIn', '签到基准线')}</span>
-                    <span>{t('analytics.colShiftOut', '强制下班底线')}</span>
+                    <span style={{ textAlign: 'center' }}>{t('analytics.colShiftIn', '签到基准线')}</span>
+                    <span style={{ textAlign: 'center' }}>{t('analytics.colShiftOut', '强制下班底线')}</span>
+                    <span style={{ textAlign: 'center' }}>{t('analytics.colShiftAction', '操作')}</span>
                   </div>
-                  {(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map((shift, sIdx) => (
-                    <div key={shift.id || sIdx} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', padding: '8px 12px', borderTop: '1px solid var(--border-hairline)', fontSize: '12px', alignItems: 'center' }}>
-                      <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{shift.name}</span>
-                      <span style={{ fontFamily: 'monospace', color: 'var(--accent-emerald)' }}>{shift.startTime}</span>
-                      <span style={{ fontFamily: 'monospace', color: 'var(--accent-blue)' }}>{shift.endTime}</span>
+                  {(editingRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map((shift, sIdx, arr) => (
+                    <div key={shift.id || sIdx} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 40px', gap: '8px', padding: '8px 12px', borderTop: '1px solid var(--border-hairline)', fontSize: '12px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        className="input"
+                        style={{ height: '32px', fontSize: '12px', padding: '4px 8px' }}
+                        value={shift.name || ''}
+                        placeholder={t('analytics.shiftNamePlaceholder', '如: Shift A (7:30am - 4:30pm)')}
+                        onChange={(e) => handleUpdateShiftRow(sIdx, 'name', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="input"
+                        style={{ height: '32px', fontSize: '12px', fontFamily: 'monospace', padding: '4px 6px', color: 'var(--accent-emerald)', textAlign: 'center' }}
+                        value={shift.startTime || '09:00'}
+                        onChange={(e) => handleUpdateShiftRow(sIdx, 'startTime', e.target.value)}
+                      />
+                      <input
+                        type="time"
+                        className="input"
+                        style={{ height: '32px', fontSize: '12px', fontFamily: 'monospace', padding: '4px 6px', color: 'var(--accent-blue)', textAlign: 'center' }}
+                        value={shift.endTime || '18:00'}
+                        onChange={(e) => handleUpdateShiftRow(sIdx, 'endTime', e.target.value)}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ width: '28px', height: '28px', padding: 0, color: arr.length <= 1 ? 'var(--text-muted)' : '#f87171' }}
+                          disabled={arr.length <= 1}
+                          title={arr.length <= 1 ? t('analytics.keepAtLeastOneShift', '至少保留一个班次') : t('analytics.deleteShift', '删除此档位')}
+                          onClick={() => handleRemoveShiftRow(sIdx)}
+                        >
+                          <i className="ph-bold ph-trash"></i>
+                        </button>
+                      </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Shift Quick Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '12px', gap: '6px' }}
+                    onClick={handleAddShiftRow}
+                  >
+                    <i className="ph-bold ph-plus-circle" style={{ color: 'var(--accent-emerald)' }}></i>
+                    {t('analytics.btnAddShift', '添加班次档位')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: '11px', color: 'var(--text-muted)', gap: '4px' }}
+                    onClick={handleResetDefaultShifts}
+                    title={t('analytics.resetShiftsHint', '重置回系统标准的 4 档弹性班次 (7:30 / 8:00 / 8:30 / 9:00)')}
+                  >
+                    <i className="ph-bold ph-arrow-counter-clockwise"></i>
+                    {t('analytics.btnResetDefaultShifts', '恢复默认4档')}
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-4)', lineHeight: 1.4 }}>
+                  {t('analytics.shiftAutoSortHint', '提示：保存时系统将根据「签到基准线」自动由早至晚排序，下班时间必须晚于上班签到时间。')}
                 </div>
 
                 {/* Strict Clock Out Switch */}
@@ -2146,6 +2626,199 @@ export default function AnalyticsPage() {
                 </button>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shift Override Modal (主管人工改派单日核定班次) */}
+      {overrideModalOpen && overrideTargetRecord && (
+        <div className="modal-backdrop" onClick={() => !isSavingOverride && setOverrideModalOpen(false)}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '480px', width: '90%', animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+              <div>
+                <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
+                  {t('analytics.overrideModalTitle', '调整考勤核定班次')}
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                  {t('analytics.overrideModalDesc', '为该员工指定或修正此日期的核定班次。调整后下班底线将重新核算，并保留操作审计记录。')}
+                </p>
+              </div>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setOverrideModalOpen(false)}
+                disabled={isSavingOverride}
+                style={{ padding: '4px', color: 'var(--text-muted)' }}
+              >
+                <i className="ph-bold ph-x" style={{ fontSize: '18px' }}></i>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              
+              {/* Employee & Date Snapshot Info */}
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideEmployeeLabel', '打卡人员')}</div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>
+                    {overrideTargetRecord.picName}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideDateLabel', '考勤日期')}</div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent-blue)', marginTop: '2px' }}>
+                    {overrideTargetRecord.date}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</div>
+                  <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-emerald)', marginTop: '2px' }}>
+                    {overrideTargetRecord.firstActionTime ? overrideTargetRecord.firstActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideOriginalShift', '系统原判定')}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {overrideTargetRecord.shiftAnalysis?.shift?.baseName || overrideTargetRecord.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Target Shift Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                  {t('analytics.overrideTargetShiftLabel', '目标调整班次')} <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select
+                  className="input"
+                  style={{ width: '100%', height: '36px', fontSize: '13px' }}
+                  value={selectedOverrideShiftId}
+                  onChange={(e) => setSelectedOverrideShiftId(e.target.value)}
+                >
+                  <option value="__AUTO__">
+                    {t('analytics.overrideShiftAuto', '恢复系统自动判定 (清除人工改派)')}
+                  </option>
+                  <optgroup label={t('analytics.secShiftTitle', '生效班次档位')}>
+                    {(attendanceRules.shiftConfig?.shifts || DEFAULT_SHIFT_CONFIG.shifts).map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.startTime} - {s.endTime})
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Reason / Note */}
+              {selectedOverrideShiftId !== '__AUTO__' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('analytics.overrideReasonLabel', '调整原因说明')}
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder={t('analytics.overrideReasonPlaceholder', '例如：经主管特批公出免顺延 / 网络打卡延迟补正')}
+                    value={overrideReasonInput}
+                    onChange={(e) => setOverrideReasonInput(e.target.value)}
+                    style={{ width: '100%', fontSize: '13px' }}
+                  />
+                </div>
+              )}
+
+              {/* Warning Notice */}
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(168, 85, 247, 0.06)', border: '1px solid rgba(168, 85, 247, 0.2)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', lineHeight: 1.4 }}>
+                <i className="ph-bold ph-info" style={{ color: 'var(--accent-purple)', marginRight: '4px' }}></i>
+                {t('analytics.overrideWarningNotice', '调整后，员工当日早退与达标底线将依据新班次强制下班时间实时刷新，且写入不可篡改的系统审计日志。')}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-5)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setOverrideModalOpen(false)}
+                disabled={isSavingOverride}
+              >
+                {t('analytics.btnCancel', '取消')}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveShiftOverride}
+                disabled={isSavingOverride}
+                style={{ gap: '6px' }}
+              >
+                <i className={`ph-bold ${isSavingOverride ? 'ph-spinner-gap' : 'ph-check-circle'}`} style={isSavingOverride ? { animation: 'spin 1s linear infinite' } : {}}></i>
+                {isSavingOverride ? t('analytics.savingRules', '正在保存...') : t('analytics.btnSaveOverride', '保存调整')}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Early Clock-Out Warning Modal (提前签退防呆拦截确认) */}
+      {earlyClockOutModal && (
+        <div className="modal-backdrop" onClick={() => setEarlyClockOutModal(null)}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', width: '90%', animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)', border: '1px solid rgba(239, 68, 68, 0.4)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: 'var(--space-3)' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                <i className="ph-bold ph-warning-circle" style={{ fontSize: '20px' }}></i>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: '#f87171' }}>
+                  {t('attendanceModal.earlyWarningTitle', '⚠️ 提前签退预警 (严格考核)')}
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                  {t('analytics.earlyCutoffNotice', '未达核定班次底线签退将触发违规记录')}
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 14px',
+              fontSize: '13px',
+              lineHeight: 1.6,
+              color: 'var(--text-primary)',
+              marginBottom: 'var(--space-4)',
+              border: '1px solid var(--border-subtle)'
+            }}>
+              {t('attendanceModal.earlyWarningText', {
+                end: earlyClockOutModal.shift?.endStr || '18:00',
+                desc: earlyClockOutModal.desc
+              }, `当前核定下班底线为 ${earlyClockOutModal.shift?.endStr || '18:00'}，距离达标还差 ${earlyClockOutModal.desc}。提前签退将直接按迟到/违规计入考勤！`)}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: '13px', fontWeight: '600' }}
+                onClick={() => setEarlyClockOutModal(null)}
+              >
+                {t('attendanceModal.earlyWait', '再等一下 (保住全勤)')}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ background: '#ef4444', color: '#fff', fontSize: '13px', fontWeight: '700', border: 'none' }}
+                onClick={() => handleTopClockOut(true)}
+              >
+                {t('attendanceModal.earlyForce', '坚持提前签退')}
+              </button>
             </div>
           </div>
         </div>

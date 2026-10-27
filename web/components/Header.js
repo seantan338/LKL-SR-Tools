@@ -11,6 +11,16 @@ import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../lib/version';
 const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL || '/docs';
 
 const PAGE_TITLES = {
+  '/announcements': { 
+    title: '公告与系统日志', 
+    subtitle: '管理层与业务公告、系统更新日志与查岗确认',
+    docSlug: 'announcements',
+    helpGuide: [
+      '双栏分流浏览：左侧关注管理与业务通报，右侧时间轴跟踪系统更新日志',
+      '强制知晓保障：P0 紧急公告要求点击确认，全员触达不遗漏',
+      '主管查岗看板：管理层可实时查阅全团队各成员已读与确认状态'
+    ]
+  },
   '/overview': { 
     title: '工作台概览', 
     subtitle: 'Internship 招聘看板与核心数据指标',

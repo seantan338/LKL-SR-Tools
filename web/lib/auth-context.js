@@ -100,7 +100,7 @@ export function AuthProvider({ children }) {
           // 核心：对当前用户文档建立实时监听，任何 WFH 权限开关、角色或团队变更全站零刷新即刻响应
           unsubProfile = onSnapshot(profileRef, (snap) => {
             if (snap.exists()) {
-              setUserProfile(snap.data());
+              setUserProfile({ ...snap.data(), uid: snap.id });
             }
             setLoading(false);
           }, (err) => {

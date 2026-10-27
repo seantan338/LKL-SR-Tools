@@ -67,6 +67,19 @@ test('5. 忘记打卡容错：只有签到无签退，下班显示未打卡，�
   assert.equal(res.isMissingPunch, true);
 });
 
+test('5.1 当日工作中容错：当天未过凌晨12点，已签到未签退算在岗工作中，工时为 null，签退为 -，不计为缺卡', () => {
+  const events = [
+    { type: 'CLOCK_IN', timestamp: makeDate('08:30:00') }
+  ];
+  const res = CascadeShiftEngine.resolveDailyShift(events, DEFAULT_SHIFT_CONFIG, { isToday: true });
+  assert.equal(res.clockInStr, '08:30:00');
+  assert.equal(res.clockOutStr, '-');
+  assert.equal(res.durationHours, null);
+  assert.equal(res.compliance, 'IN_PROGRESS');
+  assert.equal(res.isMissingPunch, false);
+  assert.equal(res.isCompliant, true);
+});
+
 test('6. 连击手滑误触防呆：08:30 签到，08:32 签退（间隔 < 30分钟）判定为疑似误触，工时为 null', () => {
   const events = [
     { type: 'CLOCK_IN', timestamp: makeDate('08:30:00') },
@@ -123,4 +136,22 @@ test('10. 国际化 (i18n) 双语标签支持验证', () => {
   const resEn = CascadeShiftEngine.resolveDailyShift([], DEFAULT_SHIFT_CONFIG, { locale: 'en' });
   assert.equal(resEn.complianceLabel, 'Absent', '英文环境下无记录标签应为 Absent');
   assert.equal(resEn.clockInStr, 'Not Clocked');
+});
+
+test('11. 主管人工改派班次验证：原本 8:31 打卡被改派为 Shift B (08:00 - 17:00)，17:05 签退应判定为达标且带主管调整标记', () => {
+  const events = [
+    { type: 'CLOCK_IN', timestamp: makeDate('08:31:00') },
+    { type: 'CLOCK_OUT', timestamp: makeDate('17:05:00') }
+  ];
+  const override = {
+    shiftId: 'shift_b',
+    reason: '主管特批公出调整',
+    overrideBy: 'manager@test.com'
+  };
+  const res = CascadeShiftEngine.resolveDailyShift(events, DEFAULT_SHIFT_CONFIG, { overrideShift: override });
+  assert.equal(res.shift.id, 'shift_b', '应命中主管指定的班次 shift_b');
+  assert.equal(res.shift.isOverridden, true, '应标记为已改派');
+  assert.equal(res.compliance, 'COMPLIANT', '17:05 已过 17:00，改派为 Shift B 后应判定为达标');
+  assert.ok(res.complianceLabel.includes('[主管调整]'), '标签应包含主管调整标记');
+  assert.equal(res.isViolation, false, '不应计为违规迟到');
 });

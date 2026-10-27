@@ -189,5 +189,29 @@ service cloud.firestore {
         allow write: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
       }
     }
+
+    match /announcements/{announcementId} {
+      // 任何通过审批的用户均可读取有效公告
+      allow read: if hasUserDoc() && userDoc().role in ['owner', 'manager', 'recruiter'];
+      // 发布权限：仅限 owner 或 manager
+      allow create: if hasUserDoc() && userDoc().role in ['owner', 'manager'];
+      // 修改权限：创建人或团队 owner/manager；或者更新 readCount / ackCount 计数
+      allow update: if hasUserDoc() && (
+        userDoc().role in ['owner', 'manager'] ||
+        resource.data.author.id == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readCount', 'ackCount'])
+      );
+      allow delete: if hasUserDoc() && (userDoc().role in ['owner', 'manager'] || resource.data.author.id == request.auth.uid);
+    }
+
+    match /announcement_reads/{readId} {
+      // 允许审批通过的团队成员读取已读列表
+      allow read: if hasUserDoc() && userDoc().role in ['owner', 'manager', 'recruiter'];
+      // 用户只能创建/更新属于自己的已读记录，文档 ID 必须为 announcementId_userId
+      allow create, update: if hasUserDoc()
+        && request.resource.data.userId == request.auth.uid
+        && readId == request.resource.data.announcementId + '_' + request.auth.uid;
+      allow delete: if hasUserDoc() && userDoc().role == 'owner';
+    }
   }
 }

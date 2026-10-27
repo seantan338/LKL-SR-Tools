@@ -6,13 +6,52 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth-context';
 import { useI18n } from '../lib/i18n-context';
 import { APP_VERSION } from '../lib/version';
+import { FirestoreStore } from '../lib/firestore-store';
 
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { userProfile, signOut, isOwner, isHqTeam } = useAuth();
+  const { user, userProfile, teamId: authTeamId, signOut, isOwner, isHqTeam } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const [theme, setTheme] = useState('dark');
+  const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
+
+  useEffect(() => {
+    const uid = user?.uid || userProfile?.uid || userProfile?.id;
+    if (!uid) return;
+    const teamId = authTeamId || userProfile?.teamId || 'default_team';
+
+    let allAnnouncements = [];
+    let myReads = {};
+
+    const updateCount = () => {
+      const unread = allAnnouncements.filter(item => {
+        if (item.isDeleted) return false;
+        if (item.priority === 'P3_LOW') return false; // P3 不主动打扰
+        if (item.category === 'SYSTEM_UPDATE') return false; // 系统更新由独立日志轴承载，不阻塞红点
+        const read = myReads[item.id];
+        if (!read) return true;
+        if (item.requireAck && !read.ackAt) return true;
+        return false;
+      });
+      setUnreadAnnouncementsCount(unread.length);
+    };
+
+    const unsubAnn = FirestoreStore.subscribeToAnnouncements(teamId, (list) => {
+      allAnnouncements = list || [];
+      updateCount();
+    });
+
+    const unsubReads = FirestoreStore.subscribeToMyAnnouncementReads(uid, (reads) => {
+      myReads = reads || {};
+      updateCount();
+    });
+
+    return () => {
+      unsubAnn();
+      unsubReads();
+    };
+  }, [user?.uid, userProfile?.uid, userProfile?.id, authTeamId, userProfile?.teamId]);
 
   useEffect(() => {
     const current = document.documentElement.getAttribute('data-theme') || (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 'dark';
@@ -51,6 +90,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
 
   const navItems = [
     { path: '/overview', labelKey: 'nav.overview', fallback: '工作台概览', icon: 'ph-squares-four' },
+    { path: '/announcements', labelKey: 'nav.announcements', fallback: '公告通知', icon: 'ph-megaphone-simple' },
     { path: '/orders', labelKey: 'nav.orders', fallback: '招聘订单', icon: 'ph-briefcase' },
     { path: '/ai-parser', labelKey: 'nav.aiParser', fallback: 'AI 职位生成', icon: 'ph-magic-wand' },
     { path: '/cv-autofill', labelKey: 'nav.cvAutofill', fallback: 'CV 简历解析', icon: 'ph-file-text' },
@@ -101,6 +141,20 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                     <div className="nav-item-content">
                       <i className={`ph-light ${item.icon}`}></i>
                       <span>{t(item.labelKey, item.fallback)}</span>
+                      {item.path === '/announcements' && unreadAnnouncementsCount > 0 && (
+                        <span style={{
+                          fontSize: '10px',
+                          background: '#ef4444',
+                          color: '#ffffff',
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                          marginLeft: 'auto',
+                          fontWeight: '700',
+                          boxShadow: '0 0 6px rgba(239, 68, 68, 0.5)'
+                        }}>
+                          {unreadAnnouncementsCount > 99 ? '99+' : unreadAnnouncementsCount}
+                        </span>
+                      )}
                       {item.ownerOnly && (
                         <span style={{ fontSize: '10px', background: 'rgba(234, 179, 8, 0.15)', color: 'var(--accent-amber)', padding: '1px 5px', borderRadius: '4px', marginLeft: 'auto', fontWeight: '600' }}>
                           Owner
