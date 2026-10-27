@@ -22,6 +22,8 @@ export const CASCADE_I18N = {
     absent: '缺勤',
     noRecord: '全天无打卡记录',
     invalidTs: '打卡时间戳异常',
+    inProgress: '💼 工作中 (在岗)',
+    inProgressNote: '今日进行中，待下班打卡',
     missedOut: '⚠️ 下班未打卡',
     missedOutNote: (inTime) => `已完成上班签到(${inTime})，下班未打卡`,
     missedIn: '⚠️ 上班未打卡',
@@ -48,6 +50,8 @@ export const CASCADE_I18N = {
     absent: 'Absent',
     noRecord: 'No punch records for the day',
     invalidTs: 'Invalid punch timestamp',
+    inProgress: '💼 On Duty',
+    inProgressNote: 'In progress today, awaiting clock out',
     missedOut: '⚠️ Missing Clock-Out',
     missedOutNote: (inTime) => `Clock-in recorded (${inTime}), missed clock-out`,
     missedIn: '⚠️ Missing Clock-In',
@@ -220,9 +224,9 @@ export class CascadeShiftEngine {
    * 核心单日考勤判定机理（输入单日事件流，输出合规画像）
    * @param {Array<object>} dayEvents - 当天由 Firestore logs / attendance 汇聚的打卡流水
    * @param {object} [customConfig] - 考勤 shiftConfig 配置
-   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en', overrideShift?: object | string }
+   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en', overrideShift?: object | string, isToday?: boolean }
    */
-  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh', overrideShift = null } = {}) {
+  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh', overrideShift = null, isToday = false } = {}) {
     const config = this.getEffectiveConfig(customConfig);
     const labels = CASCADE_I18N[locale] || CASCADE_I18N.zh;
 
@@ -336,6 +340,24 @@ export class CascadeShiftEngine {
     // 3. 场景 A：只有签到，无签退（解决忘记打卡痛点，严禁签退伪造成签到时间）
     if (firstIn && !lastOut) {
       const shift = manualShift || this.matchShift(firstIn, config, { locale });
+      if (isToday) {
+        return {
+          hasAttendance: true,
+          firstIn,
+          lastOut: null,
+          clockInStr: this.formatTime(firstIn),
+          clockOutStr: '-',
+          shift,
+          durationHours: null,
+          compliance: 'IN_PROGRESS',
+          complianceLabel: labels.inProgress,
+          isCompliant: true,
+          isViolation: shift.isLateArrival,
+          isMissingPunch: false,
+          isLate: shift.isLateArrival,
+          note: labels.inProgressNote
+        };
+      }
       return {
         hasAttendance: true,
         firstIn,
@@ -347,7 +369,7 @@ export class CascadeShiftEngine {
         compliance: 'MISSED_OUT',
         complianceLabel: labels.missedOut,
         isCompliant: false,
-        isViolation: shift.isLateArrival,
+        isViolation: true,
         isMissingPunch: true,
         isLate: shift.isLateArrival,
         note: labels.missedOutNote(this.formatTime(firstIn))

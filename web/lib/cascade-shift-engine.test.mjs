@@ -67,6 +67,19 @@ test('5. 忘记打卡容错：只有签到无签退，下班显示未打卡，�
   assert.equal(res.isMissingPunch, true);
 });
 
+test('5.1 当日工作中容错：当天未过凌晨12点，已签到未签退算在岗工作中，工时为 null，签退为 -，不计为缺卡', () => {
+  const events = [
+    { type: 'CLOCK_IN', timestamp: makeDate('08:30:00') }
+  ];
+  const res = CascadeShiftEngine.resolveDailyShift(events, DEFAULT_SHIFT_CONFIG, { isToday: true });
+  assert.equal(res.clockInStr, '08:30:00');
+  assert.equal(res.clockOutStr, '-');
+  assert.equal(res.durationHours, null);
+  assert.equal(res.compliance, 'IN_PROGRESS');
+  assert.equal(res.isMissingPunch, false);
+  assert.equal(res.isCompliant, true);
+});
+
 test('6. 连击手滑误触防呆：08:30 签到，08:32 签退（间隔 < 30分钟）判定为疑似误触，工时为 null', () => {
   const events = [
     { type: 'CLOCK_IN', timestamp: makeDate('08:30:00') },

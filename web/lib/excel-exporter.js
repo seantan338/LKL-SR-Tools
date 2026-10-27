@@ -290,11 +290,13 @@ export const ExcelExporter = {
     });
 
     // 2. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次）
+    const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
     const dailyLogs = Object.values(dailyMap).map(day => {
       const overrideKey = `${day.dateStr}__${day.picName}`;
       const overrideKeyUid = `${day.dateStr}__${day.userId}`;
       const overrideShift = (shiftOverrides && (shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid])) || null;
-      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale, overrideShift });
+      const isToday = day.dateStr === todayStr;
+      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale, overrideShift, isToday });
       return {
         ...day,
         analysis: res

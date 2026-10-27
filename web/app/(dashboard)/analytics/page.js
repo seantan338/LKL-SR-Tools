@@ -330,7 +330,7 @@ export default function AnalyticsPage() {
       }
     };
 
-    // 1. Process explicit manual check-ins
+    // 1. Process explicit manual check-ins only (pure attendance without system operation logs)
     manualCheckins.forEach(chk => {
       addEvent(
         chk.picName || chk.userName,
@@ -345,16 +345,6 @@ export default function AnalyticsPage() {
       );
     });
 
-    // 2. Synthesize daily clock-in traces from system operation logs
-    logs.forEach(l => {
-      if (l.isDeleted) return;
-      const name = l.user?.displayName || (l.user?.email ? l.user.email.split('@')[0] : t('analytics.defaultEmployeeName', '内部员工'));
-      addEvent(name, l.user?.email, l.timestamp, l.action || 'SYSTEM_LOG', l.targetName || l.details, {
-        verifyMethod: l.verifyMethod,
-        verifySnapshot: l.verifySnapshot
-      });
-    });
-
     // Format & finalize records
     const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
     const nowTime = new Date().getTime();
@@ -362,18 +352,12 @@ export default function AnalyticsPage() {
     const result = Object.values(recordMap).map(r => {
       const isToday = r.date === todayStr;
       
-      // 组装当日打卡事件流供 CascadeShiftEngine 判定
+      // 组装当日实际打卡事件流供 CascadeShiftEngine 判定
       const dayEvents = [];
       if (r.manualClockIn) dayEvents.push({ type: 'CLOCK_IN', timestamp: r.manualClockIn });
       if (r.manualLunchOut) dayEvents.push({ type: 'LUNCH_OUT', timestamp: r.manualLunchOut });
       if (r.manualLunchIn) dayEvents.push({ type: 'LUNCH_IN', timestamp: r.manualLunchIn });
       if (r.manualClockOut) dayEvents.push({ type: 'CLOCK_OUT', timestamp: r.manualClockOut });
-      if (dayEvents.length === 0) {
-        dayEvents.push({ type: 'CLOCK_IN', timestamp: r.firstActionTime });
-        if (r.lastActionTime > r.firstActionTime) {
-          dayEvents.push({ type: 'CLOCK_OUT', timestamp: r.lastActionTime });
-        }
-      }
 
       // 检查该人员在当日是否存在主管人工改派班次
       const overrideKey = `${r.date}__${r.picName}`;
@@ -383,40 +367,49 @@ export default function AnalyticsPage() {
       const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(
         dayEvents,
         attendanceRules.shiftConfig,
-        { locale: isEn ? 'en' : 'zh', overrideShift: overrideData }
+        { locale: isEn ? 'en' : 'zh', overrideShift: overrideData, isToday }
       );
 
-      // Calculate work duration
-      const diffMs = r.lastActionTime.getTime() - r.firstActionTime.getTime();
-      const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(1);
+      // 工时跨度：在明确签退之前严格显示为空 (null)；明确签退后才计算有效工时
+      let durationHours = null;
+      if (r.manualClockOut) {
+        if (shiftAnalysis.durationHours !== null) {
+          durationHours = shiftAnalysis.durationHours;
+        } else if (r.manualClockIn) {
+          const diffMs = r.manualClockOut.getTime() - r.manualClockIn.getTime();
+          durationHours = Number((diffMs / (1000 * 60 * 60)).toFixed(1));
+        }
+      }
 
       // Determine status
-      let status = 'completed'; // 已打卡/全天完成
+      let status = 'completed';
       let statusLabel = shiftAnalysis.complianceLabel || t('analytics.statusFullShift', '正常完成');
       let statusColor = shiftAnalysis.isViolation ? '#ef4444' : shiftAnalysis.isMissingPunch ? 'var(--accent-amber)' : 'var(--accent-emerald)';
 
       if (isToday) {
-        // If employee has clocked lunch out and not yet clocked lunch in
+        // 当天进行中（未到午夜 12 点）：未签退不算缺卡
         if (r.manualLunchOut && !r.manualLunchIn) {
           status = 'lunch';
           statusLabel = t('analytics.statusOnLunch', '午休中 (离岗)');
           statusColor = 'var(--accent-amber)';
         } else if (r.manualClockOut) {
-          // 今日已签退，严格显示最终合规判定（包含提前签退绝杀）
+          // 今日已签退，显示最终合规判定
           statusLabel = shiftAnalysis.complianceLabel;
           statusColor = shiftAnalysis.isViolation ? '#ef4444' : 'var(--accent-emerald)';
         } else {
-          const minutesSinceLast = (nowTime - r.lastActionTime.getTime()) / (1000 * 60);
-          if (minutesSinceLast < 120) {
-            status = 'online';
-            statusLabel = r.manualLunchIn
-              ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : t('analytics.dutyFallback', '在岗')}`
-              : `${t('analytics.statusOnDuty', '工作中 (活跃)')}${shiftAnalysis.shift?.endStr ? t('analytics.statusCutoffSuffix', { time: shiftAnalysis.shift.endStr }, ` · 底线 ${shiftAnalysis.shift.endStr}`) : ''}`;
-            statusColor = 'var(--accent-blue)';
-          } else {
-            statusLabel = `${t('analytics.statusJustClockedIn', '今日已打卡')} (${shiftAnalysis.shift?.name || t('analytics.dutyFallback', '在岗')})`;
-            statusColor = 'var(--accent-emerald)';
-          }
+          // 今日在岗中，待下班打卡，绝不算作缺卡
+          status = 'online';
+          statusLabel = r.manualLunchIn
+            ? `${t('analytics.statusAfternoonDuty', '工作中 (下午)')} · ${shiftAnalysis.shift?.name ? shiftAnalysis.shift.name.split(' ')[0] : t('analytics.dutyFallback', '在岗')}`
+            : `${t('analytics.statusOnDuty', '工作中 (在岗)')}${shiftAnalysis.shift?.endStr ? t('analytics.statusCutoffSuffix', { time: shiftAnalysis.shift.endStr }, ` · 底线 ${shiftAnalysis.shift.endStr}`) : ''}`;
+          statusColor = 'var(--accent-blue)';
+        }
+      } else {
+        // 历史日期（已过凌晨 12 点）：若仍未签退，才正式判定为未签退 (缺卡)
+        if (!r.manualClockOut) {
+          status = 'missed_out';
+          statusLabel = shiftAnalysis.complianceLabel || t('analytics.statusMissedOut', '未签退 (缺卡)');
+          statusColor = '#ef4444';
         }
       }
 
@@ -425,7 +418,7 @@ export default function AnalyticsPage() {
         overrideKey,
         overrideData,
         isOverridden: Boolean(overrideData),
-        durationHours: shiftAnalysis.durationHours !== null ? shiftAnalysis.durationHours : Number(diffHours),
+        durationHours,
         shiftAnalysis,
         status,
         statusLabel,
@@ -436,7 +429,7 @@ export default function AnalyticsPage() {
 
     // Sort by date desc, then by first action time desc
     return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
-  }, [logs, manualCheckins, teamMembers, attendanceRules, lang, t]);
+  }, [manualCheckins, teamMembers, attendanceRules, lang, t]);
 
   // Filtered attendance list
   const filteredAttendance = useMemo(() => {
@@ -933,7 +926,7 @@ export default function AnalyticsPage() {
 
       const sheets = ExcelExporter.buildAttendanceReportData({
         monthStr: activeMonthStr,
-        attendanceEvents: [...manualCheckins, ...logs],
+        attendanceEvents: manualCheckins,
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
         shiftOverrides: attendanceRules.shiftOverrides || {},
@@ -1608,11 +1601,11 @@ export default function AnalyticsPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)' }}></i>
-                  {t('analytics.attendanceTableTitle', '顾问考勤打卡明细与系统日常活跃记录')}
+                  {t('analytics.attendanceTableTitle', '顾问考勤打卡明细')}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡/活跃记录')).replace('{count}', filteredAttendance.length)}
+                    {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡记录')).replace('{count}', filteredAttendance.length)}
                   </span>
                   {isHqTeam && (isOwner || isManager) && (
                     <button
@@ -1652,9 +1645,8 @@ export default function AnalyticsPage() {
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttPic', '打卡人 (PIC)')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttDate', '考勤日期')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colLastActive', '最后活跃时间')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colClockOut', '下班签退')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时跨度')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colActionCount', '当日系统操作量')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colVerifyMethod', '核验凭证')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定阶梯班次')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
@@ -1665,21 +1657,21 @@ export default function AnalyticsPage() {
                   <tbody>
                     {loadingLogs ? (
                       <tr>
-                        <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan="10" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }}></i>
                           {t('analytics.loadingLogs', '正在加载实时打卡记录...')}
                         </td>
                       </tr>
                     ) : filteredAttendance.length === 0 ? (
                       <tr>
-                        <td colSpan="11" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan="10" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           {t('analytics.emptyAttendance', '所选时间范围内暂无打卡记录，可点击上方「上班签到」立即打卡')}
                         </td>
                       </tr>
                     ) : (
                       filteredAttendance.map((item, idx) => {
-                        const firstTimeStr = item.firstActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                        const lastTimeStr = item.lastActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const firstTimeStr = (item.manualClockIn || item.firstActionTime)?.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '-';
+                        const clockOutTimeStr = item.manualClockOut ? item.manualClockOut.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
                         
                         return (
                           <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
@@ -1705,17 +1697,20 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                {lastTimeStr}
-                              </span>
+                              {clockOutTimeStr ? (
+                                <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                  {clockOutTimeStr}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                              )}
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
-                              {item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')}
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', fontSize: '12px' }}>
-                                {item.actionCount} {t('analytics.unitActions', '次业务流转')}
-                              </span>
+                              {item.manualClockOut && item.durationHours !== null && item.durationHours !== undefined ? (
+                                item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                              )}
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                               {item.verifyMethod === 'WFH' ? (
