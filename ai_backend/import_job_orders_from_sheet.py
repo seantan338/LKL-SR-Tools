@@ -36,9 +36,14 @@ def main() -> int:
         return 2
 
     if args.list_teams:
-        for t in db.collection("teams").stream():
-            data = t.to_dict() or {}
-            print(f"{t.id}\t{data.get('name') or data.get('teamName') or ''}")
+        # list_documents() also returns teams that only exist as a parent of subcollections
+        # (e.g. HQ "default_team" has no team doc of its own), which stream() silently skips
+        for ref in db.collection("teams").list_documents():
+            snap = ref.get()
+            data = (snap.to_dict() or {}) if snap.exists else {}
+            order_count = sum(1 for _ in ref.collection("job_orders").list_documents())
+            name = data.get("displayName") or data.get("name") or ("公司本部 (HQ)" if ref.id == "default_team" else "")
+            print(f"{ref.id}\t{name}\t{order_count} job orders")
         return 0
 
     if not args.sheet_id or not args.team_id:
