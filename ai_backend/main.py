@@ -863,6 +863,50 @@ async def process_webhook_in_background(req: SheetsWebhookRequest):
     except Exception as e:
         logger.error(f"Background Webhook error: {e}", exc_info=True)
 
+class ImportJobOrdersRequest(BaseModel):
+    spreadsheetId: str
+    sheetName: str = "Database"
+    teamId: str
+    assignedTo: Optional[str] = "system"
+    dryRun: Optional[bool] = True
+
+@app.post("/api/sheets/import-job-orders")
+async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
+    """
+    Column-mapped (no AI) Job Order import from a sheet tab such as "Job Order 2026" > Database.
+    Upserts by company + position + location, so n8n can call it on a schedule to keep Firestore in sync.
+    dryRun=true (default) only reports what would change.
+    """
+    from services.job_order_sheet import map_sheet_rows_to_job_orders, upsert_job_orders
+    from firebase_admin_init import get_firestore_client
+
+    logger.info(f"Received request at /api/sheets/import-job-orders for {req.spreadsheetId} / {req.sheetName} (dryRun={req.dryRun})")
+    try:
+        values = get_sheet_values(req.spreadsheetId, req.sheetName)
+    except FileNotFoundError as fnf:
+        return {"status": "error", "message": str(fnf)}
+    if len(values) < 2:
+        raise HTTPException(status_code=400, detail="工作表为空 / Sheet tab is empty")
+
+    mapped = map_sheet_rows_to_job_orders(values[0], values[1:])
+    if mapped["columns"] is None:
+        raise HTTPException(status_code=400, detail="未找到 Company Name / Job Title 列 / Header must contain Company Name and Job Title columns")
+
+    db = get_firestore_client()
+    if db is None:
+        return {"status": "error", "message": "Firestore 未配置 / Firebase Admin credentials not configured"}
+
+    result = upsert_job_orders(db, req.teamId, mapped["orders"], default_assigned_to=req.assignedTo or "system", dry_run=bool(req.dryRun))
+    return {
+        "status": "success",
+        "dryRun": result["dryRun"],
+        "mapped": len(mapped["orders"]),
+        "mergedRows": mapped["mergedCount"],
+        "skipped": mapped["skipped"],
+        "created": len(result["created"]),
+        "updated": len(result["updated"]),
+    }
+
 @app.post("/api/sheets/webhook")
 async def sheets_webhook_endpoint(req: SheetsWebhookRequest, background_tasks: BackgroundTasks, _webhook_ok: bool = Depends(verify_optional_webhook_secret)):
     logger.info(f"Received Sheets Webhook from {req.spreadsheetId} - {req.sheetName}. Pushing to background task.")
