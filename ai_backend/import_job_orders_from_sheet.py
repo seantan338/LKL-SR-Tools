@@ -74,13 +74,18 @@ def main() -> int:
             w.writerows(result["orders"])
         print(f"Preview written to {args.preview_csv}")
 
-    res = upsert_job_orders(db, args.team_id, result["orders"], default_assigned_to=args.assigned_to, dry_run=not args.apply)
+    res = upsert_job_orders(db, args.team_id, result["orders"], default_assigned_to=args.assigned_to,
+                            dry_run=not args.apply, report_orphans=True)
     mode = "APPLIED" if args.apply else "DRY RUN (add --apply to write)"
     print(f"{mode}: {len(res['created'])} new, {len(res['updated'])} updated, {res['unchanged']} unchanged "
           f"in teams/{args.team_id}/job_orders")
     for u in res["updated"]:
         status = f" status {u['statusChange'][0]} -> {u['statusChange'][1]}" if u.get("statusChange") else ""
         print(f"  ~ {u['company']} / {u['position']}: {', '.join(u['changedFields'])}{status}")
+    if res["orphans"]:
+        print(f"{len(res['orphans'])} open order(s) imported from the sheet are no longer in it (renamed or deleted rows; not changed):")
+        for o in res["orphans"]:
+            print(f"  ? {o['company']} / {o['position']} [{o['status']}] id={o['id']}")
     if not args.apply:
         print(json.dumps({"created": res["created"][:5], "updated": res["updated"][:5]}, ensure_ascii=False, indent=2))
     return 0

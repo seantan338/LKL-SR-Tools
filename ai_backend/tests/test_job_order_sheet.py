@@ -12,6 +12,7 @@ from services.job_order_sheet import (
     map_sheet_rows_to_job_orders,
     normalize_job_order_status,
     parse_sheet_timestamp,
+    sync_job_order_rows,
     upsert_job_orders,
 )
 
@@ -116,6 +117,22 @@ class _FakeColl:
     def stream(self):
         return [_FakeSnap(k, v) for k, v in self.docs.items()]
 
+    def where(self, field, op, value):
+        assert op == "=="
+        self.db.queries += 1
+        return _FakeQuery([_FakeSnap(k, v) for k, v in self.docs.items() if v.get(field) == value])
+
+
+class _FakeQuery:
+    def __init__(self, snaps):
+        self.snaps = snaps
+
+    def limit(self, n):
+        return _FakeQuery(self.snaps[:n])
+
+    def stream(self):
+        return list(self.snaps)
+
 
 class _FakeBatch:
     def __init__(self, db):
@@ -138,7 +155,7 @@ class _FakeBatch:
 
 class _FakeDB:
     def __init__(self):
-        self.colls, self.commits = {}, []
+        self.colls, self.commits, self.queries = {}, [], 0
 
     def collection(self, path):
         return self.colls.setdefault(path, _FakeColl(self, path))
@@ -147,7 +164,7 @@ class _FakeDB:
         return _FakeBatch(self)
 
 
-class UpsertTests(unittest.TestCase):
+class _FakeFirestoreTestCase(unittest.TestCase):
     def setUp(self):
         from unittest import mock
         patcher = mock.patch("services.identity_service.get_team_members", return_value=[])
@@ -158,6 +175,8 @@ class UpsertTests(unittest.TestCase):
         rows = [["Co", "Open", f"Role {i}", "-", "KL"] for i in range(n)]
         return map_sheet_rows_to_job_orders(HEADERS, rows)["orders"]
 
+
+class UpsertTests(_FakeFirestoreTestCase):
     def test_dry_run_writes_nothing(self):
         db = _FakeDB()
         res = upsert_job_orders(db, "default_team", self._orders(3), dry_run=True)
@@ -195,6 +214,43 @@ class UpsertTests(unittest.TestCase):
         stored = {d["position"]: d for d in db.collection("teams/default_team/job_orders").docs.values()}
         self.assertEqual(stored["Role 1"]["status"], "closed")
         self.assertEqual(stored["Role 2"]["salary"], "RM5000")
+
+
+class RealtimeAndOrphanTests(_FakeFirestoreTestCase):
+    def _coll(self, db):
+        return db.collection("teams/default_team/job_orders")
+
+    def test_edited_row_updates_only_that_order(self):
+        db = _FakeDB()
+        upsert_job_orders(db, "default_team", self._orders(3), dry_run=False)
+        res = sync_job_order_rows(db, "default_team", HEADERS, [["Co", "Closed", "Role 1", "-", "KL"]], first_row_number=3)
+        self.assertEqual((len(res["created"]), len(res["updated"])), (0, 1))
+        self.assertEqual(res["updated"][0]["statusChange"], ["open", "closed"])
+        self.assertEqual(len(self._coll(db).docs), 3)
+        self.assertEqual(db.queries, 1)  # sheetKey lookup, no full collection read
+
+    def test_location_typed_after_title_adopts_blank_location_order(self):
+        db = _FakeDB()
+        res = sync_job_order_rows(db, "default_team", HEADERS, [["Co", "Open", "Driver"]], first_row_number=20)
+        self.assertEqual(len(res["created"]), 1)
+        res = sync_job_order_rows(db, "default_team", HEADERS, [["Co", "Open", "Driver", "-", "Senai"]], first_row_number=20)
+        self.assertEqual((len(res["created"]), len(res["updated"])), (0, 1))
+        docs = list(self._coll(db).docs.values())
+        self.assertEqual(len(docs), 1)
+        self.assertEqual((docs[0]["location"], docs[0]["sheetKey"]), ("Senai", "co::driver::senai"))
+
+    def test_incomplete_row_is_skipped(self):
+        db = _FakeDB()
+        res = sync_job_order_rows(db, "default_team", HEADERS, [["Co", "Open", ""]], first_row_number=7)
+        self.assertEqual(len(res["created"]), 0)
+        self.assertEqual([s["row"] for s in res["skipped"]], [7])
+
+    def test_orphans_are_reported_not_deleted(self):
+        db = _FakeDB()
+        upsert_job_orders(db, "default_team", self._orders(3), dry_run=False)
+        res = upsert_job_orders(db, "default_team", self._orders(2), dry_run=False, report_orphans=True)
+        self.assertEqual([o["position"] for o in res["orphans"]], ["Role 2"])
+        self.assertEqual(len(self._coll(db).docs), 3)
 
 
 if __name__ == "__main__":
