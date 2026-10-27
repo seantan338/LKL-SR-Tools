@@ -9,6 +9,7 @@ import { FirestoreStore } from '../lib/firestore-store';
  * P0 紧急公告全局强阻断模态框 (P0 Critical Notice Modal)
  * 遇到管理层/系统发布的 P0_CRITICAL 级别公告且当前用户尚未确认知晓时，
  * 在全站页面实施无死角阻断，强制要求点击“我已阅读并知晓”方可解除。
+ * 支持双语（中/英）自适应及手动对照切换。
  */
 export default function P0NoticeModal() {
   const { user, userProfile, teamId } = useAuth();
@@ -16,6 +17,11 @@ export default function P0NoticeModal() {
   const [announcements, setAnnouncements] = useState([]);
   const [myReads, setMyReads] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewLang, setViewLang] = useState(lang || 'zh'); // 支持弹窗内手动切换 'zh' | 'en'
+
+  useEffect(() => {
+    setViewLang(lang || 'zh');
+  }, [lang]);
 
   useEffect(() => {
     if (!user?.uid || !teamId) return;
@@ -45,6 +51,12 @@ export default function P0NoticeModal() {
 
   if (!activeNotice) return null;
 
+  const hasBilingual = Boolean(activeNotice.titleEn || activeNotice.contentEn);
+
+  // 动态解析当前展示语言的标题与正文
+  const currentTitle = (viewLang === 'en' && activeNotice.titleEn) ? activeNotice.titleEn : activeNotice.title;
+  const currentContent = (viewLang === 'en' && activeNotice.contentEn) ? activeNotice.contentEn : activeNotice.content;
+
   const handleAcknowledge = async () => {
     if (!user || isSubmitting) return;
     setIsSubmitting(true);
@@ -63,7 +75,7 @@ export default function P0NoticeModal() {
   };
 
   const formattedTime = activeNotice.createdAt
-    ? new Date(activeNotice.createdAt).toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', { hour12: false })
+    ? new Date(activeNotice.createdAt).toLocaleString(viewLang === 'en' ? 'en-US' : 'zh-CN', { hour12: false })
     : t('announcements.timeRecent', '近期');
 
   return (
@@ -115,9 +127,49 @@ export default function P0NoticeModal() {
             }}></span>
             <span>🚨 {t('announcements.p0BannerTitle', '紧急重要通知 (P0 CRITICAL)')}</span>
           </div>
-          <span style={{ fontSize: '0.8rem', background: 'rgba(0,0,0,0.25)', padding: '2px 8px', borderRadius: '4px' }}>
-            {t('announcements.p0ForceBadge', '强制知晓')}
-          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* 双语切换胶囊 */}
+            {hasBilingual && (
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '2px' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewLang('zh')}
+                  style={{
+                    background: viewLang === 'zh' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                    border: 'none',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.72rem',
+                    fontWeight: viewLang === 'zh' ? '700' : '400',
+                    cursor: 'pointer'
+                  }}
+                >
+                  中
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewLang('en')}
+                  style={{
+                    background: viewLang === 'en' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                    border: 'none',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.72rem',
+                    fontWeight: viewLang === 'en' ? '700' : '400',
+                    cursor: 'pointer'
+                  }}
+                >
+                  EN
+                </button>
+              </div>
+            )}
+            <span style={{ fontSize: '0.8rem', background: 'rgba(0,0,0,0.25)', padding: '2px 8px', borderRadius: '4px' }}>
+              {t('announcements.p0ForceBadge', '强制知晓')}
+            </span>
+          </div>
         </div>
 
         {/* 主体正文 */}
@@ -129,10 +181,10 @@ export default function P0NoticeModal() {
             marginBottom: '14px',
             lineHeight: 1.4
           }}>
-            {activeNotice.title}
+            {currentTitle}
           </h2>
 
-          {/* 发布人信息：仅保留发布人头像 + 姓名 */}
+          {/* 发布人信息：头像 + 姓名 */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -168,7 +220,7 @@ export default function P0NoticeModal() {
             borderRadius: '8px',
             border: '1px solid rgba(255,255,255,0.05)'
           }}>
-            {activeNotice.content}
+            {currentContent}
           </div>
         </div>
 

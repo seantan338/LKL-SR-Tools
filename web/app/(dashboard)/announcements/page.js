@@ -14,9 +14,8 @@ const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
     id: 'sys_v1_7_1',
     category: 'SYSTEM_UPDATE',
     priority: 'P2_NORMAL',
-    title: isEn
-      ? 'v1.7.1 Accidental Clock-Out Guard & Latest-Wins Self Healing'
-      : 'v1.7.1 考勤手滑误触防护闭环与最晚签退自动自愈',
+    title: 'v1.7.1 考勤手滑误触防护闭环与最晚签退自动自愈',
+    titleEn: 'v1.7.1 Accidental Clock-Out Guard & Latest-Wins Self Healing',
     versionTag: 'v1.7.1',
     changeTypes: ['feat', 'fix', 'opt'],
     author: {
@@ -24,15 +23,14 @@ const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
       avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys171'
     },
     createdAt: '2026-10-27T08:30:00Z',
-    content: isEn
-      ? `### Key Updates:
-- **Latest-Wins Self Healing**: If a teammate accidentally clocks out early, clocking out again at end-of-shift automatically takes effect. Zero manual correction cost.
-- **Full Punch History Trail**: Removes punch log truncation; full second-level punches are preserved with badge indicators (e.g. x2).
-- **Accidental Exit Interceptor**: Triggers a high-alert dialog when attempting to clock out earlier than scheduled exit time to protect full-attendance bonus.`
-      : `### 核心更新亮点：
+    content: `### 核心更新亮点：
 - **最晚签退自愈机制**：员工误触提前签退后，下班真正离开时再次打卡，系统自动以当天最晚记录生效覆盖，零人工介入。
 - **全量秒级打卡流水**：解除流水限制，每日考勤记录完整保存多次打卡历史并标记徽章（如 x2）。
 - **提前签退强防呆弹窗**：顶部快捷签退检测到早于下班底线时弹出高警示确认框，保护全勤奖。`,
+    contentEn: `### Key Updates:
+- **Latest-Wins Self Healing**: If a teammate accidentally clocks out early, clocking out again at end-of-shift automatically takes effect. Zero manual correction cost.
+- **Full Punch History Trail**: Removes punch log truncation; full second-level punches are preserved with badge indicators (e.g. x2).
+- **Accidental Exit Interceptor**: Triggers a high-alert dialog when attempting to clock out earlier than scheduled exit time to protect full-attendance bonus.`,
     readCount: 15,
     ackCount: 15
   },
@@ -40,9 +38,8 @@ const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
     id: 'sys_v1_7_0',
     category: 'SYSTEM_UPDATE',
     priority: 'P2_NORMAL',
-    title: isEn
-      ? 'v1.7.0 Pure Attendance Stream & Midnight Shift Cutoff'
-      : 'v1.7.0 纯净考勤记录重构与午夜12点缺卡分水岭',
+    title: 'v1.7.0 纯净考勤记录重构与午夜12点缺卡分水岭',
+    titleEn: 'v1.7.0 Pure Attendance Stream & Midnight Shift Cutoff',
     versionTag: 'v1.7.0',
     changeTypes: ['opt', 'fix'],
     author: {
@@ -50,15 +47,14 @@ const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
       avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys170'
     },
     createdAt: '2026-10-27T01:00:00Z',
-    content: isEn
-      ? `### Key Updates:
-- **Pure Attendance Stream Isolation**: Excludes daily candidate tracking operations; reports reflect only genuine punch actions.
-- **Clock-Out Blank Protection**: Durations remain clean and blank until explicit clock-out punch occurs.
-- **Midnight Status Cutoff**: Shifts in progress on current day are flagged as In-Progress; missed clock-out is finalized strictly after midnight.`
-      : `### 核心更新亮点：
+    content: `### 核心更新亮点：
 - **纯净考勤数据流隔离**：彻底剔除日常候选人跟进等非打卡日志，报表纯粹精准。
 - **下班签退与工时留白**：员工未签退前工时严格留白，签退后精确核算真实工时。
 - **午夜缺卡分水岭**：当日进行中判定为在岗状态，次日零点后未打卡才核定缺卡。`,
+    contentEn: `### Key Updates:
+- **Pure Attendance Stream Isolation**: Excludes daily candidate tracking operations; reports reflect only genuine punch actions.
+- **Clock-Out Blank Protection**: Durations remain clean and blank until explicit clock-out punch occurs.
+- **Midnight Status Cutoff**: Shifts in progress on current day are flagged as In-Progress; missed clock-out is finalized strictly after midnight.`,
     readCount: 15,
     ackCount: 15
   },
@@ -66,9 +62,8 @@ const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
     id: 'sys_v1_6_9',
     category: 'SYSTEM_UPDATE',
     priority: 'P2_NORMAL',
-    title: isEn
-      ? 'v1.6.9 Global Architecture Documentation & Full Bilingual Matrix'
-      : 'v1.6.9 全局架构说明书全景重构与双语国际化矩阵',
+    title: 'v1.6.9 全局架构说明书全景重构与双语国际化矩阵',
+    titleEn: 'v1.6.9 Global Architecture Documentation & Full Bilingual Matrix',
     versionTag: 'v1.6.9',
     changeTypes: ['feat', 'opt'],
     author: {
@@ -76,15 +71,14 @@ const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
       avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys169'
     },
     createdAt: '2026-10-26T16:00:00Z',
-    content: isEn
-      ? `### Key Updates:
-- **Enterprise Cascade Shifts**: Supports 4-tier flexible work shifts with manager day-override snapshot audits.
-- **HQ Competitive Leaderboard**: Corporate attendance rank and sales performance boards go live.
-- **Full Bilingual Support**: Manuals and UI components feature seamless 100% bilingual toggle.`
-      : `### 核心更新亮点：
+    content: `### 核心更新亮点：
 - **企业级弹性排班体系**：支持 4 档弹性工时阶梯判定与主管单日改派审计。
 - **HQ 专属竞技排行榜**：公司本部考勤出勤率与销售成单排行看板上线。
 - **全站中英双语即时切换**：操作手册与工作台组件 100% 覆盖双语词条。`,
+    contentEn: `### Key Updates:
+- **Enterprise Cascade Shifts**: Supports 4-tier flexible work shifts with manager day-override snapshot audits.
+- **HQ Competitive Leaderboard**: Corporate attendance rank and sales performance boards go live.
+- **Full Bilingual Support**: Manuals and UI components feature seamless 100% bilingual toggle.`,
     readCount: 15,
     ackCount: 15
   }
@@ -232,12 +226,15 @@ export default function AnnouncementsPage() {
   const [trackerReaders, setTrackerReaders] = useState([]);
   const [loadingReaders, setLoadingReaders] = useState(false);
   const [detailNotice, setDetailNotice] = useState(null); // 详情查看
+  const [detailViewLang, setDetailViewLang] = useState(lang || 'zh'); // 详情弹窗当前查看语言 'zh' | 'en'
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 新建表单
+  // 新建表单（增设双语栏位 titleEn & contentEn）
   const [newNotice, setNewNotice] = useState({
     title: '',
     content: '',
+    titleEn: '',
+    contentEn: '',
     category: 'SUPERVISOR', // 'EXECUTIVE' | 'SUPERVISOR' | 'SYSTEM_UPDATE'
     priority: 'P2_NORMAL',   // 'P0_CRITICAL' | 'P1_HIGH' | 'P2_NORMAL' | 'P3_LOW'
     isPinned: false,
@@ -246,8 +243,16 @@ export default function AnnouncementsPage() {
     changeTypes: ['feat']
   });
 
+  // 抽屉内双语栏位折叠/展开开关
+  const [isBilingualOpen, setIsBilingualOpen] = useState(false);
+
   // 右侧系统日志展开状态
   const [expandedLogId, setExpandedLogId] = useState('sys_v1_7_1');
+
+  // 当系统语言变化时同步详情弹窗默认视图
+  useEffect(() => {
+    setDetailViewLang(lang || 'zh');
+  }, [lang]);
 
   // 1. 监听公告与已读记录
   useEffect(() => {
@@ -317,20 +322,35 @@ export default function AnnouncementsPage() {
     });
   }, [businessAnnouncements, myReads]);
 
-  // 6. 过滤后的业务列表
+  // 6. 过滤后的业务列表（支持双语搜索模糊匹配）
   const filteredBusinessAnnouncements = useMemo(() => {
     return businessAnnouncements.filter(item => {
       if (categoryTab !== 'ALL' && item.category !== categoryTab) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const titleMatch = item.title?.toLowerCase().includes(q);
-        const contentMatch = item.content?.toLowerCase().includes(q);
+        const titleMatch = item.title?.toLowerCase().includes(q) || item.titleEn?.toLowerCase().includes(q);
+        const contentMatch = item.content?.toLowerCase().includes(q) || item.contentEn?.toLowerCase().includes(q);
         const authorMatch = item.author?.name?.toLowerCase().includes(q);
         if (!titleMatch && !contentMatch && !authorMatch) return false;
       }
       return true;
     });
   }, [businessAnnouncements, categoryTab, searchQuery]);
+
+  // 动态获取呈现的标题与正文（英文优先回退中文）
+  const getDisplayTitle = (item, currentLang = lang) => {
+    if (currentLang === 'en' && item.titleEn?.trim()) {
+      return item.titleEn;
+    }
+    return item.title || item.titleEn || '';
+  };
+
+  const getDisplayContent = (item, currentLang = lang) => {
+    if (currentLang === 'en' && item.contentEn?.trim()) {
+      return item.contentEn;
+    }
+    return item.content || item.contentEn || '';
+  };
 
   // 操作：标记知晓 / 收到
   const handleAcknowledge = async (item) => {
@@ -352,6 +372,7 @@ export default function AnnouncementsPage() {
   // 操作：打开详情弹窗
   const handleOpenDetail = (item) => {
     setDetailNotice(item);
+    setDetailViewLang(lang === 'en' && (item.titleEn || item.contentEn) ? 'en' : 'zh');
     if (user && (!myReads[item.id] || !myReads[item.id]?.ackAt)) {
       FirestoreStore.markAnnouncementRead(item.id, {
         uid: user.uid,
@@ -377,7 +398,7 @@ export default function AnnouncementsPage() {
     }
   };
 
-  // 操作：创建公告
+  // 操作：创建公告（支持双语存储）
   const handleCreateAnnouncement = async (e) => {
     e.preventDefault();
     if (!newNotice.title.trim() || !newNotice.content.trim()) {
@@ -390,6 +411,8 @@ export default function AnnouncementsPage() {
       await FirestoreStore.createAnnouncement({
         title: newNotice.title.trim(),
         content: newNotice.content.trim(),
+        titleEn: newNotice.titleEn.trim() || null,
+        contentEn: newNotice.contentEn.trim() || null,
         category: newNotice.category,
         priority: newNotice.priority,
         isPinned: newNotice.isPinned,
@@ -410,6 +433,8 @@ export default function AnnouncementsPage() {
       setNewNotice({
         title: '',
         content: '',
+        titleEn: '',
+        contentEn: '',
         category: 'SUPERVISOR',
         priority: 'P2_NORMAL',
         isPinned: false,
@@ -417,6 +442,7 @@ export default function AnnouncementsPage() {
         versionTag: '',
         changeTypes: ['feat']
       });
+      setIsBilingualOpen(false);
     } catch (err) {
       console.error('Create announcement error:', err);
       showToast(t('announcements.toastCreateFailed', { msg: err.message }, `发布失败: ${err.message}`), 'error');
@@ -500,6 +526,7 @@ export default function AnnouncementsPage() {
           {pinnedBannerNotices.slice(0, 2).map((notice) => {
             const isAcked = Boolean(myReads[notice.id]?.ackAt);
             const isP0 = notice.priority === 'P0_CRITICAL';
+            const displayTitle = getDisplayTitle(notice);
 
             return (
               <div
@@ -538,6 +565,19 @@ export default function AnnouncementsPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       {renderPriorityBadge(notice.priority)}
+                      {(notice.titleEn || notice.contentEn) && (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          background: 'rgba(59, 130, 246, 0.18)',
+                          color: 'var(--accent-blue, #60a5fa)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          fontWeight: '600'
+                        }}>
+                          {t('announcements.hasBilingualBadge', '双语')}
+                        </span>
+                      )}
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)' }}>
                         {notice.createdAt ? new Date(notice.createdAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN') : ''}
                       </span>
@@ -554,9 +594,9 @@ export default function AnnouncementsPage() {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}
-                      title={notice.title}
+                      title={displayTitle}
                     >
-                      {notice.title}
+                      {displayTitle}
                     </h3>
                   </div>
                 </div>
@@ -755,6 +795,10 @@ export default function AnnouncementsPage() {
                   ? new Date(item.createdAt).toLocaleString(isEn ? 'en-US' : 'zh-CN', { hour12: false })
                   : t('announcements.timeRecent', '近期');
 
+                const displayTitle = getDisplayTitle(item);
+                const displayContent = getDisplayContent(item);
+                const hasBilingual = Boolean(item.titleEn || item.contentEn);
+
                 return (
                   <div
                     key={item.id}
@@ -798,6 +842,19 @@ export default function AnnouncementsPage() {
                             <i className="ph-fill ph-push-pin"></i>
                           </span>
                         )}
+                        {hasBilingual && (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            background: 'rgba(59, 130, 246, 0.18)',
+                            color: 'var(--accent-blue, #60a5fa)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontWeight: '600'
+                          }} title="包含双语翻译">
+                            🌐 {t('announcements.hasBilingualBadge', '双语')}
+                          </span>
+                        )}
                         {renderPriorityBadge(item.priority)}
                       </div>
                     </div>
@@ -827,7 +884,7 @@ export default function AnnouncementsPage() {
                           flexShrink: 0
                         }}></span>
                       )}
-                      <span>{item.title}</span>
+                      <span>{displayTitle}</span>
                     </h3>
 
                     {/* 摘要预览 */}
@@ -845,7 +902,7 @@ export default function AnnouncementsPage() {
                         overflow: 'hidden'
                       }}
                     >
-                      {item.content}
+                      {displayContent}
                     </p>
 
                     {/* 底部互动操作栏 */}
@@ -1007,6 +1064,8 @@ export default function AnnouncementsPage() {
             {systemChangelogs.map((log, index) => {
               const isExpanded = expandedLogId === log.id;
               const isLatest = index === 0;
+              const displayLogTitle = getDisplayTitle(log);
+              const displayLogContent = getDisplayContent(log);
 
               return (
                 <div key={log.id} style={{ position: 'relative', marginBottom: '22px' }}>
@@ -1082,7 +1141,7 @@ export default function AnnouncementsPage() {
                         gap: '6px'
                       }}
                     >
-                      <span>{log.title}</span>
+                      <span>{displayLogTitle}</span>
                       <i className={`ph-bold ph-caret-${isExpanded ? 'up' : 'down'}`} style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}></i>
                     </div>
 
@@ -1094,7 +1153,7 @@ export default function AnnouncementsPage() {
                         borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
                         fontSize: '0.82rem'
                       }}>
-                        <SimpleMarkdownRenderer content={log.content} />
+                        <SimpleMarkdownRenderer content={displayLogContent} />
                       </div>
                     )}
                   </div>
@@ -1149,7 +1208,7 @@ export default function AnnouncementsPage() {
                   {t('announcements.trackerModalTitle', '📊 主管查岗名单与知晓跟踪')}
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)' }}>
-                  {t('announcements.trackerNoticeLabel', { title: trackerNotice.title }, `公告：${trackerNotice.title}`)}
+                  {t('announcements.trackerNoticeLabel', { title: getDisplayTitle(trackerNotice) }, `公告：${getDisplayTitle(trackerNotice)}`)}
                 </span>
               </div>
               <button
@@ -1175,7 +1234,7 @@ export default function AnnouncementsPage() {
 
                   const copyUnreadList = () => {
                     const names = unackedList.map(u => u.displayName || u.email).join('、');
-                    const text = t('announcements.copyPrefix', { title: trackerNotice.title, names }, `未读公告【${trackerNotice.title}】的成员名单：${names}`);
+                    const text = t('announcements.copyPrefix', { title: getDisplayTitle(trackerNotice), names }, `未读公告【${getDisplayTitle(trackerNotice)}】的成员名单：${names}`);
                     navigator.clipboard.writeText(text);
                     showToast(t('announcements.toastCopySuccess', '已复制未读名单至剪贴板'), 'info');
                   };
@@ -1281,7 +1340,7 @@ export default function AnnouncementsPage() {
       )}
 
       {/* ========================================================
-          模态框 2：公告详情正文阅读 (Detail Modal)
+          模态框 2：公告详情正文阅读 (Detail Modal，支持双语对照切换)
           ======================================================== */}
       {detailNotice && (
         <div style={{
@@ -1325,6 +1384,51 @@ export default function AnnouncementsPage() {
                     ? t('announcements.tabExecutive', '高层通知')
                     : (detailNotice.category === 'SYSTEM_UPDATE' ? t('announcements.tabSystem', '系统更新') : t('announcements.tabSupervisor', '部门业务'))}
                 </span>
+
+                {/* 双语对照切换 Pill */}
+                {(detailNotice.titleEn || detailNotice.contentEn) && (
+                  <div style={{
+                    display: 'flex',
+                    background: 'rgba(255,255,255,0.06)',
+                    borderRadius: '6px',
+                    padding: '2px',
+                    marginLeft: '8px',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setDetailViewLang('zh')}
+                      style={{
+                        background: detailViewLang === 'zh' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                        color: detailViewLang === 'zh' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
+                        border: 'none',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: detailViewLang === 'zh' ? '700' : '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {t('announcements.langZh', '中文版')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailViewLang('en')}
+                      style={{
+                        background: detailViewLang === 'en' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                        color: detailViewLang === 'en' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
+                        border: 'none',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: detailViewLang === 'en' ? '700' : '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {t('announcements.langEn', 'English')}
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setDetailNotice(null)}
@@ -1337,10 +1441,10 @@ export default function AnnouncementsPage() {
             {/* 正文 */}
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
               <h2 style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary, #ffffff)', margin: '0 0 14px 0', lineHeight: 1.4 }}>
-                {detailNotice.title}
+                {getDisplayTitle(detailNotice, detailViewLang)}
               </h2>
 
-              {/* 发布人（无Badge，纯头像+名字） */}
+              {/* 发布人（无Badge，纯头像+姓名） */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1360,13 +1464,13 @@ export default function AnnouncementsPage() {
                   </span>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)' }}>
                     {t('announcements.postedAt', {
-                      time: detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString(isEn ? 'en-US' : 'zh-CN', { hour12: false }) : ''
-                    }, `发布于 ${detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString(isEn ? 'en-US' : 'zh-CN', { hour12: false }) : ''}`)}
+                      time: detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString(detailViewLang === 'en' ? 'en-US' : 'zh-CN', { hour12: false }) : ''
+                    }, `发布于 ${detailNotice.createdAt ? new Date(detailNotice.createdAt).toLocaleString(detailViewLang === 'en' ? 'en-US' : 'zh-CN', { hour12: false }) : ''}`)}
                   </span>
                 </div>
               </div>
 
-              <SimpleMarkdownRenderer content={detailNotice.content} />
+              <SimpleMarkdownRenderer content={getDisplayContent(detailNotice, detailViewLang)} />
             </div>
 
             {/* 底部确认栏 */}
@@ -1420,7 +1524,7 @@ export default function AnnouncementsPage() {
       )}
 
       {/* ========================================================
-          抽屉 3：发布新公告抽屉 (Create Announcement Drawer)
+          抽屉 3：发布新公告抽屉 (Create Announcement Drawer，支持双语录入)
           ======================================================== */}
       {isCreateOpen && (
         <div style={{
@@ -1436,7 +1540,7 @@ export default function AnnouncementsPage() {
           justifyContent: 'flex-end'
         }}>
           <div style={{
-            width: '520px',
+            width: '560px',
             maxWidth: '100%',
             height: '100%',
             background: 'var(--bg-surface, #1e293b)',
@@ -1545,9 +1649,10 @@ export default function AnnouncementsPage() {
                 </div>
               )}
 
+              {/* 默认语言标题 */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  {t('announcements.fieldTitle', '公告标题')}
+                  {t('announcements.fieldTitle', '公告标题')} <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -1567,9 +1672,10 @@ export default function AnnouncementsPage() {
                 />
               </div>
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* 默认语言正文 */}
+              <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-secondary)' }}>
-                  {t('announcements.fieldContent', '正文内容 (支持 Markdown 与列表)')}
+                  {t('announcements.fieldContent', '正文内容 (支持 Markdown 与列表)')} <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <textarea
                   required
@@ -1578,8 +1684,7 @@ export default function AnnouncementsPage() {
                   placeholder={t('announcements.contentPlaceholder', '填写具体通报内容或功能更新说明 (支持 ### 标题、- 列表、**加粗**)...')}
                   style={{
                     width: '100%',
-                    flex: 1,
-                    minHeight: '180px',
+                    minHeight: '120px',
                     background: 'rgba(0,0,0,0.25)',
                     border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
                     borderRadius: '8px',
@@ -1592,6 +1697,92 @@ export default function AnnouncementsPage() {
                 ></textarea>
               </div>
 
+              {/* 🌐 英文双语扩展栏位 (折叠/展开) */}
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.05)',
+                border: '1px solid rgba(59, 130, 246, 0.2)',
+                borderRadius: '8px',
+                overflow: 'hidden'
+              }}>
+                <div
+                  onClick={() => setIsBilingualOpen(!isBilingualOpen)}
+                  style={{
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    background: 'rgba(59, 130, 246, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.95rem' }}>🌐</span>
+                    <span style={{ fontSize: '0.86rem', fontWeight: '700', color: 'var(--accent-blue, #60a5fa)' }}>
+                      {t('announcements.sectionBilingual', '🌐 英文双语内容 (English Version - 可选)')}
+                    </span>
+                    {(newNotice.titleEn.trim() || newNotice.contentEn.trim()) && (
+                      <span style={{ fontSize: '0.7rem', background: '#22c55e', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <i className={`ph-bold ph-caret-${isBilingualOpen ? 'up' : 'down'}`} style={{ color: 'var(--text-muted)' }}></i>
+                </div>
+
+                {isBilingualOpen && (
+                  <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(0,0,0,0.15)' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {t('announcements.bilingualTip', '若填写英文版本，切换为英文的员工将自动优先阅读英文标题与正文')}
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                        {t('announcements.fieldTitleEn', '英文标题 (English Title)')}
+                      </label>
+                      <input
+                        type="text"
+                        value={newNotice.titleEn}
+                        onChange={(e) => setNewNotice({ ...newNotice, titleEn: e.target.value })}
+                        placeholder={t('announcements.titleEnPlaceholder', '例如 Notice on Candidate Intake Adjustments...')}
+                        style={{
+                          width: '100%',
+                          background: 'rgba(0,0,0,0.25)',
+                          border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                          borderRadius: '6px',
+                          padding: '7px 10px',
+                          color: '#ffffff',
+                          fontSize: '0.85rem'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                        {t('announcements.fieldContentEn', '英文正文 (English Content)')}
+                      </label>
+                      <textarea
+                        value={newNotice.contentEn}
+                        onChange={(e) => setNewNotice({ ...newNotice, contentEn: e.target.value })}
+                        placeholder={t('announcements.contentEnPlaceholder', 'Enter announcement details in English (Markdown supported)...')}
+                        style={{
+                          width: '100%',
+                          minHeight: '100px',
+                          background: 'rgba(0,0,0,0.25)',
+                          border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+                          borderRadius: '6px',
+                          padding: '8px 10px',
+                          color: '#ffffff',
+                          fontSize: '0.85rem',
+                          lineHeight: 1.5,
+                          resize: 'vertical'
+                        }}
+                      ></textarea>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 置顶与收到确认勾选 */}
               <div style={{ display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
                   <input

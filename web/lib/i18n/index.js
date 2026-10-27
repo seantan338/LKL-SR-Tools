@@ -75,6 +75,16 @@ export const zh = {
     postedAt: '发布于 {time}',
     timeRecent: '近期',
     adminTeamFallback: '管理团队',
+    sectionBilingual: '🌐 英文双语内容 (English Version - 可选)',
+    bilingualTip: '若填写英文版本，切换为英文的员工将自动优先阅读英文标题与正文',
+    fieldTitleEn: '英文标题 (English Title)',
+    titleEnPlaceholder: '例如 Notice on Candidate Intake Adjustments...',
+    fieldContentEn: '英文正文 (English Content)',
+    contentEnPlaceholder: 'Enter announcement details in English (Markdown supported)...',
+    switchLanguageView: '语言切换',
+    langZh: '中文版',
+    langEn: 'English',
+    hasBilingualBadge: '双语',
     teamMemberFallback: '团队成员'
   },
   team: {
@@ -2235,6 +2245,16 @@ export const en = {
     postedAt: 'Posted on {time}',
     timeRecent: 'Recently',
     adminTeamFallback: 'Management Team',
+    sectionBilingual: '🌐 Bilingual Version (English - Optional)',
+    bilingualTip: 'If provided, users in English mode will automatically view the English version',
+    fieldTitleEn: 'English Title',
+    titleEnPlaceholder: 'e.g. Notice on Candidate Intake Adjustments...',
+    fieldContentEn: 'English Content',
+    contentEnPlaceholder: 'Enter announcement details in English (Markdown supported)...',
+    switchLanguageView: 'Language View',
+    langZh: 'Chinese',
+    langEn: 'English',
+    hasBilingualBadge: 'Bilingual',
     teamMemberFallback: 'Teammate'
   },
   team: {
