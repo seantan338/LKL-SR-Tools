@@ -39,7 +39,7 @@
             {
               "id": "4d5e6f7a-0001-4000-8000-000000000101",
               "name": "apiBaseUrl",
-              "value": "https://YOUR-AI-BACKEND.zeabur.app",
+              "value": "https://lkl-sr-tools-1.onrender.com",
               "type": "string"
             },
             {
@@ -88,12 +88,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.apiBaseUrl.replace(/\\/+$/, '') }}/api/sheets/import-job-orders",
+        "url": "={{ $('Config').first().json.apiBaseUrl.replace(/\\/+$/, '') }}/api/sheets/import-job-orders",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ spreadsheetId: $json.spreadsheetId, sheetName: $json.sheetName, teamId: $json.teamId, dryRun: $json.dryRun }) }}",
+        "jsonBody": "={{ JSON.stringify({ spreadsheetId: $('Config').first().json.spreadsheetId, sheetName: $('Config').first().json.sheetName, teamId: $('Config').first().json.teamId, dryRun: $('Config').first().json.dryRun }) }}",
         "options": {
           "timeout": 180000
         }
@@ -103,7 +103,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        740,
+        1400,
         400
       ],
       "retryOnFail": true,
@@ -140,7 +140,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        980,
+        1620,
         300
       ]
     },
@@ -153,20 +153,20 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1220,
+        1840,
         200
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Both a { status: \"error\" } response and an HTTP failure (after retries) land here\nconst j = $input.first().json;\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst err = j.message || (j.error && (j.error.message || j.error.description)) || JSON.stringify(j).slice(0, 500);\nreturn [{ json: { text: `<b>❌ Job Order 每日同步失败</b>\\n${esc(err)}\\n\\n请查看 n8n 的 Executions 记录或后端日志。`.slice(0, 4000) } }];"
+        "jsCode": "// Error output items keep the upstream json and add `error`; a { status: \"error\" } response carries `message`\nconst j = $input.first().json;\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst raw = j.error ?? (j.status === 'error' ? j.message : undefined) ?? j.detail ?? j;\nconst err = typeof raw === 'string' ? raw : (raw.message || raw.description || JSON.stringify(raw).slice(0, 500));\nconst hints = [\n  [/Credentials not found/i, 'Sync Job Orders 节点还没绑定 Header Auth 凭据（X-API-Key）'],\n  [/401|Unauthorized|未授权/i, 'X-API-Key 与后端 INTERNAL_API_SECRET 不一致'],\n  [/404|Not Found/i, '后端还没部署最新代码（缺少 /api/sheets/import-job-orders）'],\n  [/permission|403/i, '表格没有共享给后端 service account 的 client_email，或 GCP 未启用 Google Sheets API'],\n  [/timeout|ECONNRESET|ETIMEDOUT|Application loading/i, '后端没响应，可能仍在 Render 冷启动，稍后重跑'],\n];\nconst hint = (hints.find(([re]) => re.test(err)) || [])[1];\nreturn [{ json: { text: `<b>❌ Job Order 每日同步失败</b>\\n${esc(err)}${hint ? `\\n👉 ${esc(hint)}` : ''}\\n\\n请查看 n8n 的 Executions 记录或后端日志。`.slice(0, 4000) } }];\n"
       },
       "id": "4d5e6f7a-0001-4000-8000-000000000007",
       "name": "Build Failure Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1220,
+        1840,
         480
       ]
     },
@@ -185,14 +185,14 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1460,
+        2060,
         340
       ],
       "webhookId": "talentflow-job-order-sync-notify"
     },
     {
       "parameters": {
-        "content": "## Talent Flow - Job Order 每日自动同步\n\n**流程**：每天 08:00 (Asia/Kuala_Lumpur) → 调用后端 `POST /api/sheets/import-job-orders` → 读取 `Job Order 2026 > Database` → 按「公司 + 职位 + 地点」写入 Firestore（只新建 / 更新有变化的岗位，不会重复）→ Telegram 推送结果。\n\n### 首次设置（3 步）\n1. **Config 节点**：填 `apiBaseUrl`（Zeabur 后端地址）和 `telegramChatId`。\n2. **Sync Job Orders 节点** → Credential → 新建 *Header Auth*：Name = `X-API-Key`，Value = 后端环境变量 `INTERNAL_API_SECRET` 的值。\n3. **Telegram Notify 节点** → 选择已有的 Telegram Bot 凭据。\n\n`dryRun` 默认为 true：先点 **Test workflow** 试跑，确认 Telegram 收到消息后，把 `dryRun` 改为 false 再打开右上角 **Active**。\n\n### 后端要求\n- 环境变量 `INTERNAL_API_SECRET` 已设置。\n- `FIREBASE_SERVICE_ACCOUNT_JSON` 已设置，并把表格共享给该 key 的 `client_email`（Viewer），且 GCP 项目已启用 Google Sheets API。",
+        "content": "## Talent Flow - Job Order 每日自动同步\n\n**流程**：每天 08:00 (MYT) → 唤醒后端（Render 休眠时等 60 秒）→ `POST /api/sheets/import-job-orders` → 读 `Job Order 2026 > Database` → 只新建 / 更新有变化的岗位 → Telegram 推送结果。\n\n### 首次设置\n1. **Config**：`apiBaseUrl`（AI 后端地址）和 `telegramChatId`。\n2. **Sync Job Orders** → Credential：Header Auth，Name = `X-API-Key`，Value = 后端 `INTERNAL_API_SECRET`。\n3. **Telegram Notify** → 确认 bot 凭据。\n\n`dryRun` 默认 true：先点 Execute workflow 试跑，Telegram 收到汇总后改为 false 并 Publish。",
         "height": 420,
         "width": 620
       },
@@ -203,6 +203,75 @@
       "position": [
         240,
         -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.apiBaseUrl.replace(/\\/+$/, '') }}/",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000101",
+      "name": "Wake Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        740,
+        400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "backend-awake",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000102",
+      "name": "Backend Awake?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        960,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "4d5e6f7a-0001-4000-8000-000000000103",
+      "name": "Wait For Cold Start",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        520
       ]
     }
   ],
@@ -234,7 +303,7 @@
       "main": [
         [
           {
-            "node": "Sync Job Orders",
+            "node": "Wake Backend",
             "type": "main",
             "index": 0
           }
@@ -293,6 +362,46 @@
         [
           {
             "node": "Telegram Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wake Backend": {
+      "main": [
+        [
+          {
+            "node": "Backend Awake?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backend Awake?": {
+      "main": [
+        [
+          {
+            "node": "Sync Job Orders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait For Cold Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait For Cold Start": {
+      "main": [
+        [
+          {
+            "node": "Sync Job Orders",
             "type": "main",
             "index": 0
           }
