@@ -1396,8 +1396,8 @@ export default function AnalyticsPage() {
 
           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <button
-              className={`btn btn-sm ${activeTab === 'performance' ? 'btn-primary' : ''}`}
-              style={{ background: activeTab === 'performance' ? 'var(--accent-blue)' : 'transparent', border: 'none', gap: '6px' }}
+              className={`btn btn-sm ${activeTab === 'performance' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ border: 'none', gap: '6px' }}
               onClick={() => setActiveTab('performance')}
             >
               <i className="ph-bold ph-trophy"></i>
@@ -1405,8 +1405,8 @@ export default function AnalyticsPage() {
             </button>
             {isHqTeam && (
             <button
-              className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : ''}`}
-              style={{ background: activeTab === 'attendance' ? 'var(--accent-blue)' : 'transparent', border: 'none', gap: '6px' }}
+              className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ border: 'none', gap: '6px' }}
               onClick={() => setActiveTab('attendance')}
             >
               <i className="ph-bold ph-clock-user"></i>
@@ -1476,8 +1476,8 @@ export default function AnalyticsPage() {
           {isHqTeam && (
           <div style={{ display: 'flex', gap: '6px' }}>
             <button
-              className="btn btn-sm"
-              style={{ background: 'var(--accent-emerald)', color: '#fff', border: 'none', gap: '5px', fontWeight: '600' }}
+              className="btn btn-sm btn-primary"
+              style={{ gap: '5px', fontWeight: '600' }}
               disabled={isClockingIn}
               onClick={() => executeAttendanceCheckin('CLOCK_IN')}
               title={t('analytics.clockInTitle', '上班打卡（自动验证公司 Wi-Fi 或 100 米范围）')}
