@@ -11,7 +11,7 @@ import { FirestoreStore } from '../lib/firestore-store';
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, userProfile, teamId: authTeamId, signOut, isOwner, isHqTeam } = useAuth();
+  const { user, userProfile, teamId: authTeamId, signOut, isOwner, isManager, isHqTeam } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const [theme, setTheme] = useState('dark');
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
@@ -98,7 +98,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     { path: '/talent-pool', labelKey: 'nav.talentPool', fallback: '储备人才库', icon: 'ph-archive-tray' },
     { path: '/pipeline', labelKey: 'nav.pipeline', fallback: '招聘看板', icon: 'ph-kanban' },
     { path: '/calendar', labelKey: 'nav.calendar', fallback: '面试日程', icon: 'ph-calendar-blank' },
-    { path: '/analytics', labelKey: 'nav.analytics', fallback: '数据洞察', icon: 'ph-chart-pie-slice' },
+    { path: '/analytics', labelKey: 'nav.analytics', fallback: '数据洞察', icon: 'ph-chart-pie-slice', supervisorOnly: true },
     { path: '/leaderboard', labelKey: 'nav.leaderboard', fallback: 'Leaderboard', icon: 'ph-trophy', hqOnly: true },
     // { path: '/whatsapp', labelKey: 'nav.whatsapp', fallback: 'WhatsApp 触达', icon: 'ph-whatsapp-logo' },
     { path: '/team', labelKey: 'nav.team', fallback: '团队与权限', icon: 'ph-users-three' },
@@ -107,6 +107,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
 
   const visibleNavItems = navItems.filter((item) => {
     if (item.ownerOnly && !isOwner) return false;
+    if (item.supervisorOnly && !isOwner && !isManager) return false;
     if (item.hqOnly && !isHqTeam) return false;
     return true;
   });

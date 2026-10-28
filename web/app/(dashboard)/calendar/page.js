@@ -6,15 +6,19 @@ import { useNotifications } from '../../../lib/notification-context';
 import { useI18n } from '../../../lib/i18n-context';
 import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
+import { isCandidateOwnedByUser, resolveCanonicalPic } from '../../../lib/identity.mjs';
 import CandidateDrawer from '../../../components/CandidateDrawer';
 import { doc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 
 export default function CalendarPage() {
-  const { teamId, role, user, userProfile } = useAuth();
-  const { candidates, candidatesLoading: loading } = useNotifications();
+  const { teamId, role, user, userProfile, isOwner, isManager } = useAuth();
+  const { candidates: scopedCandidates = [], allTeamCandidates, teamMembers = [], candidatesLoading: loading } = useNotifications();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
+  const isSupervisor = Boolean(isOwner || isManager || role === 'owner' || role === 'manager');
+  const candidates = Array.isArray(allTeamCandidates) ? allTeamCandidates : scopedCandidates;
+
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
@@ -43,8 +47,7 @@ export default function CalendarPage() {
     }
   };
 
-  // Subscribe to Candidates data in Real-Time
-// Extract all distinct PIC names present in candidates
+  // Extract all distinct PIC names present in candidates (for Supervisor filter)
   const availablePicNames = Array.from(
     new Set(
       candidates
@@ -66,8 +69,8 @@ export default function CalendarPage() {
       updateDoc(doc(db, 'users', user.uid), { assignedPic: deleteField() }).catch(() => {});
     }
 
-    // 1. Check saved calendar filter preference
-    if (typeof window !== 'undefined') {
+    // 1. Check saved calendar filter preference (Supervisors only)
+    if (isSupervisor && typeof window !== 'undefined') {
       const saved = localStorage.getItem('TALENT_FLOW_CALENDAR_SELECTED_PIC');
       if (saved && availablePicNames.includes(saved)) {
         setSelectedPic(saved);
@@ -86,10 +89,10 @@ export default function CalendarPage() {
 
     if (matched) {
       setSelectedPic(matched);
-    } else if (!selectedPic || !availablePicNames.includes(selectedPic)) {
+    } else if (isSupervisor && (!selectedPic || !availablePicNames.includes(selectedPic))) {
       setSelectedPic(availablePicNames[0]);
     }
-  }, [user, userProfile, availablePicNames]);
+  }, [user, userProfile, availablePicNames, isSupervisor]);
 
   const handlePicChange = (newPic) => {
     setSelectedPic(newPic);
@@ -132,32 +135,35 @@ export default function CalendarPage() {
       details
     });
   };
-  // In Personal mode: strictly filter by the assigned PIC name (from Google account or selector)
+
+  // In Personal mode:
+  // - For regular recruiter (!isSupervisor): strictly filter to own candidates only (PDPA)
+  // - For supervisor (Owner/Manager): filter by the selected PIC name in dropdown
   const targetPic = (selectedPic || userProfile?.assignedPic || '').toLowerCase().trim();
   const myName = (userProfile?.displayName || userProfile?.name || user?.displayName || '').toLowerCase().trim();
   const myEmailName = (user?.email || '').split('@')[0].toLowerCase().trim();
+  const myDisplayLabel = userProfile?.displayName || user?.displayName || (user?.email ? user.email.split('@')[0] : (isEn ? 'Me' : '本人'));
 
   const modeFilteredCandidates = candidates.filter(c => {
     if (viewMode === 'personal') {
-      const cPic = (c.picName || '').toLowerCase().trim();
+      if (!isSupervisor) {
+        return isCandidateOwnedByUser(c, user, userProfile, teamMembers);
+      }
 
-      // If a target PIC name is determined (e.g. "Anis", "Megat", etc.):
+      const cPic = (c.picName || '').toLowerCase().trim();
       if (targetPic) {
         if (cPic) {
           return cPic === targetPic || cPic.includes(targetPic) || targetPic.includes(cPic);
         }
-        // Candidates without picName do not belong to this consultant
         return false;
       }
 
-      // If no targetPic is explicitly selected, try matching candidate picName against Google account name/email
       if (cPic) {
         if (myName && (cPic.includes(myName) || myName.includes(cPic))) return true;
         if (myEmailName && (cPic.includes(myEmailName) || myEmailName.includes(cPic))) return true;
         return false;
       }
 
-      // Fallback only if candidate has no picName and no targetPic was found: check assignedTo UID
       if (c.assignedTo && user?.uid && c.assignedTo === user.uid) {
         return true;
       }
@@ -165,7 +171,7 @@ export default function CalendarPage() {
       return false;
     }
 
-    // Global Mode: show everyone
+    // Global Mode: include all for schedule counts (with PDPA masking applied to non-owned items for recruiters)
     return true;
   });
 
@@ -184,10 +190,18 @@ export default function CalendarPage() {
       if (!groupedInterviews[dateStr]) {
         groupedInterviews[dateStr] = [];
       }
+      const isOwnedByMe = isSupervisor || isCandidateOwnedByUser(c, user, userProfile, teamMembers);
+      const canonicalPic = resolveCanonicalPic(c.picName || c.pic, c.assignedTo, teamMembers);
+      const advisorName = canonicalPic.displayName && canonicalPic.key !== 'unassigned'
+        ? canonicalPic.displayName
+        : (c.picName?.trim() || (isEn ? 'Other Recruiter' : '其他顾问'));
+
       const candidateWithParsed = {
         ...c,
         parsedDate: dateStr,
-        parsedTime: c.interviewTime || parsed.timeStr || ''
+        parsedTime: c.interviewTime || parsed.timeStr || '',
+        _isOwnedByMe: isOwnedByMe,
+        _advisorName: advisorName
       };
       groupedInterviews[dateStr].push(candidateWithParsed);
       allScheduledCandidates.push(candidateWithParsed);
@@ -306,6 +320,42 @@ export default function CalendarPage() {
   
   const selectedDateCandidates = groupedInterviews[selectedDate] || [];
 
+  // Build PDPA-safe Agenda display list:
+  // - Own candidates (or all candidates if supervisor) -> full details
+  // - Other recruiters' candidates -> aggregated by (date, advisorName) showing only count (no candidate PII)
+  const buildAgendaDisplayItems = (rawList) => {
+    if (isSupervisor) return rawList;
+    const result = [];
+    const maskedGroups = new Map();
+
+    rawList.forEach(c => {
+      if (c._isOwnedByMe) {
+        result.push(c);
+      } else {
+        const key = `${c.parsedDate || ''}__${c._advisorName}`;
+        if (!maskedGroups.has(key)) {
+          const groupItem = {
+            id: `masked_${key}`,
+            isMaskedGroup: true,
+            parsedDate: c.parsedDate,
+            advisorName: c._advisorName,
+            count: 0
+          };
+          maskedGroups.set(key, groupItem);
+          result.push(groupItem);
+        }
+        maskedGroups.get(key).count += 1;
+      }
+    });
+    return result;
+  };
+
+  const rawActiveAgendaList = agendaTab === 'selected'
+    ? [...selectedDateCandidates].sort((a, b) => (a.parsedTime || a.interviewTime || '').localeCompare(b.parsedTime || b.interviewTime || ''))
+    : allScheduledCandidates;
+
+  const activeAgendaDisplayItems = buildAgendaDisplayItems(rawActiveAgendaList);
+
   return (
     <>
       <div className="page-view active" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 'var(--space-6)', alignItems: 'start' }}>
@@ -346,7 +396,7 @@ export default function CalendarPage() {
                     </button>
                   </div>
 
-                  {viewMode === 'personal' && availablePicNames.length > 0 && (
+                  {viewMode === 'personal' && isSupervisor && availablePicNames.length > 0 && (
                     <div 
                       title={t('calendar.filterTitle', { pic: selectedPic || t('calendar.all', '全部') }, `日历视图顾问筛选: ${selectedPic || '全部'}`)}
                       style={{ 
@@ -382,6 +432,26 @@ export default function CalendarPage() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {viewMode === 'personal' && !isSupervisor && (
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        background: 'rgba(59, 130, 246, 0.12)', 
+                        padding: '3px 10px', 
+                        borderRadius: 'var(--radius-full)', 
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        fontSize: '11px',
+                        color: 'var(--accent-blue)',
+                        fontWeight: '600'
+                      }}
+                    >
+                      <i className="ph ph-user"></i>
+                      <span>{t('calendar.advisor', '顾问:')} {myDisplayLabel}</span>
                     </div>
                   )}
                 </div>
@@ -478,6 +548,32 @@ export default function CalendarPage() {
                 const dayInterviews = groupedInterviews[cell.dateStr] || [];
                 const colIndex = idx % 7;
                 const rowIndex = Math.floor(idx / 7);
+
+                // Build cell micro-tags:
+                // - Own candidates show time + name
+                // - Other recruiters' candidates are grouped by advisor name into PDPA masked tags
+                const cellDisplayTags = [];
+                if (isSupervisor) {
+                  dayInterviews.forEach(c => cellDisplayTags.push({ type: 'full', candidate: c }));
+                } else {
+                  const otherByAdvisor = new Map();
+                  dayInterviews.forEach(c => {
+                    if (c._isOwnedByMe) {
+                      cellDisplayTags.push({ type: 'full', candidate: c });
+                    } else {
+                      const adv = c._advisorName;
+                      otherByAdvisor.set(adv, (otherByAdvisor.get(adv) || 0) + 1);
+                    }
+                  });
+                  otherByAdvisor.forEach((cnt, adv) => {
+                    cellDisplayTags.push({
+                      type: 'masked',
+                      id: `cell_masked_${cell.dateStr}_${adv}`,
+                      advisorName: adv,
+                      count: cnt
+                    });
+                  });
+                }
                 
                 return (
                   <div 
@@ -559,7 +655,49 @@ export default function CalendarPage() {
                     
                     {/* Candidate Micro Tags */}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, overflow: 'hidden' }}>
-                      {dayInterviews.slice(0, 3).map(c => {
+                      {cellDisplayTags.slice(0, 3).map(tagItem => {
+                        if (tagItem.type === 'masked') {
+                          const maskedLabel = isEn
+                            ? `${tagItem.advisorName} (${tagItem.count})`
+                            : `${tagItem.advisorName} (${tagItem.count}人)`;
+                          const maskedTooltip = isEn
+                            ? `${tagItem.advisorName}: ${tagItem.count} candidate(s) scheduled (PDPA Protected)`
+                            : `顾问 ${tagItem.advisorName}: ${tagItem.count} 位候选人面试 (PDPA 隐私保护)`;
+                          return (
+                            <div
+                              key={tagItem.id}
+                              title={maskedTooltip}
+                              style={{
+                                background: 'rgba(148, 163, 184, 0.12)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid rgba(148, 163, 184, 0.25)',
+                                padding: '2px 5px',
+                                borderRadius: '4px',
+                                fontSize: '10.5px',
+                                lineHeight: 1.3,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                minWidth: 0,
+                                overflow: 'hidden'
+                              }}
+                            >
+                              <i className="ph-fill ph-lock-key" style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}></i>
+                              <span style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flex: 1,
+                                minWidth: 0,
+                                fontWeight: '500'
+                              }}>
+                                {maskedLabel}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const c = tagItem.candidate;
                         const isAttended = c.normalizedStatus === 'attended';
                         const isNoShow = c.normalizedStatus === 'no_show';
                         const isUnable = c.normalizedStatus === 'unable_to_attend';
@@ -609,7 +747,7 @@ export default function CalendarPage() {
                         );
                       })}
                       
-                      {dayInterviews.length > 3 && (
+                      {cellDisplayTags.length > 3 && (
                         <div style={{ 
                           fontSize: '10px', 
                           color: 'var(--accent-blue)', 
@@ -619,7 +757,7 @@ export default function CalendarPage() {
                           borderRadius: '3px',
                           width: 'fit-content'
                         }}>
-                          +{t('calendar.moreItems', { count: dayInterviews.length - 3 }, `${dayInterviews.length - 3} 更多`)}
+                          +{t('calendar.moreItems', { count: cellDisplayTags.length - 3 }, `${cellDisplayTags.length - 3} 更多`)}
                         </div>
                       )}
                     </div>
@@ -674,7 +812,7 @@ export default function CalendarPage() {
               <span>
                 {agendaTab === 'selected' 
                   ? t('calendar.dayScheduleCount', { date: selectedDate, count: selectedDateCandidates.length }, `${selectedDate} 面试安排 (${selectedDateCandidates.length}人)`)
-                  : (viewMode === 'personal' ? t('calendar.myScheduleCount', { pic: selectedPic || t('calendar.personal', '个人'), count: allScheduledCandidates.length }, `我的排期 [${selectedPic || '个人'}] (共 ${allScheduledCandidates.length}人)`) : t('calendar.teamScheduleCount', { count: allScheduledCandidates.length }, `团队全局面试 (共 ${allScheduledCandidates.length}人)`))
+                  : (viewMode === 'personal' ? t('calendar.myScheduleCount', { pic: (isSupervisor ? selectedPic : myDisplayLabel) || t('calendar.personal', '个人'), count: allScheduledCandidates.length }, `我的排期 [${(isSupervisor ? selectedPic : myDisplayLabel) || '个人'}] (共 ${allScheduledCandidates.length}人)`) : t('calendar.teamScheduleCount', { count: allScheduledCandidates.length }, `团队全局面试 (共 ${allScheduledCandidates.length}人)`))
                 }
               </span>
               {agendaTab === 'selected' && (
@@ -691,7 +829,7 @@ export default function CalendarPage() {
               overflowY: 'auto', 
               paddingRight: '4px' 
             }}>
-              {(agendaTab === 'selected' ? selectedDateCandidates : allScheduledCandidates).length === 0 ? (
+              {activeAgendaDisplayItems.length === 0 ? (
                 <div className="empty-state" style={{ marginTop: 'var(--space-8)' }}>
                   <div className="empty-state-icon"><i className="ph-light ph-calendar-blank"></i></div>
                   <div className="empty-state-desc">
@@ -711,10 +849,63 @@ export default function CalendarPage() {
                   )}
                 </div>
               ) : (
-                (agendaTab === 'selected' 
-                  ? [...selectedDateCandidates].sort((a,b) => (a.parsedTime || a.interviewTime || '').localeCompare(b.parsedTime || b.interviewTime || ''))
-                  : allScheduledCandidates
-                ).map(c => {
+                activeAgendaDisplayItems.map(item => {
+                  if (item.isMaskedGroup) {
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          background: 'rgba(255,255,255,0.015)',
+                          border: '1px solid var(--border-hairline)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: 'var(--space-3) var(--space-4)',
+                          borderLeft: '3px solid rgba(148, 163, 184, 0.5)',
+                          cursor: agendaTab === 'all' ? 'pointer' : 'default'
+                        }}
+                        onClick={() => {
+                          if (agendaTab === 'all' && item.parsedDate && item.parsedDate !== '-') {
+                            const [y, m] = item.parsedDate.split('-');
+                            setCurrentDate(new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1));
+                            setSelectedDate(item.parsedDate);
+                          }
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                            <i className="ph-fill ph-lock-key" style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}></i>
+                            <span>
+                              {isEn
+                                ? `${item.advisorName} · ${item.count} Candidate(s) to Interview`
+                                : `顾问 ${item.advisorName} · ${item.count} 位候选人安排面试`}
+                            </span>
+                          </div>
+                          <span style={{
+                            background: 'rgba(148, 163, 184, 0.12)',
+                            color: 'var(--text-muted)',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            flexShrink: 0
+                          }}>
+                            {isEn ? 'PDPA Protected' : 'PDPA 隐私保护'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          <span>
+                            {isEn
+                              ? 'Candidate names & contact details are hidden for other recruiters'
+                              : '其他顾问排期，已隐藏候选人姓名与详细资料'}
+                          </span>
+                          {agendaTab === 'all' && item.parsedDate && (
+                            <span style={{ fontFamily: 'var(--font-mono)', flexShrink: 0 }}>{item.parsedDate}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const c = item;
                   const displayTime = c.parsedTime || c.interviewTime || t('calendar.tbd', '时间待定');
                   const displayDate = c.parsedDate || Utils.formatDate(c.interviewDate);
                   const isAttended = c.normalizedStatus === 'attended';
@@ -843,4 +1034,3 @@ export default function CalendarPage() {
     </>
   );
 }
-

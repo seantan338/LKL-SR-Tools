@@ -2,10 +2,14 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 import { useAuth } from './auth-context';
 import { FirestoreStore } from './firestore-store';
 import { Utils } from './utils';
 import { useI18n } from './i18n-context';
+import { isCandidateOwnedByUser } from './identity.mjs';
 import CandidateDrawer from '../components/CandidateDrawer';
 
 const NotificationContext = createContext();
@@ -23,7 +27,8 @@ const STALE_THRESHOLDS = {
 };
 
 export function NotificationProvider({ children }) {
-  const { teamId, user, role, userProfile } = useAuth();
+  const pathname = usePathname();
+  const { teamId, user, role, userProfile, isOwner, isManager } = useAuth();
   const { t } = useI18n();
   // Latest translator for side-effect code paths (alert dispatcher) without adding `t` to their deps,
   // so switching language never re-runs the effect that fires chimes / WhatsApp / desktop notifications.
@@ -31,11 +36,44 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     tRef.current = t;
   }, [t]);
-  const [candidates, setCandidates] = useState([]);
+  const [rawCandidates, setRawCandidates] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [localDismissed, setLocalDismissed] = useState([]); // Array of notification IDs dismissed
   const [localRead, setLocalRead] = useState([]); // Array of notification IDs read
+
+  // Subscribe to team members for canonical PIC ownership disambiguation
+  useEffect(() => {
+    if (!user?.uid) {
+      setTeamMembers([]);
+      return;
+    }
+    const usersRef = collection(db, 'users');
+    const unsub = onSnapshot(usersRef, (snap) => {
+      const mems = snap.docs.map(d => ({
+        id: d.id,
+        uid: d.id,
+        ...d.data(),
+        name: d.data().displayName || d.data().name || (d.data().email ? d.data().email.split('@')[0] : '')
+      }));
+      setTeamMembers(mems);
+    }, () => {});
+    return () => unsub();
+  }, [user?.uid]);
+
+  // PDPA Role & Ownership Filtering:
+  // - Owner / Manager see all candidates in the active team
+  // - Recruiter (PIC) only sees candidates owned by themselves
+  const isSupervisor = Boolean(isOwner || isManager || role === 'owner' || role === 'manager');
+
+  const myScopedCandidates = useMemo(() => {
+    if (isSupervisor) return rawCandidates;
+    return rawCandidates.filter(c => isCandidateOwnedByUser(c, user, userProfile, teamMembers));
+  }, [rawCandidates, isSupervisor, user, userProfile, teamMembers]);
+
+  // Leaderboard only computes aggregated advisor KPI counts (zero candidate PII rendered)
+  const candidates = pathname === '/leaderboard' ? rawCandidates : myScopedCandidates;
 
   // Global manual refresh listener
   useEffect(() => {
@@ -59,13 +97,13 @@ export function NotificationProvider({ children }) {
 
   // Sync drawer candidate with fresh Firestore candidate list
   useEffect(() => {
-    if (drawerCandidate?.id && candidates.length > 0) {
-      const updated = candidates.find(c => c.id === drawerCandidate.id);
+    if (drawerCandidate?.id && myScopedCandidates.length > 0) {
+      const updated = myScopedCandidates.find(c => c.id === drawerCandidate.id);
       if (updated) {
         setDrawerCandidate(updated);
       }
     }
-  }, [candidates]);
+  }, [myScopedCandidates]);
 
   const openCandidateDrawer = useCallback(async (candidateOrId) => {
     if (candidateOrId === null) {
@@ -75,12 +113,15 @@ export function NotificationProvider({ children }) {
     }
     if (!candidateOrId) return;
     if (typeof candidateOrId === 'object') {
+      if (!isSupervisor && !isCandidateOwnedByUser(candidateOrId, user, userProfile, teamMembers)) {
+        return;
+      }
       setDrawerCandidate(candidateOrId);
       setIsDrawerOpen(true);
       return;
     }
     const cid = String(candidateOrId);
-    const found = candidates.find(c => c.id === cid);
+    const found = myScopedCandidates.find(c => c.id === cid);
     if (found) {
       setDrawerCandidate(found);
       setIsDrawerOpen(true);
@@ -88,14 +129,14 @@ export function NotificationProvider({ children }) {
     }
     try {
       const fetched = await FirestoreStore.getCandidate(teamId, cid);
-      if (fetched) {
+      if (fetched && (isSupervisor || isCandidateOwnedByUser(fetched, user, userProfile, teamMembers))) {
         setDrawerCandidate(fetched);
         setIsDrawerOpen(true);
       }
     } catch (err) {
       console.warn('Failed to fetch candidate for drawer:', err);
     }
-  }, [candidates, teamId]);
+  }, [myScopedCandidates, teamId, isSupervisor, user, userProfile, teamMembers]);
 
   const closeCandidateDrawer = useCallback(() => {
     setIsDrawerOpen(false);
@@ -131,13 +172,13 @@ export function NotificationProvider({ children }) {
   // 1. Subscribe to candidates data
   useEffect(() => {
     if (!teamId || !user?.uid) {
-      setCandidates([]);
+      setRawCandidates([]);
       setCandidatesLoading(false);
       return;
     }
     setCandidatesLoading(true);
     const unsubscribe = FirestoreStore.subscribeToCandidates(teamId, role, user.uid, (data) => {
-      setCandidates(data);
+      setRawCandidates(data);
       setCandidatesLoading(false);
     });
     return () => unsubscribe();
@@ -211,7 +252,7 @@ export function NotificationProvider({ children }) {
 
   // 5. Active Real-Time Alert Dispatcher (sound + desktop notification + in-app card)
   useEffect(() => {
-    if (!candidates || candidates.length === 0) return;
+    if (!myScopedCandidates || myScopedCandidates.length === 0) return;
     const now = currentTime;
     // Latest translator read via ref (intentionally not a dependency of this side-effect hook)
     const t = tRef.current;
@@ -232,7 +273,7 @@ export function NotificationProvider({ children }) {
 
     // On initial candidate load: pre-seed historical reminders so we don't spam audio on load
     if (!isInitialCheckDoneRef.current) {
-      candidates.forEach(c => {
+      myScopedCandidates.forEach(c => {
         (c.reminders || []).forEach(r => {
           const remTime = getReminderTime(r);
           if (remTime && remTime < now) {
@@ -246,7 +287,7 @@ export function NotificationProvider({ children }) {
 
     // Check newly due reminders
     const newlyDue = [];
-    candidates.forEach(c => {
+    myScopedCandidates.forEach(c => {
       if (c.status === 'rejected') return;
       (c.reminders || []).forEach(r => {
         if (r.fired) return;
@@ -323,11 +364,11 @@ export function NotificationProvider({ children }) {
       // Add to floating in-app banner
       setActiveAlerts(prev => [...prev, ...newlyDue]);
     }
-  }, [candidates, currentTime, playReminderChime, user?.uid]);
+  }, [myScopedCandidates, currentTime, playReminderChime, user?.uid]);
 
   // 6. Compute Notifications based on candidates data
   const notifications = useMemo(() => {
-    if (!candidates || candidates.length === 0) return [];
+    if (!myScopedCandidates || myScopedCandidates.length === 0) return [];
     
     const notifs = [];
     const now = currentTime;
@@ -336,7 +377,7 @@ export function NotificationProvider({ children }) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = Utils.formatDate(tomorrow);
 
-    candidates.forEach(c => {
+    myScopedCandidates.forEach(c => {
       if (c.status === 'rejected') return; // Skip rejected candidates for most alerts
 
       // --- A. Stale Alerts ---
@@ -483,7 +524,7 @@ export function NotificationProvider({ children }) {
       read: localRead.includes(n.id)
     })).sort((a, b) => b.createdAt - a.createdAt);
 
-  }, [candidates, localDismissed, localRead, role, currentTime, user?.uid, t]);
+  }, [myScopedCandidates, localDismissed, localRead, role, currentTime, user?.uid, t]);
 
   // Only high-priority actionable events (today/tomorrow interviews and due follow-up reminders) light up the notification bell badge
   const unreadCount = notifications.filter(n => !n.read && (n.type === 'interview' || n.type === 'reminder')).length;
@@ -517,6 +558,8 @@ export function NotificationProvider({ children }) {
   return (
     <NotificationContext.Provider value={{
       candidates,
+      allTeamCandidates: rawCandidates,
+      teamMembers,
       candidatesLoading,
       notifications,
       unreadCount,

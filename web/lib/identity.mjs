@@ -193,3 +193,46 @@ export function resolveCanonicalPic(rawName, assignedTo, teamMembers = []) {
     isExternal: true
   };
 }
+
+/**
+ * PDPA 候选人归属权判定引擎 (PIC Ownership Guard)
+ * 判断某位候选人是否归属于当前登录的顾问 (PIC)：
+ * 1. 若候选人填写了显式 picName：以 resolveCanonicalPic 归一化结果为准，uid 命中当前用户即为本人归属；
+ * 2. 若未填写显式 picName（为空/未分配）：以 candidate.assignedTo === currentUid 为准。
+ */
+export function isCandidateOwnedByUser(candidate, user, userProfile, teamMembers = []) {
+  if (!candidate) return false;
+  const currentUid = user?.uid || userProfile?.uid || userProfile?.id || '';
+  if (!currentUid) return false;
+
+  const selfMember = {
+    id: currentUid,
+    uid: currentUid,
+    displayName: userProfile?.displayName || user?.displayName || '',
+    name: userProfile?.name || userProfile?.displayName || '',
+    email: user?.email || userProfile?.email || '',
+    aliases: [
+      ...(Array.isArray(userProfile?.aliases) ? userProfile.aliases : []),
+      userProfile?.assignedPic || ''
+    ].filter(Boolean)
+  };
+
+  const baseMembers = Array.isArray(teamMembers) ? teamMembers : [];
+  const hasSelf = baseMembers.some((m) => (m.id || m.uid) === currentUid);
+  const effectiveMembers = hasSelf ? baseMembers : [selfMember, ...baseMembers];
+
+  const rawPic = String(candidate.picName || candidate.pic || '').trim();
+  const assignedTo = candidate.assignedTo || candidate.userId || '';
+  const canonical = resolveCanonicalPic(rawPic, assignedTo, effectiveMembers);
+
+  if (canonical.uid) {
+    return canonical.uid === currentUid;
+  }
+
+  // 当未填写显式 picName 时，若 assignedTo 直接等于当前用户 UID，也判定为本人归属
+  if (canonical.key === 'unassigned' && assignedTo && assignedTo === currentUid) {
+    return true;
+  }
+
+  return false;
+}
