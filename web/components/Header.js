@@ -230,6 +230,8 @@ export default function Header({ toggleSidebar }) {
     if (theme === 'dark') {
       nextTheme = 'gemini';
     } else if (theme === 'gemini') {
+      nextTheme = 'tactical';
+    } else if (theme === 'tactical') {
       nextTheme = 'light';
     } else {
       nextTheme = 'dark';
@@ -449,14 +451,20 @@ export default function Header({ toggleSidebar }) {
             theme === 'dark' 
               ? (lang === 'en' ? 'Current: OLED Dark (Click to switch to Gemini Cosmos)' : '当前: OLED 深空 (点击切换为 Gemini 宇宙)')
               : theme === 'gemini'
-                ? (lang === 'en' ? 'Current: Gemini Cosmos (Click to switch to Daylight Light)' : '当前: Gemini 宇宙 (点击切换为日间清爽)')
-                : (lang === 'en' ? 'Current: Daylight (Click to switch to OLED Dark)' : '当前: 日间清爽 (点击切换为 OLED 深空)')
+                ? (lang === 'en' ? 'Current: Gemini Cosmos (Click to switch to Tactical Command)' : '当前: Gemini 宇宙 (点击切换为战术指挥)')
+                : theme === 'tactical'
+                  ? (lang === 'en' ? 'Current: Tactical Command (Click to switch to Daylight Light)' : '当前: 战术指挥 (点击切换为日间清爽)')
+                  : (lang === 'en' ? 'Current: Daylight (Click to switch to OLED Dark)' : '当前: 日间清爽 (点击切换为 OLED 深空)')
           }
           aria-label="Toggle Theme"
           style={theme === 'gemini' ? {
             background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(168, 85, 247, 0.28) 50%, rgba(236, 72, 153, 0.22) 100%)',
             borderColor: 'rgba(168, 85, 247, 0.55)',
             boxShadow: '0 0 14px rgba(168, 85, 247, 0.4)'
+          } : theme === 'tactical' ? {
+            background: 'rgba(16, 185, 129, 0.15)',
+            borderColor: 'rgba(16, 185, 129, 0.6)',
+            boxShadow: '0 0 14px rgba(16, 185, 129, 0.35)'
           } : undefined}
         >
           {theme === 'dark' && <i className="ph-light ph-moon"></i>}
@@ -466,6 +474,15 @@ export default function Header({ toggleSidebar }) {
               style={{ 
                 color: '#c084fc', 
                 filter: 'drop-shadow(0 0 6px rgba(192, 132, 252, 0.85))' 
+              }}
+            ></i>
+          )}
+          {theme === 'tactical' && (
+            <i 
+              className="ph-bold ph-crosshair" 
+              style={{ 
+                color: '#10b981', 
+                filter: 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))' 
               }}
             ></i>
           )}

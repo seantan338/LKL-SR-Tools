@@ -68,7 +68,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   const toggleTheme = () => {
     let nextTheme = 'dark';
     if (theme === 'dark') nextTheme = 'gemini';
-    else if (theme === 'gemini') nextTheme = 'light';
+    else if (theme === 'gemini') nextTheme = 'tactical';
+    else if (theme === 'tactical') nextTheme = 'light';
     else nextTheme = 'dark';
 
     if (nextTheme === 'dark') {
@@ -224,6 +225,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
               >
                 {theme === 'dark' && <><i className="ph-light ph-moon"></i><span>{t('extraUi.themeDark', '深色')}</span></>}
                 {theme === 'gemini' && <><i className="ph-fill ph-sparkle" style={{ color: '#c084fc' }}></i><span>{t('extraUi.themeGemini', '宇宙')}</span></>}
+                {theme === 'tactical' && <><i className="ph-bold ph-crosshair" style={{ color: '#10b981' }}></i><span>{t('extraUi.themeTactical', '战术')}</span></>}
                 {theme === 'light' && <><i className="ph-light ph-sun" style={{ color: '#d97706' }}></i><span>{t('extraUi.themeLight', '浅色')}</span></>}
               </button>
             </div>

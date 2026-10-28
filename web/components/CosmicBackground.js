@@ -242,6 +242,32 @@ export default function CosmicBackground() {
     };
   }, [theme]);
 
+  if (theme === 'tactical') {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '12px',
+          right: '18px',
+          pointerEvents: 'none',
+          zIndex: 9991,
+          fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
+          fontSize: '10px',
+          letterSpacing: '0.12em',
+          color: '#4b6b58',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          userSelect: 'none',
+          opacity: 0.85
+        }}
+      >
+        <span style={{ width: '6px', height: '6px', background: '#10b981', boxShadow: '0 0 6px #10b981', display: 'inline-block' }} />
+        <span>HUD.C4ISR // GRID: 32PX // STATUS: LOCKED</span>
+      </div>
+    );
+  }
+
   if (theme !== 'gemini') return null;
 
   return (
