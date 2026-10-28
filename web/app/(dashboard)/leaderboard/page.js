@@ -389,16 +389,10 @@ export default function LeaderboardPage() {
 
     Object.values(map).forEach(member => {
       const dates = Object.keys(member.dayRecords);
-      member.daysPresent = dates.length;
+      member.daysPresent = 0;
 
       dates.forEach(dateStr => {
         const dayData = member.dayRecords[dateStr];
-        if (dayData.isWfh) {
-          member.wfhDays += 1;
-        } else {
-          member.officeDays += 1;
-        }
-
         const overrideKey = `${dateStr}__${member.name}`;
         const overrideKeyUid = `${dateStr}__${member.uid}`;
         const overrideShift = shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid] || null;
@@ -411,14 +405,27 @@ export default function LeaderboardPage() {
           { locale: isEn ? 'en' : 'zh', overrideShift, isToday }
         );
 
+        // 今日在岗进行中（已打上班卡但尚未打下班卡）：暂不计入已结考勤与准点率结算，避免白天未下班前将准点率拉低
+        const isTodayInProgress = isToday && (res.isInProgress || res.compliance === 'IN_PROGRESS');
+        if (isTodayInProgress) {
+          return;
+        }
+
         if (res.firstIn) {
           const minutesFromMidnight = res.firstIn.getHours() * 60 + res.firstIn.getMinutes();
           member.earliestMinutesSum += minutesFromMidnight;
           member.firstInCount += 1;
         }
 
+        member.daysPresent += 1;
+        if (dayData.isWfh) {
+          member.wfhDays += 1;
+        } else {
+          member.officeDays += 1;
+        }
+
         // Punctuality compliance:
-        // Compliant means on-time (early arrival or on-time arrival) and compliant clock-out (or on-duty today)
+        // Compliant means on-time (early arrival or on-time arrival) and compliant clock-out
         // Late arrival, early leave, missed punch count as violations
         if (res.isCompliant && !res.isViolation) {
           member.compliantDays += 1;

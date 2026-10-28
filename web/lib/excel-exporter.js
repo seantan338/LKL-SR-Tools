@@ -617,6 +617,11 @@ export const ExcelExporter = {
         if (isWfh) target.wfhDays += 1;
         else target.officeDays += 1;
 
+        const isTodayInProgress = (log.dateStr === meta.todayStr) && (log.analysis.isInProgress || log.analysis.compliance === 'IN_PROGRESS');
+        if (!isTodayInProgress) {
+          target.evaluatedDays = (target.evaluatedDays || 0) + 1;
+        }
+
         if (log.analysis.isCompliant) {
           target.compliantDays += 1;
         }
@@ -634,8 +639,10 @@ export const ExcelExporter = {
       .filter(m => !hideZeroAttendance || m.daysPresent > 0)
       .sort((a, b) => {
         if (b.compliantDays !== a.compliantDays) return b.compliantDays - a.compliantDays;
-        const rateA = a.daysPresent > 0 ? a.compliantDays / a.daysPresent : -1;
-        const rateB = b.daysPresent > 0 ? b.compliantDays / b.daysPresent : -1;
+        const evalDaysA = a.evaluatedDays !== undefined ? a.evaluatedDays : a.daysPresent;
+        const evalDaysB = b.evaluatedDays !== undefined ? b.evaluatedDays : b.daysPresent;
+        const rateA = evalDaysA > 0 ? a.compliantDays / evalDaysA : -1;
+        const rateB = evalDaysB > 0 ? b.compliantDays / evalDaysB : -1;
         if (rateB !== rateA) return rateB - rateA;
         if (b.daysPresent !== a.daysPresent) return b.daysPresent - a.daysPresent;
         return String(a.name || '').localeCompare(String(b.name || ''));
@@ -659,8 +666,9 @@ export const ExcelExporter = {
     const summaryRows = sortedMembers.map(m => {
       // 出勤率 = 实际出勤天数 / 截止目前应出勤工作日
       const attendanceRate = meta.elapsedWorkingDays > 0 ? ((m.daysPresent / meta.elapsedWorkingDays) * 100).toFixed(1) + '%' : '0.0%';
-      // 班次合规率 = 达标天数 / 实际出勤天数（若未出勤则为 0.0%）
-      const complianceRate = m.daysPresent > 0 ? ((m.compliantDays / m.daysPresent) * 100).toFixed(1) + '%' : '0.0%';
+      // 班次合规率 = 达标天数 / 实际已结出勤天数（剔除今日尚未下班在岗中未决状态，避免白天未下班拉低合规率）
+      const evalDays = m.evaluatedDays !== undefined ? m.evaluatedDays : m.daysPresent;
+      const complianceRate = evalDays > 0 ? ((m.compliantDays / evalDays) * 100).toFixed(1) + '%' : '0.0%';
       return [
         m.name,
         m.email,
