@@ -510,7 +510,6 @@ export default function CandidatesPage() {
                   <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.name', '候选人')}</th>
                   <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.companyPosition', '意向企业 / 应聘岗位')}</th>
                   <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.stage', '当前阶段')}</th>
-                  <th className="candidate-col-remarks" style={{ padding: 'var(--space-4) var(--space-3)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.remarks', '备注')}</th>
                   <th className="candidate-col-updated" style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.updatedAt', t('candidates.table.interviewTime', '更新时间'))}</th>
                   <th style={{ padding: 'var(--space-4) var(--space-4)', width: '72px', textAlign: 'right' }}></th>
                 </tr>
@@ -518,7 +517,7 @@ export default function CandidatesPage() {
               <tbody>
                 {filteredCandidates.length === 0 ? (
                   <tr>
-                    <td colSpan={isReadOnlyView ? 6 : 7} style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={isReadOnlyView ? 5 : 6} style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
                       <i className="ph-light ph-users" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block' }}></i>
                       {t('candidates.emptyList', '暂无匹配的候选人数据')}
                     </td>
@@ -612,6 +611,33 @@ export default function CandidatesPage() {
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }} title={c.position || t('candidates.noPositionAssigned', '未指定岗位')}>
                               {c.position || t('candidates.noPositionAssigned', '未指定岗位')}
                             </span>
+                            {remarkInfo.shortText && (
+                              <div
+                                title={remarkInfo.fullText}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  maxWidth: '220px',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                                  border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid var(--border-hairline)',
+                                  color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                                  fontSize: '0.72rem',
+                                  lineHeight: '1.4',
+                                  marginTop: '2px'
+                                }}
+                              >
+                                <i
+                                  className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
+                                  style={{ fontSize: '0.75rem', flexShrink: 0 }}
+                                ></i>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {remarkInfo.shortText}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td style={{ padding: 'var(--space-3) var(--space-4)', whiteSpace: 'nowrap' }}>
@@ -625,52 +651,24 @@ export default function CandidatesPage() {
                                 display: 'inline-flex', 
                                 alignItems: 'center', 
                                 gap: '5px',
-                                fontWeight: '500'
+                                fontWeight: '500',
+                                maxWidth: '180px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
                               }}
                               title={c.rejectNote ? `${t('candidates.rejected', '已淘汰')}: ${c.rejectNote}` : (Utils.getDropReasonLabel(c.rejectReason, t) || t('candidates.rejected', '已淘汰'))}
                             >
-                              <i className="ph-fill ph-x-circle" style={{ color: '#f43f5e', fontSize: '13px' }}></i>
-                              {t('candidates.rejected', '已淘汰')} {c.rejectReason ? `· ${Utils.getDropReasonLabel(c.rejectReason, t).split('·')[0].trim()}` : ''}
+                              <i className="ph-fill ph-x-circle" style={{ color: '#f43f5e', fontSize: '13px', flexShrink: 0 }}></i>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {t('candidates.rejected', '已淘汰')} {c.rejectReason ? `· ${Utils.getDropReasonLabel(c.rejectReason, t).split('·')[0].trim()}` : ''}
+                              </span>
                             </span>
                           ) : (
                             <span className={`badge ${stageMeta.badgeClass}`}>
                               <span className="badge-dot"></span>
                               {stageMeta.label}
                             </span>
-                          )}
-                        </td>
-                        <td className="candidate-col-remarks" style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '200px' }}>
-                          {remarkInfo.shortText ? (
-                            <div
-                              title={remarkInfo.fullText}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                maxWidth: '185px',
-                                padding: '2px 8px',
-                                borderRadius: '6px',
-                                background: remarkInfo.isPrimary ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
-                                border: remarkInfo.isPrimary ? '1px solid var(--border-hairline)' : 'none',
-                                color: remarkInfo.isPrimary ? 'var(--text-secondary)' : 'var(--text-muted)',
-                                fontSize: '0.76rem',
-                                lineHeight: '1.35'
-                              }}
-                            >
-                              <i
-                                className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
-                                style={{
-                                  fontSize: '0.82rem',
-                                  color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-faint)',
-                                  flexShrink: 0
-                                }}
-                              ></i>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {remarkInfo.shortText}
-                              </span>
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-faint)', fontSize: '0.75rem', opacity: 0.4 }}>—</span>
                           )}
                         </td>
                         <td className="candidate-col-updated" style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
