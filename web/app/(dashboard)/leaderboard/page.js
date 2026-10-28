@@ -291,7 +291,7 @@ export default function LeaderboardPage() {
         rate: Number(rate),
         compositeScore
       };
-    });
+    }).filter(item => item.compositeScore > 0 || item.totalSourced > 0);
 
     // Primary: Onboarded DESC, Secondary: Composite Score DESC, Tertiary: Total Sourced DESC
     return list.sort((a, b) => b.onboarded - a.onboarded || b.compositeScore - a.compositeScore || b.totalSourced - a.totalSourced);
@@ -418,7 +418,9 @@ export default function LeaderboardPage() {
       });
     });
 
-    const list = Object.values(map).map(item => {
+    const list = Object.values(map)
+      .filter(item => item.daysPresent > 0)
+      .map(item => {
       const punctualityRate = item.daysPresent > 0
         ? Number(((item.compliantDays / item.daysPresent) * 100).toFixed(1))
         : 0;
