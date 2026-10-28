@@ -199,6 +199,22 @@ function getCandidateRemarkDisplay(c) {
   return { shortText: '', fullText: '', isPrimary: false };
 }
 
+const CANDIDATE_COLUMN_DEFS = [
+  { key: 'name', labelKey: 'candidates.colCandidate', defaultLabel: '候选人姓名与档案', required: true },
+  { key: 'companyPosition', labelKey: 'candidates.colCompanyPosition', defaultLabel: '意向企业 / 应聘岗位' },
+  { key: 'stage', labelKey: 'candidates.colStage', defaultLabel: '当前阶段' },
+  { key: 'remarks', labelKey: 'candidates.colRemarks', defaultLabel: '备注 (Remarks)' },
+  { key: 'updatedAt', labelKey: 'candidates.colUpdatedAt', defaultLabel: '导入 / 更新时间' },
+];
+
+const STORAGE_KEY_CANDIDATE_COLUMNS = 'talent_flow_candidates_visible_columns';
+const DEFAULT_VISIBLE_COLUMNS = {
+  companyPosition: true,
+  stage: true,
+  remarks: true,
+  updatedAt: false
+};
+
 export default function CandidatesPage() {
   const router = useRouter();
   const { teamId, role, user, isReadOnlyView } = useAuth();
@@ -209,6 +225,32 @@ export default function CandidatesPage() {
   const [stageFilter, setStageFilter] = useState('all');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
+  
+  // Visible Columns state
+  const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE_COLUMNS);
+  const [isColumnChooserOpen, setIsColumnChooserOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CANDIDATE_COLUMNS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setVisibleColumns(prev => ({ ...prev, ...parsed }));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const toggleColumn = (key) => {
+    setVisibleColumns(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem(STORAGE_KEY_CANDIDATE_COLUMNS, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
   
   // Selection & Batch Action States
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -507,17 +549,105 @@ export default function CandidatesPage() {
                       />
                     </th>
                   )}
-                  <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.name', '候选人')}</th>
-                  <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.companyPosition', '意向企业 / 应聘岗位')}</th>
-                  <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.stage', '当前阶段')}</th>
-                  <th className="candidate-col-updated" style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.updatedAt', t('candidates.table.interviewTime', '更新时间'))}</th>
+                  <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+                      <span>{t('candidates.table.name', '候选人')}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsColumnChooserOpen(open => !open);
+                        }}
+                        title={t('candidates.columnChooserTooltip', '设定表格要显示的列')}
+                        style={{
+                          background: isColumnChooserOpen ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '4px',
+                          padding: '2px 5px',
+                          cursor: 'pointer',
+                          color: isColumnChooserOpen ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        <i className="ph ph-gear" style={{ fontSize: '13px' }}></i>
+                      </button>
+                      {isColumnChooserOpen && (
+                        <>
+                          <div 
+                            style={{ position: 'fixed', inset: 0, zIndex: 100 }} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsColumnChooserOpen(false);
+                            }}
+                          ></div>
+                          <div 
+                            className="orders-popover" 
+                            style={{ 
+                              position: 'absolute', 
+                              top: 'calc(100% + 6px)', 
+                              left: 0, 
+                              zIndex: 101, 
+                              minWidth: '200px', 
+                              textTransform: 'none', 
+                              letterSpacing: 'normal',
+                              background: 'var(--bg-surface-overlay, #1e2430)',
+                              boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
+                              border: '1px solid var(--border-subtle)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div style={{ padding: '4px 8px 6px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-hairline)', marginBottom: '4px' }}>
+                              {t('candidates.columnChooserTitle', '自定义显示列')}
+                            </div>
+                            {CANDIDATE_COLUMN_DEFS.map(col => (
+                              <label key={col.key} className="orders-popover-item" style={{ cursor: col.required ? 'not-allowed' : 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={col.required || Boolean(visibleColumns[col.key])}
+                                  disabled={col.required}
+                                  onChange={() => toggleColumn(col.key)}
+                                  style={{ cursor: col.required ? 'not-allowed' : 'pointer' }}
+                                />
+                                <span style={{ color: col.required ? 'var(--text-muted)' : 'var(--text-primary)', fontSize: '12px' }}>
+                                  {t(col.labelKey, col.defaultLabel)}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </th>
+                  {visibleColumns.companyPosition && (
+                    <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.companyPosition', '意向企业 / 应聘岗位')}</th>
+                  )}
+                  {visibleColumns.stage && (
+                    <th style={{ padding: 'var(--space-4) var(--space-3)', width: '100px', minWidth: '90px', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.stage', '当前阶段')}</th>
+                  )}
+                  {visibleColumns.remarks && (
+                    <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', maxWidth: '300px' }}>{t('candidates.colRemarks', '备注 (Remarks)')}</th>
+                  )}
+                  {visibleColumns.updatedAt && (
+                    <th className="candidate-col-updated" style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', width: '130px' }}>{t('candidates.table.updatedAt', t('candidates.table.interviewTime', '更新时间'))}</th>
+                  )}
                   <th style={{ padding: 'var(--space-4) var(--space-4)', width: '72px', textAlign: 'right' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCandidates.length === 0 ? (
                   <tr>
-                    <td colSpan={isReadOnlyView ? 5 : 6} style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={
+                      (!isReadOnlyView ? 1 : 0) +
+                      1 +
+                      (visibleColumns.companyPosition ? 1 : 0) +
+                      (visibleColumns.stage ? 1 : 0) +
+                      (visibleColumns.remarks ? 1 : 0) +
+                      (visibleColumns.updatedAt ? 1 : 0) +
+                      1
+                    } style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
                       <i className="ph-light ph-users" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block' }}></i>
                       {t('candidates.emptyList', '暂无匹配的候选人数据')}
                     </td>
@@ -584,96 +714,131 @@ export default function CandidatesPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span style={{ 
-                                fontWeight: c.company ? '600' : '400', 
-                                color: c.company ? 'var(--text-primary)' : 'var(--text-muted)', 
-                                fontSize: 'var(--text-sm)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                maxWidth: '180px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }} title={c.company || t('candidates.noCompanyAssigned', '未指定企业')}>
-                                <i className="ph ph-buildings" style={{ color: c.company ? 'var(--accent-blue)' : 'var(--text-muted)', fontSize: '0.9rem', flexShrink: 0 }}></i>
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company || t('candidates.noCompanyAssigned', '未指定企业')}</span>
-                              </span>
-                              {c.department && (
-                                <span className="tag-pill" style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid var(--border-hairline)', flexShrink: 0 }}>
-                                  {c.department}
+                        {visibleColumns.companyPosition && (
+                          <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ 
+                                  fontWeight: c.company ? '600' : '400', 
+                                  color: c.company ? 'var(--text-primary)' : 'var(--text-muted)', 
+                                  fontSize: 'var(--text-sm)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  maxWidth: '180px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }} title={c.company || t('candidates.noCompanyAssigned', '未指定企业')}>
+                                  <i className="ph ph-buildings" style={{ color: c.company ? 'var(--accent-blue)' : 'var(--text-muted)', fontSize: '0.9rem', flexShrink: 0 }}></i>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company || t('candidates.noCompanyAssigned', '未指定企业')}</span>
                                 </span>
+                                {c.department && (
+                                  <span className="tag-pill" style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid var(--border-hairline)', flexShrink: 0 }}>
+                                    {c.department}
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }} title={c.position || t('candidates.noPositionAssigned', '未指定岗位')}>
+                                {c.position || t('candidates.noPositionAssigned', '未指定岗位')}
+                              </span>
+                              {!visibleColumns.remarks && remarkInfo.shortText && (
+                                <div
+                                  title={remarkInfo.fullText}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    maxWidth: '220px',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                                    border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid var(--border-hairline)',
+                                    color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                                    fontSize: '0.72rem',
+                                    lineHeight: '1.4',
+                                    marginTop: '2px'
+                                  }}
+                                >
+                                  <i
+                                    className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
+                                    style={{ fontSize: '0.75rem', flexShrink: 0 }}
+                                  ></i>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {remarkInfo.shortText}
+                                  </span>
+                                </div>
                               )}
                             </div>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }} title={c.position || t('candidates.noPositionAssigned', '未指定岗位')}>
-                              {c.position || t('candidates.noPositionAssigned', '未指定岗位')}
-                            </span>
-                            {remarkInfo.shortText && (
+                          </td>
+                        )}
+                        {visibleColumns.stage && (
+                          <td style={{ padding: 'var(--space-3) var(--space-3)', whiteSpace: 'nowrap', width: '100px', minWidth: '90px' }}>
+                            {c.status === 'rejected' ? (
+                              <span 
+                                className="badge" 
+                                style={{ 
+                                  background: 'rgba(244, 63, 94, 0.12)', 
+                                  color: '#fb7185', 
+                                  border: '1px solid rgba(244, 63, 94, 0.3)', 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px',
+                                  fontWeight: '600',
+                                  fontSize: '0.75rem',
+                                  padding: '2px 8px',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={c.rejectNote ? `${t('candidates.rejected', '已淘汰')}: ${c.rejectNote}` : (c.rejectReason ? `${t('candidates.rejected', '已淘汰')} · ${Utils.getDropReasonLabel(c.rejectReason, t)}` : t('candidates.rejected', '已淘汰'))}
+                              >
+                                <i className="ph-fill ph-x-circle" style={{ color: '#f43f5e', fontSize: '12px', flexShrink: 0 }}></i>
+                                <span>{t('candidates.rejected', '已淘汰')}</span>
+                              </span>
+                            ) : (
+                              <span className={`badge ${stageMeta.badgeClass}`}>
+                                <span className="badge-dot"></span>
+                                {stageMeta.label}
+                              </span>
+                            )}
+                          </td>
+                        )}
+                        {visibleColumns.remarks && (
+                          <td style={{ padding: 'var(--space-3) var(--space-4)', maxWidth: '300px' }}>
+                            {remarkInfo.shortText ? (
                               <div
                                 title={remarkInfo.fullText}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '4px',
-                                  maxWidth: '220px',
-                                  padding: '1px 6px',
+                                  gap: '5px',
+                                  maxWidth: '100%',
+                                  padding: '3px 8px',
                                   borderRadius: '4px',
                                   background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
                                   border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid var(--border-hairline)',
                                   color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                                  fontSize: '0.72rem',
-                                  lineHeight: '1.4',
-                                  marginTop: '2px'
+                                  fontSize: '0.78rem',
+                                  lineHeight: '1.4'
                                 }}
                               >
                                 <i
                                   className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
-                                  style={{ fontSize: '0.75rem', flexShrink: 0 }}
+                                  style={{ fontSize: '0.8rem', flexShrink: 0 }}
                                 ></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {remarkInfo.shortText}
                                 </span>
                               </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', opacity: 0.4 }}>-</span>
                             )}
-                          </div>
-                        </td>
-                        <td style={{ padding: 'var(--space-3) var(--space-4)', whiteSpace: 'nowrap' }}>
-                          {c.status === 'rejected' ? (
-                            <span 
-                              className="badge" 
-                              style={{ 
-                                background: 'rgba(244, 63, 94, 0.12)', 
-                                color: '#fb7185', 
-                                border: '1px solid rgba(244, 63, 94, 0.3)', 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
-                                gap: '5px',
-                                fontWeight: '500',
-                                maxWidth: '180px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}
-                              title={c.rejectNote ? `${t('candidates.rejected', '已淘汰')}: ${c.rejectNote}` : (Utils.getDropReasonLabel(c.rejectReason, t) || t('candidates.rejected', '已淘汰'))}
-                            >
-                              <i className="ph-fill ph-x-circle" style={{ color: '#f43f5e', fontSize: '13px', flexShrink: 0 }}></i>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {t('candidates.rejected', '已淘汰')} {c.rejectReason ? `· ${Utils.getDropReasonLabel(c.rejectReason, t).split('·')[0].trim()}` : ''}
-                              </span>
-                            </span>
-                          ) : (
-                            <span className={`badge ${stageMeta.badgeClass}`}>
-                              <span className="badge-dot"></span>
-                              {stageMeta.label}
-                            </span>
-                          )}
-                        </td>
-                        <td className="candidate-col-updated" style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                          {Utils.formatDate(c.updatedAt?.toDate ? c.updatedAt.toDate() : c.updatedAt)}
-                        </td>
+                          </td>
+                        )}
+                        {visibleColumns.updatedAt && (
+                          <td className="candidate-col-updated" style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap', width: '130px' }}>
+                            {Utils.formatDate(c.updatedAt?.toDate ? c.updatedAt.toDate() : c.updatedAt)}
+                          </td>
+                        )}
                         <td style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-1)' }}>
                             {!isReadOnlyView && (
