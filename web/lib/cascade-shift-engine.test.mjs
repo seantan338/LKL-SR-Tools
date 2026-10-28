@@ -77,7 +77,8 @@ test('5.1 当日工作中容错：当天未过凌晨12点，已签到未签退�
   assert.equal(res.durationHours, null);
   assert.equal(res.compliance, 'IN_PROGRESS');
   assert.equal(res.isMissingPunch, false);
-  assert.equal(res.isCompliant, true);
+  assert.equal(res.isInProgress, true);
+  assert.equal(res.isCompliant, false);
 });
 
 test('6. 连击手滑误触防呆：08:30 签到，08:32 签退（间隔 < 30分钟）判定为疑似误触，工时为 null', () => {

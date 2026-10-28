@@ -771,7 +771,7 @@ export default function LeaderboardPage() {
                     </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compliantDays}/{top2.daysPresent}天</strong></span>
+                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compliantDays}/{top2.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.punctualityScore}</strong></span>
                   </div>
                 </div>
@@ -867,7 +867,7 @@ export default function LeaderboardPage() {
                     </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.compliantDays}/{top1.daysPresent}天</strong></span>
+                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.compliantDays}/{top1.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.punctualityScore}</strong></span>
                   </div>
                 </div>
@@ -961,7 +961,7 @@ export default function LeaderboardPage() {
                     </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compliantDays}/{top3.daysPresent}天</strong></span>
+                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compliantDays}/{top3.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.punctualityScore}</strong></span>
                   </div>
                 </div>
@@ -1138,7 +1138,7 @@ export default function LeaderboardPage() {
                               <span style={{ fontWeight: '700', color: item.compliantDays > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                                 {item.compliantDays}
                               </span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}> / {item.daysPresent}天</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}> / {item.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</span>
                             </td>
                             <td style={{ padding: '12px', color: item.avgArrivalStr !== '-' ? 'var(--text-secondary)' : 'var(--text-muted)', fontWeight: '500' }}>
                               {item.avgArrivalStr}
@@ -1146,7 +1146,7 @@ export default function LeaderboardPage() {
                             <td style={{ padding: '12px' }}>
                               {item.violationDays > 0 ? (
                                 <span style={{ color: 'var(--accent-rose)', fontWeight: '700' }}>
-                                  {item.violationDays} 次
+                                  {item.violationDays} {t('leaderboard.unitViolations', isEn ? 'late' : '次')}
                                 </span>
                               ) : (
                                 <span style={{ color: 'var(--text-muted)' }}>0</span>

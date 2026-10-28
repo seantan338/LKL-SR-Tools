@@ -2154,14 +2154,18 @@ export default function AnalyticsPage() {
                                           borderRadius: '4px',
                                           width: 'fit-content',
                                           border: '1px solid rgba(168, 85, 247, 0.3)'
-                                        }} title={`调整人: ${item.overrideData?.overrideBy || '主管'}\n原因: ${item.overrideData?.reason || '无'}\n时间: ${item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''}`}>
+                                        }} title={t('analytics.overrideTooltip', {
+                                          by: item.overrideData?.overrideBy || t('analytics.overrideDefaultBy', '主管'),
+                                          reason: item.overrideData?.reason || t('analytics.overrideNone', '无'),
+                                          time: item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''
+                                        }, `调整人: ${item.overrideData?.overrideBy || '主管'}\n原因: ${item.overrideData?.reason || '无'}\n时间: ${item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''}`)}>
                                           <i className="ph-bold ph-pencil-simple"></i>
                                           {t('analytics.tagOverridden', '主管调整')}
                                         </span>
                                       ) : (
                                         item.shiftAnalysis?.shift?.endStr ? (
                                           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                            底线 {item.shiftAnalysis.shift.endStr}
+                                            {t('analytics.shiftCutoffPrefix', '底线')} {item.shiftAnalysis.shift.endStr}
                                           </span>
                                         ) : null
                                       )}
@@ -2832,7 +2836,7 @@ export default function AnalyticsPage() {
                     {t('analytics.secExemptTitle', '免考勤与报表排除账户 (Exempt Accounts)')}
                   </h4>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    {t('analytics.exemptCountTag', `已排除 ${(editingRules.excludedAccounts || []).length} 人`)}
+                    {t('analytics.exemptCountTag', { count: (editingRules.excludedAccounts || []).length }, `已排除 ${(editingRules.excludedAccounts || []).length} 人`)}
                   </span>
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
