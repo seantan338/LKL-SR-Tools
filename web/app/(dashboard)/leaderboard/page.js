@@ -9,7 +9,7 @@ import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { ExcelExporter } from '../../../lib/excel-exporter';
-import { DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
+import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
 import { SystemLogger } from '../../../lib/logger';
 
 export default function LeaderboardPage() {
@@ -298,7 +298,7 @@ export default function LeaderboardPage() {
   }, [candidates, orders, hqMembers, teamMembers, dateFilter]);
 
   // -------------------------------------------------------------
-  // Track 2: Attendance Leaderboard (HQ Only)
+  // Track 2: Attendance & Punctuality Leaderboard (HQ Only)
   // -------------------------------------------------------------
   const attendanceLeaderboard = useMemo(() => {
     const map = {};
@@ -315,16 +315,20 @@ export default function LeaderboardPage() {
         daysPresent: 0,
         officeDays: 0,
         wfhDays: 0,
+        compliantDays: 0,
+        violationDays: 0,
         earliestMinutesSum: 0,
-        earliestPunchesCount: 0,
+        firstInCount: 0,
         dayRecords: {}
       };
     });
 
     const combinedEvents = [...manualCheckins, ...logs];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     combinedEvents.forEach(evt => {
-      const ts = evt.timestamp;
+      const ts = evt.timestamp || evt.createdAt;
       if (!isDateInRange(ts)) return;
 
       const canonical = resolveCanonicalPic(evt.picName || evt.userName || evt.userEmail, evt.userId, teamMembers);
@@ -341,50 +345,114 @@ export default function LeaderboardPage() {
           daysPresent: 0,
           officeDays: 0,
           wfhDays: 0,
+          compliantDays: 0,
+          violationDays: 0,
           earliestMinutesSum: 0,
-          earliestPunchesCount: 0,
+          firstInCount: 0,
           dayRecords: {}
         };
       }
 
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
-      if (isNaN(d.getTime())) return;
+      const d = CascadeShiftEngine.toSafeDate(ts);
+      if (!d) return;
 
-      const dateStr = d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const rec = map[targetKey];
 
       if (!rec.dayRecords[dateStr]) {
-        const isWfh = evt.verifyMethod === 'WFH' || evt.verifySnapshot?.method === 'WFH';
         rec.dayRecords[dateStr] = {
-          firstTime: d,
-          isWfh
+          events: [],
+          isWfh: evt.verifyMethod === 'WFH' || evt.verifySnapshot?.method === 'WFH'
         };
-        rec.daysPresent += 1;
-        if (isWfh) rec.wfhDays += 1;
-        else rec.officeDays += 1;
-
-        const minutesFromMidnight = d.getHours() * 60 + d.getMinutes();
-        rec.earliestMinutesSum += minutesFromMidnight;
-        rec.earliestPunchesCount += 1;
+      }
+      rec.dayRecords[dateStr].events.push({
+        ...evt,
+        dateObj: d,
+        type: evt.type || evt.action || 'CLOCK_IN'
+      });
+      if (evt.verifyMethod === 'WFH' || evt.verifySnapshot?.method === 'WFH') {
+        rec.dayRecords[dateStr].isWfh = true;
       }
     });
 
+    const shiftConfig = attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG;
+    const shiftOverrides = attendanceRules?.shiftOverrides || {};
+
+    Object.values(map).forEach(member => {
+      const dates = Object.keys(member.dayRecords);
+      member.daysPresent = dates.length;
+
+      dates.forEach(dateStr => {
+        const dayData = member.dayRecords[dateStr];
+        if (dayData.isWfh) {
+          member.wfhDays += 1;
+        } else {
+          member.officeDays += 1;
+        }
+
+        const overrideKey = `${dateStr}__${member.name}`;
+        const overrideKeyUid = `${dateStr}__${member.uid}`;
+        const overrideShift = shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid] || null;
+        const isToday = dateStr === todayStr;
+
+        const res = CascadeShiftEngine.resolveDailyShift(
+          dayData.events,
+          shiftConfig,
+          { locale: isEn ? 'en' : 'zh', overrideShift, isToday }
+        );
+
+        if (res.firstIn) {
+          const minutesFromMidnight = res.firstIn.getHours() * 60 + res.firstIn.getMinutes();
+          member.earliestMinutesSum += minutesFromMidnight;
+          member.firstInCount += 1;
+        }
+
+        // Punctuality compliance:
+        // Compliant means on-time (early arrival or on-time arrival) and compliant clock-out (or on-duty today)
+        // Late arrival, early leave, missed punch count as violations
+        if (res.isCompliant && !res.isViolation) {
+          member.compliantDays += 1;
+        } else if (res.isViolation || res.isLate) {
+          member.violationDays += 1;
+        }
+      });
+    });
+
     const list = Object.values(map).map(item => {
-      // Consistency score = (daysPresent * 20) + (officeDays * 5)
-      const avgMinutes = item.earliestPunchesCount > 0 ? (item.earliestMinutesSum / item.earliestPunchesCount) : 570;
-      // Bonus if arriving around 09:00 (540 min)
-      const promptBonus = Math.max(0, Math.round((600 - avgMinutes) / 5));
-      const consistencyScore = (item.daysPresent * 20) + (item.officeDays * 5) + promptBonus;
+      const punctualityRate = item.daysPresent > 0
+        ? Number(((item.compliantDays / item.daysPresent) * 100).toFixed(1))
+        : 0;
+
+      let avgArrivalStr = '-';
+      if (item.firstInCount > 0) {
+        const avgMin = Math.round(item.earliestMinutesSum / item.firstInCount);
+        const hh = String(Math.floor(avgMin / 60)).padStart(2, '0');
+        const mm = String(avgMin % 60).padStart(2, '0');
+        avgArrivalStr = `${hh}:${mm}`;
+      }
+
+      // 0 attendance is strictly 0 score!
+      // Score = (compliantDays * 20) + (daysPresent * 5) - (violationDays * 10)
+      const punctualityScore = item.daysPresent > 0
+        ? Math.max(0, (item.compliantDays * 20) + (item.daysPresent * 5) - (item.violationDays * 10))
+        : 0;
 
       return {
         ...item,
-        consistencyScore: Math.max(0, consistencyScore)
+        punctualityRate,
+        avgArrivalStr,
+        punctualityScore
       };
     });
 
-    // Primary: Days Present DESC, Secondary: Consistency Score DESC, Tertiary: Office Days DESC
-    return list.sort((a, b) => b.daysPresent - a.daysPresent || b.consistencyScore - a.consistencyScore || b.officeDays - a.officeDays);
-  }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter]);
+    // Primary: punctualityScore DESC, Secondary: punctualityRate DESC, Tertiary: compliantDays DESC, Quaternary: daysPresent DESC
+    return list.sort((a, b) => 
+      b.punctualityScore - a.punctualityScore ||
+      b.punctualityRate - a.punctualityRate ||
+      b.compliantDays - a.compliantDays ||
+      b.daysPresent - a.daysPresent
+    );
+  }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, isEn]);
 
   // Current active list & Top 3
   const currentRankingList = activeTab === 'sales' ? salesLeaderboard : attendanceLeaderboard;
@@ -421,49 +489,79 @@ export default function LeaderboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: '3rem' }}>
       
-      {/* Top Controls Header */}
+      {/* Top Controls: Compact Filter Toolbar */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: 'var(--space-4)',
+        gap: 'var(--space-3)',
         background: 'var(--card-bg)',
         border: '1px solid var(--border-interactive)',
         borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-4) var(--space-5)',
+        padding: '8px 14px',
         boxShadow: 'var(--shadow-card)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '42px', height: '42px', borderRadius: '10px',
-            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.18) 100%)',
-            color: 'var(--accent-amber)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.4rem', border: '1px solid rgba(245, 158, 11, 0.3)'
-          }}>
-            <i className="ph-bold ph-trophy"></i>
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: '800', color: 'var(--text-primary)', margin: 0, letterSpacing: '0.02em' }}>
-                Leaderboard
-              </h2>
-              <span className="badge" style={{
-                background: 'rgba(59, 130, 246, 0.12)',
-                color: 'var(--accent-blue)',
-                border: '1px solid rgba(59, 130, 246, 0.25)',
-                fontSize: '11px',
-                fontWeight: '600'
-              }}>
-                <i className="ph-bold ph-buildings" style={{ marginRight: '4px' }}></i>
-                {t('leaderboard.hqBadge', '公司本部专属')}
-              </span>
-            </div>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
-              {t('leaderboard.subtitle', '公司本部考勤与销售业绩数据排行')}
-            </p>
-          </div>
+        {/* Track Toggle Tabs (Sales vs Attendance) */}
+        <div style={{
+          display: 'inline-flex',
+          gap: '4px',
+          background: 'var(--input-bg)',
+          padding: '3px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-interactive)'
+        }}>
+          <button
+            onClick={() => setActiveTab('sales')}
+            style={{
+              padding: '6px 14px',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              background: activeTab === 'sales' ? 'var(--card-bg)' : 'transparent',
+              color: activeTab === 'sales' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: '700',
+              fontSize: 'var(--text-sm)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: activeTab === 'sales' ? 'var(--shadow-card)' : 'none',
+              borderBottom: activeTab === 'sales' ? '2px solid var(--accent-blue)' : '2px solid transparent',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <i className="ph-bold ph-chart-line-up" style={{ color: activeTab === 'sales' ? 'var(--accent-blue)' : 'inherit' }}></i>
+            <span>{t('leaderboard.tabSales', '销售业绩榜')}</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+              ({salesLeaderboard.length})
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('attendance')}
+            style={{
+              padding: '6px 14px',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              background: activeTab === 'attendance' ? 'var(--card-bg)' : 'transparent',
+              color: activeTab === 'attendance' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: '700',
+              fontSize: 'var(--text-sm)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: activeTab === 'attendance' ? 'var(--shadow-card)' : 'none',
+              borderBottom: activeTab === 'attendance' ? '2px solid #8b5cf6' : '2px solid transparent',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <i className="ph-bold ph-calendar-check" style={{ color: activeTab === 'attendance' ? '#8b5cf6' : 'inherit' }}></i>
+            <span>{t('leaderboard.tabAttendance', '考勤守时榜')}</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+              ({attendanceLeaderboard.length})
+            </span>
+          </button>
         </div>
 
         {/* Date Filter Pills */}
@@ -500,71 +598,6 @@ export default function LeaderboardPage() {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Main Track Toggle Tabs (Sales vs Attendance) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '8px',
-        background: 'var(--input-bg)',
-        padding: '5px',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-interactive)'
-      }}>
-        <button
-          onClick={() => setActiveTab('sales')}
-          style={{
-            padding: '10px 16px',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            background: activeTab === 'sales' ? 'var(--card-bg)' : 'transparent',
-            color: activeTab === 'sales' ? 'var(--text-primary)' : 'var(--text-muted)',
-            fontWeight: '700',
-            fontSize: 'var(--text-sm)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'sales' ? 'var(--shadow-card)' : 'none',
-            borderBottom: activeTab === 'sales' ? '2px solid var(--accent-blue)' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <i className="ph-bold ph-chart-line-up" style={{ color: activeTab === 'sales' ? 'var(--accent-blue)' : 'inherit' }}></i>
-          <span>{t('leaderboard.tabSales', '销售业绩榜')}</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
-            ({salesLeaderboard.length})
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('attendance')}
-          style={{
-            padding: '10px 16px',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            background: activeTab === 'attendance' ? 'var(--card-bg)' : 'transparent',
-            color: activeTab === 'attendance' ? 'var(--text-primary)' : 'var(--text-muted)',
-            fontWeight: '700',
-            fontSize: 'var(--text-sm)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            boxShadow: activeTab === 'attendance' ? 'var(--shadow-card)' : 'none',
-            borderBottom: activeTab === 'attendance' ? '2px solid #8b5cf6' : 'none',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <i className="ph-bold ph-calendar-check" style={{ color: activeTab === 'attendance' ? '#8b5cf6' : 'inherit' }}></i>
-          <span>{t('leaderboard.tabAttendance', '考勤出勤榜')}</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
-            ({attendanceLeaderboard.length})
-          </span>
-        </button>
       </div>
 
       {/* Attendance Tab Action Bar */}
@@ -626,15 +659,18 @@ export default function LeaderboardPage() {
       {/* Top 3 Podium (Classic Olympic Stagger: #2 Left, #1 Center, #3 Right) */}
       {currentRankingList.length > 0 && (
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end',
           gap: 'var(--space-4)',
-          alignItems: 'end'
+          flexWrap: 'wrap'
         }}>
           
           {/* Rank 2: Silver */}
           {top2 && (
             <div style={{
+              flex: '1 1 260px',
+              maxWidth: '340px',
               background: 'var(--card-bg)',
               border: '1px solid rgba(148, 163, 184, 0.4)',
               borderRadius: 'var(--radius-xl)',
@@ -673,16 +709,35 @@ export default function LeaderboardPage() {
 
               {activeTab === 'sales' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{
-                    padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
-                    borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
-                  }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
-                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top2.onboarded}</span>
-                  </div>
+                  {top2.onboarded > 0 ? (
+                    <div style={{
+                      padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top2.onboarded}</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '8px', background: 'rgba(245, 158, 11, 0.08)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top2.compositeScore}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compositeScore}</strong></span>
-                    <span>{t('leaderboard.conversionRate', '转化率')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.rate}%</strong></span>
+                    {top2.onboarded > 0 ? (
+                      <>
+                        <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compositeScore}</strong></span>
+                        <span>{t('leaderboard.conversionRate', '转化率')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.rate}%</strong></span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{t('leaderboard.interviews', '面试数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.interview}</strong></span>
+                        <span>{t('leaderboard.sourced', '推人量')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.totalSourced}</strong></span>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -691,12 +746,14 @@ export default function LeaderboardPage() {
                     padding: '8px', background: 'rgba(139, 92, 246, 0.08)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)'
                   }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.daysPresent', '出勤天数')}</span>
-                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>{top2.daysPresent}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
+                      {top2.daysPresent === 0 ? '-' : `${top2.punctualityRate}%`}
+                    </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.officeDays', '办公室')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.officeDays}</strong></span>
-                    <span>{t('leaderboard.consistencyScore', '勤奋指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.consistencyScore}</strong></span>
+                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compliantDays}/{top2.daysPresent}天</strong></span>
+                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.punctualityScore}</strong></span>
                   </div>
                 </div>
               )}
@@ -706,13 +763,16 @@ export default function LeaderboardPage() {
           {/* Rank 1: Gold (Center & Elevated) */}
           {top1 && (
             <div style={{
+              flex: '1 1 280px',
+              maxWidth: '360px',
               background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--card-bg) 100%)',
               border: '2px solid rgba(245, 158, 11, 0.65)',
               borderRadius: 'var(--radius-xl)',
               padding: 'var(--space-6) var(--space-5)',
               textAlign: 'center',
               boxShadow: '0 12px 36px rgba(245, 158, 11, 0.15)',
-              position: 'relative'
+              position: 'relative',
+              order: top2 ? 0 : -1
             }}>
               <div style={{
                 position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
@@ -745,16 +805,35 @@ export default function LeaderboardPage() {
 
               {activeTab === 'sales' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{
-                    padding: '10px', background: 'rgba(16, 185, 129, 0.1)',
-                    borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.3)'
-                  }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
-                    <span style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-emerald)' }}>{top1.onboarded}</span>
-                  </div>
+                  {top1.onboarded > 0 ? (
+                    <div style={{
+                      padding: '10px', background: 'rgba(16, 185, 129, 0.1)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.3)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-emerald)' }}>{top1.onboarded}</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '10px', background: 'rgba(245, 158, 11, 0.12)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.35)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-amber)' }}>{top1.compositeScore}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.compositeScore}</strong></span>
-                    <span>{t('leaderboard.conversionRate', '转化率')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.rate}%</strong></span>
+                    {top1.onboarded > 0 ? (
+                      <>
+                        <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.compositeScore}</strong></span>
+                        <span>{t('leaderboard.conversionRate', '转化率')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.rate}%</strong></span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{t('leaderboard.interviews', '面试数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.interview}</strong></span>
+                        <span>{t('leaderboard.sourced', '推人量')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.totalSourced}</strong></span>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -763,12 +842,14 @@ export default function LeaderboardPage() {
                     padding: '10px', background: 'rgba(139, 92, 246, 0.12)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.35)'
                   }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.daysPresent', '出勤天数')}</span>
-                    <span style={{ fontSize: '1.65rem', fontWeight: '900', color: '#c084fc' }}>{top1.daysPresent}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span style={{ fontSize: '1.65rem', fontWeight: '900', color: '#c084fc' }}>
+                      {top1.daysPresent === 0 ? '-' : `${top1.punctualityRate}%`}
+                    </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.officeDays', '办公室')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.officeDays}</strong></span>
-                    <span>{t('leaderboard.consistencyScore', '勤奋指数')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.consistencyScore}</strong></span>
+                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.compliantDays}/{top1.daysPresent}天</strong></span>
+                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.punctualityScore}</strong></span>
                   </div>
                 </div>
               )}
@@ -778,6 +859,8 @@ export default function LeaderboardPage() {
           {/* Rank 3: Bronze */}
           {top3 && (
             <div style={{
+              flex: '1 1 260px',
+              maxWidth: '340px',
               background: 'var(--card-bg)',
               border: '1px solid rgba(180, 83, 9, 0.4)',
               borderRadius: 'var(--radius-xl)',
@@ -816,16 +899,35 @@ export default function LeaderboardPage() {
 
               {activeTab === 'sales' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{
-                    padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
-                    borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
-                  }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
-                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top3.onboarded}</span>
-                  </div>
+                  {top3.onboarded > 0 ? (
+                    <div style={{
+                      padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top3.onboarded}</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '8px', background: 'rgba(245, 158, 11, 0.08)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top3.compositeScore}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compositeScore}</strong></span>
-                    <span>{t('leaderboard.conversionRate', '转化率')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.rate}%</strong></span>
+                    {top3.onboarded > 0 ? (
+                      <>
+                        <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compositeScore}</strong></span>
+                        <span>{t('leaderboard.conversionRate', '转化率')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.rate}%</strong></span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{t('leaderboard.interviews', '面试数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.interview}</strong></span>
+                        <span>{t('leaderboard.sourced', '推人量')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.totalSourced}</strong></span>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -834,12 +936,14 @@ export default function LeaderboardPage() {
                     padding: '8px', background: 'rgba(139, 92, 246, 0.08)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)'
                   }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.daysPresent', '出勤天数')}</span>
-                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>{top3.daysPresent}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
+                      {top3.daysPresent === 0 ? '-' : `${top3.punctualityRate}%`}
+                    </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span>{t('leaderboard.officeDays', '办公室')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.officeDays}</strong></span>
-                    <span>{t('leaderboard.consistencyScore', '勤奋指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.consistencyScore}</strong></span>
+                    <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compliantDays}/{top3.daysPresent}天</strong></span>
+                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.punctualityScore}</strong></span>
                   </div>
                 </div>
               )}
@@ -855,7 +959,7 @@ export default function LeaderboardPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
             <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <i className="ph-bold ph-list-numbers" style={{ color: 'var(--accent-blue)' }}></i>
-              <span>{activeTab === 'sales' ? t('leaderboard.tabSales', '销售业绩榜') : t('leaderboard.tabAttendance', '考勤出勤榜')}</span>
+              <span>{activeTab === 'sales' ? t('leaderboard.tabSales', '销售业绩榜') : t('leaderboard.tabAttendance', '考勤守时榜')}</span>
             </h3>
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
               {t('leaderboard.hqMembersCount', { count: currentRankingList.length }, `${currentRankingList.length} 位公司本部成员`)}
@@ -879,10 +983,11 @@ export default function LeaderboardPage() {
                     </>
                   ) : (
                     <>
-                      <th style={{ padding: '10px 12px', color: '#c084fc', fontWeight: '700' }}>{t('leaderboard.daysPresent', '出勤天数')}</th>
-                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.officeDays', '办公室出勤')}</th>
-                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.wfhDays', '居家办公 (WFH)')}</th>
-                      <th style={{ padding: '10px 12px', color: 'var(--accent-amber)', fontWeight: '700' }}>{t('leaderboard.consistencyScore', '勤奋指数')}</th>
+                      <th style={{ padding: '10px 12px', color: '#c084fc', fontWeight: '700', minWidth: '130px' }}>{t('leaderboard.punctualityRate', '准点率')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.compliantDaysCol', '准点 / 出勤天数')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.avgArrival', '平均签到')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('leaderboard.violations', '迟到 / 异常')}</th>
+                      <th style={{ padding: '10px 12px', color: 'var(--accent-amber)', fontWeight: '700' }}>{t('leaderboard.punctualityScore', '守时指数')}</th>
                     </>
                   )}
                 </tr>
@@ -890,7 +995,7 @@ export default function LeaderboardPage() {
               <tbody>
                 {currentRankingList.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'sales' ? 8 : 6} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                    <td colSpan={activeTab === 'sales' ? 8 : 7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                       {t('leaderboard.noData', '暂无榜单数据')}
                     </td>
                   </tr>
@@ -930,10 +1035,17 @@ export default function LeaderboardPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{
                               width: '32px', height: '32px', borderRadius: '50%',
-                              background: idx === 0 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                              color: idx === 0 ? '#000' : '#fff',
+                              background: idx === 0 
+                                ? 'linear-gradient(135deg, #f59e0b, #d97706)' 
+                                : idx === 1 
+                                  ? 'linear-gradient(135deg, #94a3b8, #64748b)' 
+                                  : idx === 2 
+                                    ? 'linear-gradient(135deg, #b45309, #78350f)' 
+                                    : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                              color: idx === 0 || idx === 1 ? '#000' : '#fff',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: '12px', fontWeight: '700'
+                              fontSize: '12px', fontWeight: '700',
+                              border: idx === 0 ? '1px solid #f59e0b' : idx === 1 ? '1px solid #94a3b8' : idx === 2 ? '1px solid #b45309' : 'none'
                             }}>
                               {item.name.charAt(0).toUpperCase()}
                             </div>
@@ -947,19 +1059,30 @@ export default function LeaderboardPage() {
                         {activeTab === 'sales' ? (
                           <>
                             <td style={{ padding: '12px' }}>
-                              <span style={{ fontWeight: '800', fontSize: '1.05rem', color: 'var(--accent-emerald)' }}>
+                              <span style={{
+                                fontWeight: item.onboarded > 0 ? '800' : '400',
+                                fontSize: '1.05rem',
+                                color: item.onboarded > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)',
+                                opacity: item.onboarded > 0 ? 1 : 0.6
+                              }}>
                                 {item.onboarded}
                               </span>
                             </td>
-                            <td style={{ padding: '12px', color: 'var(--text-primary)', fontWeight: '600' }}>{item.offer}</td>
-                            <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{item.interview}</td>
-                            <td style={{ padding: '12px', color: 'var(--text-muted)' }}>{item.totalSourced}</td>
+                            <td style={{ padding: '12px', color: item.offer > 0 ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: item.offer > 0 ? '600' : '400', opacity: item.offer > 0 ? 1 : 0.6 }}>
+                              {item.offer}
+                            </td>
+                            <td style={{ padding: '12px', color: item.interview > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', opacity: item.interview > 0 ? 1 : 0.6 }}>
+                              {item.interview}
+                            </td>
+                            <td style={{ padding: '12px', color: item.totalSourced > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', opacity: item.totalSourced > 0 ? 1 : 0.6 }}>
+                              {item.totalSourced}
+                            </td>
                             <td style={{ padding: '12px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <div style={{ flex: 1, height: '6px', background: 'var(--input-bg)', borderRadius: '3px', overflow: 'hidden' }}>
                                   <div style={{ width: `${Math.min(100, item.rate * 2)}%`, height: '100%', background: 'var(--accent-emerald)', borderRadius: '3px' }}></div>
                                 </div>
-                                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', minWidth: '38px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '600', color: item.rate > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', minWidth: '38px', opacity: item.rate > 0 ? 1 : 0.6 }}>
                                   {item.rate}%
                                 </span>
                               </div>
@@ -973,25 +1096,46 @@ export default function LeaderboardPage() {
                         ) : (
                           <>
                             <td style={{ padding: '12px' }}>
-                              <span style={{ fontWeight: '800', fontSize: '1.05rem', color: '#c084fc' }}>
-                                {item.daysPresent}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1, height: '6px', background: 'var(--input-bg)', borderRadius: '3px', overflow: 'hidden' }}>
+                                  <div style={{
+                                    width: `${item.daysPresent > 0 ? item.punctualityRate : 0}%`,
+                                    height: '100%',
+                                    background: item.punctualityRate >= 90 ? 'var(--accent-emerald)' : (item.punctualityRate >= 70 ? 'var(--accent-amber)' : 'var(--accent-rose)'),
+                                    borderRadius: '3px'
+                                  }}></div>
+                                </div>
+                                <span style={{
+                                  fontWeight: '800',
+                                  fontSize: '1.05rem',
+                                  color: item.daysPresent === 0 ? 'var(--text-muted)' : (item.punctualityRate >= 90 ? 'var(--accent-emerald)' : '#c084fc'),
+                                  minWidth: '46px'
+                                }}>
+                                  {item.daysPresent === 0 ? '-' : `${item.punctualityRate}%`}
+                                </span>
+                              </div>
                             </td>
                             <td style={{ padding: '12px' }}>
-                              <span style={{ color: 'var(--accent-emerald)', fontWeight: '600' }}>
-                                <i className="ph-bold ph-buildings" style={{ marginRight: '4px' }}></i>
-                                {item.officeDays}
+                              <span style={{ fontWeight: '700', color: item.compliantDays > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                                {item.compliantDays}
                               </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}> / {item.daysPresent}天</span>
+                            </td>
+                            <td style={{ padding: '12px', color: item.avgArrivalStr !== '-' ? 'var(--text-secondary)' : 'var(--text-muted)', fontWeight: '500' }}>
+                              {item.avgArrivalStr}
                             </td>
                             <td style={{ padding: '12px' }}>
-                              <span style={{ color: '#c084fc', fontWeight: '600' }}>
-                                <i className="ph-bold ph-house-line" style={{ marginRight: '4px' }}></i>
-                                {item.wfhDays}
-                              </span>
+                              {item.violationDays > 0 ? (
+                                <span style={{ color: 'var(--accent-rose)', fontWeight: '700' }}>
+                                  {item.violationDays} 次
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>0</span>
+                              )}
                             </td>
                             <td style={{ padding: '12px' }}>
                               <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', fontWeight: '700', fontSize: '12px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-                                {item.consistencyScore}
+                                {item.punctualityScore}
                               </span>
                             </td>
                           </>

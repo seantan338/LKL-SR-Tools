@@ -1416,10 +1416,10 @@ export const zh = {
   },
   leaderboard: {
     title: 'Leaderboard',
-    subtitle: '公司本部考勤与销售业绩数据排行',
-    hqBadge: '公司本部专属',
+    subtitle: '团队考勤与销售业绩实时排行',
+    hqBadge: '',
     tabSales: '销售业绩榜',
-    tabAttendance: '考勤出勤榜',
+    tabAttendance: '考勤守时榜',
     filterMonth: '本月',
     filter30Days: '近 30 天',
     filter7Days: '近 7 天',
@@ -1437,6 +1437,12 @@ export const zh = {
     officeDays: '办公室出勤',
     wfhDays: '居家办公 (WFH)',
     consistencyScore: '勤奋指数',
+    punctualityRate: '准点率',
+    compliantDays: '准点天数',
+    compliantDaysCol: '准点 / 出勤天数',
+    avgArrival: '平均签到',
+    violations: '迟到 / 异常',
+    punctualityScore: '守时指数',
     topPerformer: '业绩第一',
     topAttendant: '出勤第一',
     noData: '暂无榜单数据',
@@ -1451,7 +1457,7 @@ export const zh = {
     exportSuccess: '🎉 考勤报表 ({filename}) 导出成功！',
     exportSuccessFallback: '考勤报表导出成功！',
     exportFailed: '导出失败: ',
-    hqMembersCount: '{count} 位公司本部成员'
+    hqMembersCount: '共 {count} 人上榜'
   },
   analytics: {
     gateTitle: '专属权限受限',
@@ -3627,10 +3633,10 @@ export const en = {
   },
   leaderboard: {
     title: 'Leaderboard',
-    subtitle: 'HQ Attendance & Sales Performance Rankings',
-    hqBadge: 'HQ Exclusive',
+    subtitle: 'Team Attendance & Sales Performance Rankings',
+    hqBadge: '',
     tabSales: 'Sales Performance',
-    tabAttendance: 'Attendance',
+    tabAttendance: 'Punctuality & Attendance',
     filterMonth: 'This Month',
     filter30Days: 'Last 30 Days',
     filter7Days: 'Last 7 Days',
@@ -3648,6 +3654,12 @@ export const en = {
     officeDays: 'Office Days',
     wfhDays: 'WFH Days',
     consistencyScore: 'Consistency Score',
+    punctualityRate: 'Punctuality Rate',
+    compliantDays: 'On-Time Days',
+    compliantDaysCol: 'On-Time / Present',
+    avgArrival: 'Avg Arrival',
+    violations: 'Late / Violations',
+    punctualityScore: 'Punctuality Score',
     topPerformer: 'Top Performer',
     topAttendant: 'Top Attendance',
     noData: 'No records found',
@@ -3662,7 +3674,7 @@ export const en = {
     exportSuccess: '🎉 Attendance report ({filename}) exported successfully!',
     exportSuccessFallback: 'Attendance report exported successfully!',
     exportFailed: 'Export failed: ',
-    hqMembersCount: '{count} HQ Members'
+    hqMembersCount: '{count} Members on Board'
   },
   analytics: {
     gateTitle: 'Exclusive Access Restricted',
