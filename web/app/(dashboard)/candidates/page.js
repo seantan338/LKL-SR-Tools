@@ -514,48 +514,38 @@ export default function CandidatesPage() {
                   <th style={{ padding: 'var(--space-4) var(--space-4)', width: '72px', textAlign: 'right' }}></th>
                 </tr>
               </thead>
-              {filteredCandidates.length === 0 ? (
-                <tbody>
+              <tbody>
+                {filteredCandidates.length === 0 ? (
                   <tr>
                     <td colSpan={isReadOnlyView ? 5 : 6} style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
                       <i className="ph-light ph-users" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block' }}></i>
                       {t('candidates.emptyList', '暂无匹配的候选人数据')}
                     </td>
                   </tr>
-                </tbody>
-              ) : (
-                filteredCandidates.map(c => {
-                  const isSelected = selectedIds.has(c.id);
-                  const stageMeta = Utils.getStageMeta(c.stage, t);
-                  const subInfo = [c.phone, c.location || c.degree || c.school].filter(Boolean).join(' · ');
-                  const remarkInfo = getCandidateRemarkDisplay(c);
-                  const hasRemark = Boolean(remarkInfo.shortText);
-                  
-                  return (
-                    <tbody 
-                      key={c.id} 
-                      className={`candidate-row-group ${isSelected ? 'is-selected' : ''}`}
-                      style={{ 
-                        background: isSelected 
-                          ? 'rgba(59, 130, 246, 0.08)' 
-                          : (c.status === 'rejected' ? 'rgba(244, 63, 94, 0.03)' : 'transparent'),
-                        opacity: c.status === 'rejected' && !isSelected ? 0.85 : 1,
-                        cursor: 'pointer'
-                      }} 
-                      onClick={() => openCandidate(c)}
-                    >
-                      <tr>
+                ) : (
+                  filteredCandidates.map(c => {
+                    const isSelected = selectedIds.has(c.id);
+                    const stageMeta = Utils.getStageMeta(c.stage, t);
+                    const subInfo = [c.phone, c.location || c.degree || c.school].filter(Boolean).join(' · ');
+                    const remarkInfo = getCandidateRemarkDisplay(c);
+                    
+                    return (
+                      <tr 
+                        key={c.id} 
+                        style={{ 
+                          borderBottom: '1px solid var(--border-hairline)', 
+                          transition: 'background 0.2s, opacity 0.2s',
+                          background: isSelected 
+                            ? 'rgba(59, 130, 246, 0.08)' 
+                            : (c.status === 'rejected' ? 'rgba(244, 63, 94, 0.03)' : 'transparent'),
+                          opacity: c.status === 'rejected' && !isSelected ? 0.8 : 1,
+                          cursor: 'pointer'
+                        }} 
+                        className="hover-row"
+                        onClick={() => openCandidate(c)}
+                      >
                         {!isReadOnlyView && (
-                          <td 
-                            rowSpan={hasRemark ? 2 : 1}
-                            style={{ 
-                              padding: 'var(--space-3) var(--space-4)', 
-                              textAlign: 'center', 
-                              verticalAlign: 'middle',
-                              borderBottom: '1px solid var(--border-hairline)'
-                            }} 
-                            onClick={(e) => e.stopPropagation()}
-                          >
+                          <td style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                             <input 
                               type="checkbox" 
                               checked={isSelected} 
@@ -564,14 +554,7 @@ export default function CandidatesPage() {
                             />
                           </td>
                         )}
-                        <td 
-                          rowSpan={hasRemark ? 2 : 1}
-                          style={{ 
-                            padding: 'var(--space-3) var(--space-4)',
-                            verticalAlign: 'middle',
-                            borderBottom: '1px solid var(--border-hairline)'
-                          }}
-                        >
+                        <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(59, 130, 246, 0.1)', color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.875rem', flexShrink: 0 }}>
                               {c.name ? c.name.charAt(0) : '?'}
@@ -601,11 +584,7 @@ export default function CandidatesPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ 
-                          padding: hasRemark ? 'var(--space-3) var(--space-4) 4px var(--space-4)' : 'var(--space-3) var(--space-4)',
-                          verticalAlign: 'middle',
-                          borderBottom: hasRemark ? 'none' : '1px solid var(--border-hairline)'
-                        }}>
+                        <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <span style={{ 
@@ -632,14 +611,36 @@ export default function CandidatesPage() {
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }} title={c.position || t('candidates.noPositionAssigned', '未指定岗位')}>
                               {c.position || t('candidates.noPositionAssigned', '未指定岗位')}
                             </span>
+                            {remarkInfo.shortText && (
+                              <div
+                                title={remarkInfo.fullText}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  maxWidth: '220px',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                                  border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid var(--border-hairline)',
+                                  color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                                  fontSize: '0.72rem',
+                                  lineHeight: '1.4',
+                                  marginTop: '2px'
+                                }}
+                              >
+                                <i
+                                  className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
+                                  style={{ fontSize: '0.75rem', flexShrink: 0 }}
+                                ></i>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {remarkInfo.shortText}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </td>
-                        <td style={{ 
-                          padding: hasRemark ? 'var(--space-3) var(--space-4) 4px var(--space-4)' : 'var(--space-3) var(--space-4)', 
-                          whiteSpace: 'nowrap',
-                          verticalAlign: 'middle',
-                          borderBottom: hasRemark ? 'none' : '1px solid var(--border-hairline)'
-                        }}>
+                        <td style={{ padding: 'var(--space-3) var(--space-4)', whiteSpace: 'nowrap' }}>
                           {c.status === 'rejected' ? (
                             <span 
                               className="badge" 
@@ -670,31 +671,10 @@ export default function CandidatesPage() {
                             </span>
                           )}
                         </td>
-                        <td 
-                          rowSpan={hasRemark ? 2 : 1}
-                          className="candidate-col-updated" 
-                          style={{ 
-                            padding: 'var(--space-3) var(--space-4)', 
-                            color: 'var(--text-secondary)', 
-                            fontSize: '0.85rem', 
-                            whiteSpace: 'nowrap',
-                            verticalAlign: 'middle',
-                            borderBottom: '1px solid var(--border-hairline)'
-                          }}
-                        >
+                        <td className="candidate-col-updated" style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                           {Utils.formatDate(c.updatedAt?.toDate ? c.updatedAt.toDate() : c.updatedAt)}
                         </td>
-                        <td 
-                          rowSpan={hasRemark ? 2 : 1}
-                          style={{ 
-                            padding: 'var(--space-3) var(--space-4)', 
-                            textAlign: 'right', 
-                            whiteSpace: 'nowrap',
-                            verticalAlign: 'middle',
-                            borderBottom: '1px solid var(--border-hairline)'
-                          }} 
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        <td style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-1)' }}>
                             {!isReadOnlyView && (
                               <button 
@@ -740,47 +720,10 @@ export default function CandidatesPage() {
                           </div>
                         </td>
                       </tr>
-                      {hasRemark && (
-                        <tr>
-                          <td 
-                            colSpan={2} 
-                            style={{ 
-                              padding: '0 var(--space-4) var(--space-3) var(--space-4)', 
-                              borderBottom: '1px solid var(--border-hairline)',
-                              verticalAlign: 'top' 
-                            }}
-                          >
-                            <div
-                              title={remarkInfo.fullText}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                maxWidth: '100%',
-                                padding: '3px 10px',
-                                borderRadius: '4px',
-                                background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
-                                border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.22)' : '1px solid var(--border-hairline)',
-                                color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                                fontSize: '0.74rem',
-                                lineHeight: '1.4'
-                              }}
-                            >
-                              <i
-                                className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
-                                style={{ fontSize: '0.8rem', color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-faint)', flexShrink: 0 }}
-                              ></i>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {remarkInfo.shortText}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </tbody>
             </table>
           </div>
         </div>

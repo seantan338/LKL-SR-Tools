@@ -281,22 +281,6 @@
   background: rgba(255, 255, 255, 0.035);
 }
 
-.candidate-row-group {
-  transition: background-color var(--duration-fast) var(--ease-spring);
-}
-
-.candidate-row-group:hover tr {
-  background: rgba(255, 255, 255, 0.035) !important;
-}
-
-.candidate-row-group.is-selected tr {
-  background: rgba(59, 130, 246, 0.08) !important;
-}
-
-.candidate-row-group.is-selected:hover tr {
-  background: rgba(59, 130, 246, 0.12) !important;
-}
-
 .candidate-cell-main {
   display: flex;
   flex-direction: column;
