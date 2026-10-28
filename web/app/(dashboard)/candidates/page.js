@@ -13,6 +13,17 @@ import { Utils } from '../../../lib/utils';
 import CandidateDrawer from '../../../components/CandidateDrawer';
 import CvImportModal from '../../../components/CvImportModal';
 import WhatsAppButton from '../../../components/WhatsAppButton';
+import { useCandidatesViewPrefs } from '../../../lib/candidates-view-prefs';
+import {
+  NONE,
+  STAGE_ORDER,
+  buildCandidateFilterOptions,
+  defaultCandidateSortDir,
+  effectiveStageKey,
+  groupCandidates,
+  matchesCandidateFilter,
+  sortCandidates
+} from '../../../lib/candidate-view.mjs';
 
 /**
  * 智能融合多份候选人档案 (Data Fusion Algorithm)
@@ -224,6 +235,9 @@ export default function CandidatesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
   const [companyFilter, setCompanyFilter] = useState('all');
+  const [picFilter, setPicFilter] = useState('all');
+  const [viewPrefs, updateViewPrefs] = useCandidatesViewPrefs();
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const [mounted, setMounted] = useState(false);
   
   // Visible Columns state
@@ -277,41 +291,84 @@ export default function CandidatesPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3500);
   };
-// Derived list of all distinct companies currently in candidate records
+  // Derived list of all distinct companies currently in candidate records
   const existingCompanies = Array.from(
     new Set(candidates.map(c => (c.company || '').trim()).filter(Boolean))
   ).sort();
 
-  const filteredCandidates = candidates.filter(c => {
-    if (stageFilter === 'active') {
-      if (c.status === 'rejected') return false;
-    } else if (stageFilter === 'rejected') {
-      if (c.status !== 'rejected') return false;
-    } else if (stageFilter !== 'all') {
-      if (c.status === 'rejected') return false;
-      if (c.stage !== stageFilter) return false;
-    }
-    
-    if (companyFilter !== 'all') {
-      if (companyFilter === '__none__') {
-        if ((c.company || '').trim()) return false;
-      } else {
-        if ((c.company || '').trim() !== companyFilter) return false;
-      }
-    }
+  const companyOptions = buildCandidateFilterOptions(candidates, 'company');
+  const picOptions = buildCandidateFilterOptions(candidates, 'pic');
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchText = [
-        c.name, c.company, c.position, c.department, c.school, c.degree, 
-        c.phone, c.location, c.icNo, c.picName, c.remarks, c.notes,
-        c.rejectReason, c.rejectNote
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (!matchText.includes(q)) return false;
-    }
-    
-    return true;
-  });
+  const filteredCandidates = sortCandidates(
+    candidates.filter(c => {
+      if (stageFilter === 'active') {
+        if (c.status === 'rejected') return false;
+      } else if (stageFilter === 'rejected') {
+        if (c.status !== 'rejected') return false;
+      } else if (stageFilter !== 'all') {
+        if (c.status === 'rejected') return false;
+        if (c.stage !== stageFilter) return false;
+      }
+
+      if (!matchesCandidateFilter(c, 'company', companyFilter)) return false;
+      if (!matchesCandidateFilter(c, 'pic', picFilter)) return false;
+
+      if (searchQuery) {
+        const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const matchText = [
+          c.name, c.company, c.position, c.department, c.school, c.degree,
+          c.phone, c.location, c.icNo, c.picName, c.remarks, c.notes,
+          c.rejectReason, c.rejectNote
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!tokens.every(tk => matchText.includes(tk))) return false;
+      }
+
+      return true;
+    }),
+    viewPrefs.sortKey,
+    viewPrefs.sortDir
+  );
+
+  const candidateGroups = viewPrefs.view === 'grouped'
+    ? groupCandidates(filteredCandidates, viewPrefs.groupBy)
+    : [];
+
+  const hasActiveFilters = Boolean(
+    stageFilter !== 'all' ||
+    companyFilter !== 'all' ||
+    picFilter !== 'all' ||
+    searchQuery.trim()
+  );
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStageFilter('all');
+    setCompanyFilter('all');
+    setPicFilter('all');
+  };
+
+  const handleColumnSort = (key) => {
+    updateViewPrefs(
+      viewPrefs.sortKey === key
+        ? { sortDir: viewPrefs.sortDir === 'asc' ? 'desc' : 'asc' }
+        : { sortKey: key, sortDir: defaultCandidateSortDir(key) }
+    );
+  };
+
+  const toggleGroupCollapse = (groupKey) => {
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [groupKey]: !prev[groupKey]
+    }));
+  };
+
+  const setAllGroupsCollapsed = (isCollapsed) => {
+    const next = {};
+    candidateGroups.forEach(g => {
+      next[g.key] = isCollapsed;
+    });
+    setCollapsedGroups(next);
+  };
 
   const openCandidate = (candidate) => {
     setSelectedCandidate(candidate);
@@ -472,9 +529,22 @@ export default function CandidatesPage() {
             <div className="form-group" style={{ flex: '1 1 130px', minWidth: '120px', marginBottom: 0 }}>
               <select className="form-select" value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
                 <option value="all">🏢 {t('candidates.filterAllCompanies', '所有意向企业')}</option>
-                <option value="__none__">⚠️ {t('candidates.noCompany', '未指定企业')} ({candidates.filter(c => !(c.company || '').trim()).length})</option>
-                {existingCompanies.map(comp => (
-                  <option key={comp} value={comp}>{comp}</option>
+                {companyOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.value === NONE ? `⚠️ ${t('candidates.noCompany', '未指定企业')}` : opt.label} ({opt.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* PIC Filter */}
+            <div className="form-group" style={{ flex: '1 1 130px', minWidth: '120px', marginBottom: 0 }}>
+              <select className="form-select" value={picFilter} onChange={e => setPicFilter(e.target.value)}>
+                <option value="all">{t('candidates.allPic', '👤 所有顾问 (PIC)')}</option>
+                {picOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.value === NONE ? t('candidates.noPic', '未分配 PIC') : opt.label} ({opt.count})
+                  </option>
                 ))}
               </select>
             </div>
@@ -532,8 +602,88 @@ export default function CandidatesPage() {
           </div>
         </div>
 
-        {/* Table Shell */}
-        <div className="bezel-shell candidates-desktop-table" style={{ padding: '0' }}>
+        {/* View & Sort Toolbar (Aligned with Job Orders) */}
+        <div className="orders-view-bar">
+          <div className="orders-view-toggle" role="tablist">
+            {[
+              { key: 'table', icon: 'ph-table', label: t('candidates.viewTable', '表格') },
+              { key: 'grouped', icon: 'ph-stack', label: t('candidates.viewGrouped', '分组') },
+              { key: 'compact', icon: 'ph-list-dashes', label: t('candidates.viewCompact', '紧凑') }
+            ].map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                role="tab"
+                aria-selected={viewPrefs.view === opt.key}
+                className={viewPrefs.view === opt.key ? 'active' : ''}
+                onClick={() => updateViewPrefs({ view: opt.key })}
+                title={opt.label}
+              >
+                <i className={`ph-light ${opt.icon}`}></i>
+                <span className="orders-view-label">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="orders-view-controls">
+            <select
+              className="form-select btn-sm orders-compact-select"
+              value={viewPrefs.sortKey}
+              onChange={(e) => updateViewPrefs({ sortKey: e.target.value, sortDir: defaultCandidateSortDir(e.target.value) })}
+              aria-label={t('candidates.sortBy', '排序')}
+            >
+              <option value="updatedAt">{t('candidates.sortBy', '排序')}: {t('candidates.sortUpdated', '最近更新')}</option>
+              <option value="name">{t('candidates.sortBy', '排序')}: {t('candidates.sortName', '候选人姓名')}</option>
+              <option value="company">{t('candidates.sortBy', '排序')}: {t('candidates.sortCompany', '意向企业')}</option>
+              <option value="position">{t('candidates.sortBy', '排序')}: {t('candidates.sortPosition', '应聘岗位')}</option>
+              <option value="stage">{t('candidates.sortBy', '排序')}: {t('candidates.sortStage', '当前阶段')}</option>
+              <option value="pic">{t('candidates.sortBy', '排序')}: {t('candidates.sortPic', '顾问 PIC')}</option>
+              <option value="remarks">{t('candidates.sortBy', '排序')}: {t('candidates.sortRemarks', '备注内容')}</option>
+            </select>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => updateViewPrefs({ sortDir: viewPrefs.sortDir === 'asc' ? 'desc' : 'asc' })}
+              title={viewPrefs.sortDir === 'asc' ? t('candidates.sortAsc', '升序') : t('candidates.sortDesc', '降序')}
+            >
+              <i className={`ph-light ${viewPrefs.sortDir === 'asc' ? 'ph-sort-ascending' : 'ph-sort-descending'}`}></i>
+            </button>
+
+            {viewPrefs.view === 'grouped' && (
+              <select
+                className="form-select btn-sm orders-compact-select"
+                value={viewPrefs.groupBy}
+                onChange={(e) => {
+                  updateViewPrefs({ groupBy: e.target.value });
+                  setCollapsedGroups({});
+                }}
+              >
+                <option value="company">{t('candidates.groupCompany', '按企业分组')}</option>
+                <option value="stage">{t('candidates.groupStage', '按阶段分组')}</option>
+                <option value="pic">{t('candidates.groupPic', '按 PIC 分组')}</option>
+                <option value="location">{t('candidates.groupLocation', '按地区分组')}</option>
+              </select>
+            )}
+          </div>
+
+          <div className="orders-view-summary">
+            <span>
+              {viewPrefs.view === 'grouped'
+                ? t('candidates.groupedCount', { count: filteredCandidates.length, groups: candidateGroups.length }, `共 ${filteredCandidates.length} 位候选人 · ${candidateGroups.length} 组`)
+                : t('candidates.resultCount', { count: filteredCandidates.length }, `共 ${filteredCandidates.length} 位候选人`)}
+            </span>
+            {hasActiveFilters && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                <i className="ph-light ph-x"></i> {t('candidates.clearFilters', '清除筛选')}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Table View */}
+        {viewPrefs.view === 'table' && (
+          <div className="bezel-shell candidates-desktop-table" style={{ padding: '0' }}>
           <div className="bezel-core" style={{ padding: '0', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
@@ -549,9 +699,19 @@ export default function CandidatesPage() {
                       />
                     </th>
                   )}
-                  <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <th 
+                    style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleColumnSort('name')}
+                    title={t('candidates.sortByColumn', '点击按此列排序')}
+                  >
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-                      <span>{t('candidates.table.name', '候选人')}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{t('candidates.table.name', '候选人')}</span>
+                        <i
+                          className={`ph-bold ${viewPrefs.sortKey === 'name' ? (viewPrefs.sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : 'ph-caret-up-down'}`}
+                          style={{ color: viewPrefs.sortKey === 'name' ? 'var(--accent-blue)' : undefined, opacity: viewPrefs.sortKey === 'name' ? 1 : 0.35 }}
+                        ></i>
+                      </span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -622,16 +782,65 @@ export default function CandidatesPage() {
                     </div>
                   </th>
                   {visibleColumns.companyPosition && (
-                    <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.companyPosition', '意向企业 / 应聘岗位')}</th>
+                    <th 
+                      style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => handleColumnSort('company')}
+                      title={t('candidates.sortByColumn', '点击按此列排序')}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{t('candidates.table.companyPosition', '意向企业 / 应聘岗位')}</span>
+                        <i
+                          className={`ph-bold ${viewPrefs.sortKey === 'company' ? (viewPrefs.sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : 'ph-caret-up-down'}`}
+                          style={{ color: viewPrefs.sortKey === 'company' ? 'var(--accent-blue)' : undefined, opacity: viewPrefs.sortKey === 'company' ? 1 : 0.35 }}
+                        ></i>
+                      </span>
+                    </th>
                   )}
                   {visibleColumns.stage && (
-                    <th style={{ padding: 'var(--space-4) var(--space-3)', width: '100px', minWidth: '90px', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.stage', '当前阶段')}</th>
+                    <th 
+                      style={{ padding: 'var(--space-4) var(--space-3)', width: '100px', minWidth: '90px', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => handleColumnSort('stage')}
+                      title={t('candidates.sortByColumn', '点击按此列排序')}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{t('candidates.table.stage', '当前阶段')}</span>
+                        <i
+                          className={`ph-bold ${viewPrefs.sortKey === 'stage' ? (viewPrefs.sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : 'ph-caret-up-down'}`}
+                          style={{ color: viewPrefs.sortKey === 'stage' ? 'var(--accent-blue)' : undefined, opacity: viewPrefs.sortKey === 'stage' ? 1 : 0.35 }}
+                        ></i>
+                      </span>
+                    </th>
                   )}
                   {visibleColumns.remarks && (
-                    <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', maxWidth: '300px' }}>{t('candidates.colRemarks', '备注 (Remarks)')}</th>
+                    <th 
+                      style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', maxWidth: '300px', cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => handleColumnSort('remarks')}
+                      title={t('candidates.sortByColumn', '点击按此列排序')}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{t('candidates.colRemarks', '备注 (Remarks)')}</span>
+                        <i
+                          className={`ph-bold ${viewPrefs.sortKey === 'remarks' ? (viewPrefs.sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : 'ph-caret-up-down'}`}
+                          style={{ color: viewPrefs.sortKey === 'remarks' ? 'var(--accent-blue)' : undefined, opacity: viewPrefs.sortKey === 'remarks' ? 1 : 0.35 }}
+                        ></i>
+                      </span>
+                    </th>
                   )}
                   {visibleColumns.updatedAt && (
-                    <th className="candidate-col-updated" style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', width: '130px' }}>{t('candidates.table.updatedAt', t('candidates.table.interviewTime', '更新时间'))}</th>
+                    <th 
+                      className="candidate-col-updated" 
+                      style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', width: '130px', cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => handleColumnSort('updatedAt')}
+                      title={t('candidates.sortByColumn', '点击按此列排序')}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{t('candidates.table.updatedAt', t('candidates.table.interviewTime', '更新时间'))}</span>
+                        <i
+                          className={`ph-bold ${viewPrefs.sortKey === 'updatedAt' ? (viewPrefs.sortDir === 'asc' ? 'ph-caret-up' : 'ph-caret-down') : 'ph-caret-up-down'}`}
+                          style={{ color: viewPrefs.sortKey === 'updatedAt' ? 'var(--accent-blue)' : undefined, opacity: viewPrefs.sortKey === 'updatedAt' ? 1 : 0.35 }}
+                        ></i>
+                      </span>
+                    </th>
                   )}
                   <th style={{ padding: 'var(--space-4) var(--space-4)', width: '72px', textAlign: 'right' }}></th>
                 </tr>
@@ -892,6 +1101,271 @@ export default function CandidatesPage() {
             </table>
           </div>
         </div>
+        )}
+
+        {/* Grouped View */}
+        {viewPrefs.view === 'grouped' && (
+          <div className="candidates-desktop-table" style={{ display: 'flex', flexDirection: 'column' }}>
+            {filteredCandidates.length === 0 ? (
+              <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
+                <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: 'var(--text-muted)' }}>
+                    <i className="ph-light ph-users"></i>
+                  </div>
+                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>{t('candidates.emptyList', '暂无匹配的候选人数据')}</div>
+                  {hasActiveFilters && (
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                      <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                        <i className="ph-light ph-x"></i> {t('candidates.clearFilters', '清除筛选')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAllGroupsCollapsed(false)}>
+                    <i className="ph-light ph-caret-double-down"></i> {t('candidates.expandAll', '全部展开')}
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAllGroupsCollapsed(true)}>
+                    <i className="ph-light ph-caret-double-up"></i> {t('candidates.collapseAll', '全部收起')}
+                  </button>
+                </div>
+
+                {candidateGroups.map(group => {
+                  const isCollapsed = Boolean(collapsedGroups[group.key]);
+                  const groupIcon = {
+                    company: 'ph-buildings',
+                    stage: 'ph-kanban',
+                    pic: 'ph-user',
+                    location: 'ph-map-pin'
+                  }[viewPrefs.groupBy] || 'ph-folders';
+
+                  let displayLabel = group.label;
+                  if (viewPrefs.groupBy === 'stage') {
+                    displayLabel = group.key === 'rejected' ? t('candidates.rejected', '已淘汰') : Utils.getStageMeta(group.key, t).label;
+                  } else if (group.key === NONE) {
+                    if (viewPrefs.groupBy === 'company') displayLabel = t('candidates.noCompany', '未指定企业');
+                    else if (viewPrefs.groupBy === 'pic') displayLabel = t('candidates.noPic', '未分配 PIC');
+                    else if (viewPrefs.groupBy === 'location') displayLabel = t('candidates.noLocation', '未填写地区');
+                  }
+
+                  return (
+                    <div key={group.key} className="orders-group">
+                      <button
+                        type="button"
+                        className="orders-group-header"
+                        onClick={() => toggleGroupCollapse(group.key)}
+                        aria-expanded={!isCollapsed}
+                      >
+                        <i className={`ph-bold ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}`} style={{ color: 'var(--text-muted)' }}></i>
+                        <i className={`ph-light ${groupIcon}`} style={{ color: 'var(--accent-blue)' }}></i>
+                        <span style={{ fontWeight: 600 }}>{displayLabel}</span>
+                        <span className="badge" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{group.candidates.length}</span>
+                        {viewPrefs.groupBy !== 'stage' && (
+                          <span className="orders-group-counts">
+                            {STAGE_ORDER.filter(st => group.stageCounts[st]).map(st => {
+                              const sm = Utils.getStageMeta(st, t);
+                              const isRej = st === 'rejected';
+                              return (
+                                <span key={st} style={{ color: isRej ? '#fb7185' : (sm.color || 'var(--accent-blue)') }}>
+                                  {group.stageCounts[st]} {isRej ? t('candidates.rejected', '已淘汰') : sm.label}
+                                </span>
+                              );
+                            })}
+                          </span>
+                        )}
+                      </button>
+
+                      {!isCollapsed && group.candidates.map(c => {
+                        const isSelected = selectedIds.has(c.id);
+                        const stageMeta = Utils.getStageMeta(c.stage, t);
+                        const remarkInfo = getCandidateRemarkDisplay(c);
+                        const subInfoParts = [
+                          viewPrefs.groupBy !== 'company' && c.company,
+                          c.position,
+                          c.phone,
+                          viewPrefs.groupBy !== 'location' && (c.location || c.degree),
+                          viewPrefs.groupBy !== 'pic' && c.picName && `PIC: ${c.picName}`
+                        ].filter(Boolean);
+
+                        return (
+                          <div
+                            key={c.id}
+                            className="orders-group-row"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => openCandidate(c)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') openCandidate(c); }}
+                            style={{
+                              background: isSelected ? 'rgba(59, 130, 246, 0.08)' : undefined
+                            }}
+                          >
+                            {!isReadOnlyView && (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => handleToggleSelectRow(c.id, e)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ cursor: 'pointer', flexShrink: 0, marginRight: '4px' }}
+                              />
+                            )}
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(59, 130, 246, 0.1)', color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.75rem', flexShrink: 0 }}>
+                              {c.name ? c.name.charAt(0) : '?'}
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div className="orders-row-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>{c.name}</span>
+                                {c.status === 'rejected' && (
+                                  <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600' }}>
+                                    {t('candidates.rejectedTag', '淘汰')}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="orders-row-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>{subInfoParts.join(' · ') || '-'}</span>
+                                {remarkInfo.shortText && (
+                                  <span
+                                    title={remarkInfo.fullText}
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-muted)',
+                                      background: 'rgba(255, 255, 255, 0.04)',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      border: '1px solid var(--border-hairline)'
+                                    }}
+                                  >
+                                    {remarkInfo.shortText}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {c.status === 'rejected' ? (
+                              <span className="badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: '#fb7185', border: '1px solid rgba(244, 63, 94, 0.3)', fontSize: '0.75rem' }}>
+                                {t('candidates.rejected', '已淘汰')}
+                              </span>
+                            ) : (
+                              <span className={`badge ${stageMeta.badgeClass}`}>
+                                <span className="badge-dot"></span>
+                                {stageMeta.label}
+                              </span>
+                            )}
+                            <i className="ph-light ph-caret-right" style={{ color: 'var(--text-muted)' }}></i>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Compact View */}
+        {viewPrefs.view === 'compact' && (
+          <div className="candidates-desktop-table" style={{ display: 'flex', flexDirection: 'column' }}>
+            {filteredCandidates.length === 0 ? (
+              <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
+                <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: 'var(--text-muted)' }}>
+                    <i className="ph-light ph-users"></i>
+                  </div>
+                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>{t('candidates.emptyList', '暂无匹配的候选人数据')}</div>
+                  {hasActiveFilters && (
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                      <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                        <i className="ph-light ph-x"></i> {t('candidates.clearFilters', '清除筛选')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="orders-compact">
+                {filteredCandidates.map(c => {
+                  const isSelected = selectedIds.has(c.id);
+                  const stageMeta = Utils.getStageMeta(c.stage, t);
+                  const remarkInfo = getCandidateRemarkDisplay(c);
+                  const statusColor = c.status === 'rejected' ? '#f43f5e' : (stageMeta.color || 'var(--accent-blue)');
+                  return (
+                    <div
+                      key={c.id}
+                      className="orders-compact-row"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openCandidate(c)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') openCandidate(c); }}
+                      style={{
+                        background: isSelected ? 'rgba(59, 130, 246, 0.08)' : undefined
+                      }}
+                    >
+                      {!isReadOnlyView && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleToggleSelectRow(c.id, e)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer', flexShrink: 0 }}
+                        />
+                      )}
+                      <span className="orders-compact-dot" style={{ background: statusColor }}></span>
+                      <span className="orders-compact-text">
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{c.name}</span>
+                        {c.status === 'rejected' && (
+                          <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600', marginLeft: '6px' }}>
+                            {t('candidates.rejectedTag', '淘汰')}
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                          {c.company ? c.company : t('candidates.noCompanyAssigned', '未指定企业')}
+                        </span>
+                        {c.position && (
+                          <>
+                            {' – '}
+                            <span style={{ color: 'var(--text-muted)' }}>{c.position}</span>
+                          </>
+                        )}
+                        {(c.location || c.degree) && (
+                          <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{' · '}{[c.location, c.degree].filter(Boolean).join(' ')}</span>
+                        )}
+                        {c.picName && (
+                          <span style={{ color: 'var(--accent-blue)', opacity: 0.8, marginLeft: '6px', fontSize: '0.72rem' }}>[PIC: {c.picName}]</span>
+                        )}
+                      </span>
+                      {remarkInfo.shortText && (
+                        <span
+                          title={remarkInfo.fullText}
+                          style={{
+                            fontSize: '0.72rem',
+                            color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-muted)',
+                            maxWidth: '180px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-hairline)',
+                            flexShrink: 0
+                          }}
+                        >
+                          {remarkInfo.shortText}
+                        </span>
+                      )}
+                      <span className="orders-compact-status" style={{ color: statusColor }}>
+                        {c.status === 'rejected' ? t('candidates.rejected', '已淘汰') : stageMeta.label}
+                      </span>
+                      <i className="ph-light ph-caret-right" style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}></i>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Mobile Cards View (Touch-Optimized for Small Screens) */}
         <div className="candidates-mobile-cards">
