@@ -43,12 +43,12 @@ export default function RootLayout({ children }) {
           id="theme-initializer"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('talent_flow_theme');if(t==='light'||t==='gemini'){document.documentElement.setAttribute('data-theme',t);}var s=localStorage.getItem('talent_flow_font_size');if(s==='14'||s==='16'||s==='18'){document.documentElement.style.setProperty('--app-font-size',s+'px');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('talent_flow_theme');if(t==='light'||t==='gemini'||t==='tactical'){document.documentElement.setAttribute('data-theme',t);}var s=localStorage.getItem('talent_flow_font_size');if(s==='14'||s==='16'||s==='18'){document.documentElement.style.setProperty('--app-font-size',s+'px');}}catch(e){}})();`,
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
         
         <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/light/style.css" />
         <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.2/src/regular/style.css" />

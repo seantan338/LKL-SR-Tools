@@ -175,4 +175,61 @@ html[data-theme="gemini"] ::-webkit-scrollbar-thumb:hover {
   transition: opacity 0.6s ease;
 }
 
+/* ==========================================================================
+   Tactical Command Background Grid, CRT Scanlines & Scrollbars
+   ========================================================================== */
+html[data-theme="tactical"] body,
+.tactical-bg {
+  background-color: #060b08;
+  background-image:
+    linear-gradient(rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+  background-attachment: fixed;
+  position: relative;
+  overflow-x: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+/* CRT 战术微扫描线效果（纯 CSS，极轻量，不阻挡点击） */
+html[data-theme="tactical"] body::after,
+.tactical-bg::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 9990;
+}
+
+html[data-theme="tactical"] h1,
+html[data-theme="tactical"] h2,
+html[data-theme="tactical"] h3,
+html[data-theme="tactical"] h4 {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.18);
+}
+
+html[data-theme="tactical"] ::selection {
+  background: rgba(16, 185, 129, 0.85);
+  color: #060b08;
+}
+
+html[data-theme="tactical"] ::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.28);
+  border-radius: 0;
+}
+
+html[data-theme="tactical"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.55);
+}
+
 

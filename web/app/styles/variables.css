@@ -347,3 +347,123 @@ html[data-theme="gemini"],
   --empty-icon-bg: rgba(168, 85, 247, 0.08);
 }
 
+/* ==========================================================================
+   Tactical Command Theme Override (战术指挥舱 - C4ISR Military HUD Archetype)
+   ========================================================================== */
+html[data-theme="tactical"],
+[data-theme="tactical"] {
+  color-scheme: dark;
+
+  /* 主色基准：深墨绿暗渊底舱与战术面板 */
+  --bg-void: #060b08;
+  --bg-surface: #08100c;
+  --bg-surface-elevated: #0a140f;
+  --bg-surface-overlay: #0e1c15;
+
+  /* Double-Bezel 军工装甲外壳 */
+  --bezel-shell-bg: rgba(16, 185, 129, 0.22);
+  --bezel-shell-border: rgba(16, 185, 129, 0.35);
+  --bezel-shell-padding: 1px;
+  --bezel-shell-radius: 0px;
+  --bezel-core-bg: rgba(10, 20, 15, 0.92);
+  --bezel-core-radius: 0px;
+  --bezel-core-shadow: inset 0 0 18px rgba(16, 185, 129, 0.05);
+
+  /* 卡片与面板 */
+  --card-bg: rgba(10, 20, 15, 0.85);
+  --card-bg-hover: rgba(14, 28, 21, 0.92);
+  --card-border: rgba(16, 185, 129, 0.25);
+  --card-border-hover: rgba(16, 185, 129, 0.6);
+  --header-bg: rgba(6, 11, 8, 0.88);
+  --surface-primary: rgba(10, 20, 15, 0.85);
+  --surface-secondary: rgba(8, 16, 12, 0.9);
+  --surface-tertiary: rgba(14, 28, 21, 0.95);
+
+  /* 文字色阶：荧光白绿与冷苔藓暗灰 */
+  --text-primary: #e6f4ed;
+  --text-secondary: #8ab09a;
+  --text-muted: #4b6b58;
+  --text-faint: #2d4537;
+
+  /* 全面去蓝光：将所有主色/蓝色变量重定向为 Phosphor 荧光绿与 Amber 琥珀警戒黄 */
+  --accent-blue: #10b981;
+  --accent-blue-glow: rgba(16, 185, 129, 0.25);
+  --accent-cyan: #10b981;
+  --accent-cyan-glow: rgba(16, 185, 129, 0.22);
+  --accent-emerald: #10b981;
+  --accent-emerald-glow: rgba(16, 185, 129, 0.28);
+  --accent-amber: #f59e0b;
+  --accent-amber-glow: rgba(245, 158, 11, 0.28);
+  --accent-rose: #ef4444;
+  --accent-rose-glow: rgba(239, 68, 68, 0.28);
+  --accent-violet: #10b981;
+  --accent-violet-glow: rgba(16, 185, 129, 0.22);
+  --accent-purple: #10b981;
+  --accent-purple-glow: rgba(16, 185, 129, 0.22);
+
+  /* 招聘漏斗阶段色（战术荧光与琥珀光谱） */
+  --stage-screening: #34d399;
+  --stage-screening-bg: rgba(52, 211, 153, 0.1);
+  --stage-screening-border: rgba(52, 211, 153, 0.3);
+
+  --stage-phone: #10b981;
+  --stage-phone-bg: rgba(16, 185, 129, 0.12);
+  --stage-phone-border: rgba(16, 185, 129, 0.35);
+
+  --stage-interview: #f59e0b;
+  --stage-interview-bg: rgba(245, 158, 11, 0.12);
+  --stage-interview-border: rgba(245, 158, 11, 0.35);
+
+  --stage-offer: #fbbf24;
+  --stage-offer-bg: rgba(251, 191, 36, 0.12);
+  --stage-offer-border: rgba(251, 191, 36, 0.35);
+
+  --stage-onboarding: #10b981;
+  --stage-onboarding-bg: rgba(16, 185, 129, 0.16);
+  --stage-onboarding-border: rgba(16, 185, 129, 0.45);
+
+  /* 边框与分割线 */
+  --border-hairline: rgba(16, 185, 129, 0.2);
+  --border-subtle: rgba(16, 185, 129, 0.12);
+  --border-interactive: rgba(16, 185, 129, 0.45);
+  --border-focus: rgba(16, 185, 129, 0.85);
+
+  /* 仪表盘等宽字体体系 */
+  --font-display: 'Share Tech Mono', 'JetBrains Mono', 'Geist Mono', monospace;
+  --font-body: 'JetBrains Mono', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Share Tech Mono', 'Geist Mono', monospace;
+
+  /* 摒弃传统大圆角，采用硬朗军工直角 */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-pill: 2px;
+
+  /* 战术阴影 */
+  --shadow-ambient: 0 16px 40px -8px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(16, 185, 129, 0.22);
+  --shadow-card: 0 8px 24px -4px rgba(0, 0, 0, 0.7), 0 0 12px rgba(16, 185, 129, 0.06);
+  --shadow-popup: 0 24px 64px -12px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(16, 185, 129, 0.35);
+  --shadow-glow-blue: 0 0 18px 0 rgba(16, 185, 129, 0.28);
+  --shadow-inset-top: inset 0 1px 0 rgba(16, 185, 129, 0.15);
+
+  /* 表单与交互表面 */
+  --input-bg: rgba(6, 11, 8, 0.9);
+  --input-focus-bg: rgba(10, 20, 15, 0.98);
+  --input-border: rgba(16, 185, 129, 0.28);
+  --dropdown-bg: #08120d;
+  --toast-bg: #0a140f;
+  --overlay-bg: rgba(4, 8, 6, 0.82);
+  --drawer-overlay-bg: rgba(4, 8, 6, 0.75);
+  --badge-neutral-bg: rgba(16, 185, 129, 0.1);
+  --btn-secondary-bg: rgba(10, 20, 15, 0.85);
+  --btn-secondary-hover-bg: rgba(16, 185, 129, 0.14);
+  --btn-secondary-border: rgba(16, 185, 129, 0.35);
+  --btn-icon-bg: rgba(10, 20, 15, 0.8);
+  --btn-icon-hover-bg: rgba(16, 185, 129, 0.16);
+  --empty-icon-bg: rgba(16, 185, 129, 0.08);
+  --bottom-nav-bg: rgba(6, 11, 8, 0.95);
+}
+

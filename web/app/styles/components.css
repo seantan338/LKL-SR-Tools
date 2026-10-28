@@ -62,18 +62,18 @@
   transform: scale(0.98);
 }
 
-/* Primary Button with Trailing Nested Icon Circle */
+/* Primary Button with Trailing Nested Icon Circle (Restrained Clean Default for Dark/Light) */
 .btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: #2563eb;
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 4px 20px -2px var(--accent-blue-glow), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   padding-right: 0.5rem; /* Room for nested circle */
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #4b8df8 0%, #3071f2 100%);
-  box-shadow: 0 6px 28px 0 var(--accent-blue-glow), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+  background: #3b82f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .btn-icon-circle {
@@ -201,7 +201,7 @@
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 2px var(--accent-blue-glow);
   background: var(--input-focus-bg, #0d0f17);
 }
 
