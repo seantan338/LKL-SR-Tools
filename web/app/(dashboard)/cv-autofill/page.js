@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
+import { useNotifications } from '../../../lib/notification-context';
 import { useFeedback } from '../../../lib/feedback-context';
 import { useI18n } from '../../../lib/i18n-context';
 import { FirestoreStore } from '../../../lib/firestore-store';
 import { SystemLogger } from '../../../lib/logger';
 import { authFetch, getAiBackendUrl } from '../../../lib/api-client';
+import { isCandidateOwnedByUser } from '../../../lib/identity.mjs';
 
 const getInitialCvFormData = (defaultPic = '') => ({
   // 基础联络与个人核心信息 (Personal Information)
@@ -211,13 +213,15 @@ function mapCandidateToCvFormData(cand, defaultPic = '') {
 }
 
 function CvAutofillContent() {
-  const { teamId, user, userProfile } = useAuth();
+  const { teamId, user, userProfile, isOwner, isManager } = useAuth();
+  const { candidates: scopedCandidates = [], teamMembers = [], candidatesLoading: isLoadingCandidatesList } = useNotifications();
   const { showToast } = useFeedback();
   const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlCandidateId = searchParams?.get('candidateId');
 
+  const isSupervisor = Boolean(isOwner || isManager || userProfile?.role === 'owner' || userProfile?.role === 'manager');
   const defaultPic = userProfile?.displayName || user?.displayName || '';
 
   const [aiParseTab, setAiParseTab] = useState('file'); // 'file' | 'text'
@@ -236,8 +240,7 @@ function CvAutofillContent() {
   const [isLoadingCandidate, setIsLoadingCandidate] = useState(false);
   const [isCandidatePickerOpen, setIsCandidatePickerOpen] = useState(false);
   const [candidatePickerSearch, setCandidatePickerSearch] = useState('');
-  const [teamCandidates, setTeamCandidates] = useState([]);
-  const [isLoadingCandidatesList, setIsLoadingCandidatesList] = useState(false);
+  const teamCandidates = scopedCandidates;
 
   // 100% 对齐 Sunrise CV 模板的完整表单状态
   const [formData, setFormData] = useState(() => getInitialCvFormData(defaultPic));
@@ -261,7 +264,7 @@ function CvAutofillContent() {
     showToast(t('cvAutofill.toastClearedCandidate', '已清除当前候选人载入数据，恢复空白表单'));
   };
 
-  // 监听 URL candidateId 参数并自动载入
+  // 监听 URL candidateId 参数并自动载入 (带 PDPA 归属权限核验)
   useEffect(() => {
     if (!teamId || !urlCandidateId) return;
     if (loadedCandidate && loadedCandidate.id === urlCandidateId) return;
@@ -270,9 +273,15 @@ function CvAutofillContent() {
     setIsLoadingCandidate(true);
     FirestoreStore.getCandidate(teamId, urlCandidateId)
       .then((cand) => {
-        if (!isCancelled && cand) {
+        if (isCancelled) return;
+        if (cand) {
+          if (!isSupervisor && !isCandidateOwnedByUser(cand, user, userProfile, teamMembers)) {
+            showToast(t('cvAutofill.pdpaDenied', '无权访问其他顾问名下的候选人档案 (PDPA 隐私保护)'), 'error');
+            router.replace('/cv-autofill');
+            return;
+          }
           applyCandidate(cand);
-        } else if (!isCancelled && !cand) {
+        } else {
           showToast(t('cvAutofill.candidateNotFound', '未找到指定候选人档案，可能已被删除'), 'error');
         }
       })
@@ -287,25 +296,7 @@ function CvAutofillContent() {
       });
 
     return () => { isCancelled = true; };
-  }, [teamId, urlCandidateId]);
-
-  // 从人才库订阅候选人列表以供选择弹窗使用
-  useEffect(() => {
-    if (!isCandidatePickerOpen || !teamId) return;
-    setIsLoadingCandidatesList(true);
-    const unsub = FirestoreStore.subscribeToCandidates(
-      teamId,
-      userProfile?.role || 'member',
-      user?.uid,
-      (list) => {
-        setTeamCandidates(list || []);
-        setIsLoadingCandidatesList(false);
-      }
-    );
-    return () => {
-      if (typeof unsub === 'function') unsub();
-    };
-  }, [isCandidatePickerOpen, teamId, userProfile?.role, user?.uid]);
+  }, [teamId, urlCandidateId, isSupervisor, user, userProfile, teamMembers]);
 
   const filteredCandidates = useMemo(() => {
     if (!candidatePickerSearch.trim()) return teamCandidates.slice(0, 50);

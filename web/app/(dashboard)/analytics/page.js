@@ -48,6 +48,20 @@ export default function AnalyticsPage() {
   const [clockInStatusMsg, setClockInStatusMsg] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [exportMonth, setExportMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const exportMonthOptions = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      list.push(ym);
+    }
+    return list;
+  }, []);
 
   // Attendance Rules & Settings Modal State
   const [attendanceRules, setAttendanceRules] = useState({
@@ -148,16 +162,20 @@ export default function AnalyticsPage() {
     if (!teamId) return;
     const unsubscribe = FirestoreStore.subscribeToAttendanceRules(teamId, (rules) => {
       if (rules && typeof rules === 'object') {
-        setAttendanceRules({
+        setAttendanceRules(prev => ({
+          ...prev,
           enabled: rules.enabled ?? true,
           allowWfh: rules.allowWfh ?? true,
+          enableLunchPunch: rules.enableLunchPunch ?? false,
           maxDistanceMeters: rules.maxDistanceMeters || 100,
           maxDriftCompensation: rules.maxDriftCompensation || 40,
           officeLocations: rules.officeLocations && rules.officeLocations.length > 0
             ? rules.officeLocations
             : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }],
-          officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' }
-        });
+          officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' },
+          shiftConfig: rules.shiftConfig || DEFAULT_SHIFT_CONFIG,
+          shiftOverrides: rules.shiftOverrides || {}
+        }));
       }
     });
     return () => unsubscribe();
@@ -526,6 +544,38 @@ export default function AnalyticsPage() {
       return true;
     });
   }, [picAttendanceRecords, selectedPic, dateFilter, searchQuery]);
+
+  // Group filtered attendance records by date (descending)
+  const groupedAttendanceByDate = useMemo(() => {
+    const groups = {};
+    filteredAttendance.forEach(item => {
+      const d = item.date;
+      if (!groups[d]) {
+        groups[d] = {
+          date: d,
+          isToday: item.isToday,
+          items: []
+        };
+      }
+      groups[d].items.push(item);
+    });
+
+    return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date));
+  }, [filteredAttendance]);
+
+  const getWeekdayLabel = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', { weekday: 'short' });
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  };
 
   // -------------------------------------------------------------
   // Render Chart: PIC 推送 vs 入职对比 (Chart.js)
@@ -1005,7 +1055,7 @@ export default function AnalyticsPage() {
     });
   };
 
-  // Export Attendance Excel (Dual-Sheet Report)
+  // Export Attendance Excel (3-Sheet Report: Summary / Matrix / Details)
   const handleExportAttendanceExcel = async () => {
     if (!isHqTeam || (!isOwner && !isManager)) {
       showToast(t('analytics.exportNoPermission', '仅 HQ 本部管理人员具备全员考勤月报导出权限'), 'error');
@@ -1018,7 +1068,9 @@ export default function AnalyticsPage() {
 
     setIsExportingExcel(true);
     try {
-      const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
+      const now = new Date();
+      const fallbackMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const activeMonthStr = exportMonth || fallbackMonth;
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
 
       const attendanceLogs = logs.filter(l => !l.isDeleted && l.targetType === 'ATTENDANCE' && ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'].includes(l.action || l.type));
@@ -1030,7 +1082,6 @@ export default function AnalyticsPage() {
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
         shiftOverrides: attendanceRules.shiftOverrides || {},
-        workingDays: 22,
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -1344,34 +1395,61 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* Top Quick Excel Export Button (HQ Owner / Manager) */}
+          {/* Top Quick Excel Export Button & Month Selector (HQ Owner / Manager) */}
           {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
-            <button
-              className="btn btn-sm btn-outline"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                borderColor: 'rgba(16, 185, 129, 0.4)',
-                color: 'var(--accent-emerald)',
-                background: 'rgba(16, 185, 129, 0.08)',
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                borderRadius: 'var(--radius-md)',
-                cursor: isExportingExcel ? 'wait' : 'pointer',
-                pointerEvents: isExportingExcel ? 'none' : 'auto',
-                position: 'relative',
-                zIndex: 50,
-                flexShrink: 0
-              }}
-              onClick={handleExportAttendanceExcel}
-              disabled={isExportingExcel}
-              title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
-            >
-              <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
-              <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+              <select
+                value={exportMonth}
+                onChange={(e) => setExportMonth(e.target.value)}
+                style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  padding: '5px 8px',
+                  borderRadius: 'var(--radius-md)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  zIndex: 61
+                }}
+                title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
+              >
+                {exportMonthOptions.map(ym => (
+                  <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  borderColor: 'rgba(16, 185, 129, 0.4)',
+                  color: 'var(--accent-emerald)',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  padding: '5px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: isExportingExcel ? 'wait' : 'pointer',
+                  pointerEvents: isExportingExcel ? 'none' : 'auto',
+                  position: 'relative',
+                  zIndex: 62,
+                  flexShrink: 0
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExportAttendanceExcel();
+                }}
+                disabled={isExportingExcel}
+                title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
+              >
+                <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+                <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
+              </button>
+            </div>
           )}
 
           {/* Quick Clock-in Buttons (HQ only) */}
@@ -1695,20 +1773,44 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Attendance Log Table */}
-          <div className="bezel-shell">
-            <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
-                <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)' }}></i>
-                  {t('analytics.attendanceTableTitle', '顾问考勤打卡明细')}
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {(t('analytics.attendanceTableSub', '共检索到 {count} 条打卡记录')).replace('{count}', filteredAttendance.length)}
+          {/* Attendance Header & Actions Bar */}
+          <div className="bezel-shell" style={{ marginBottom: 'var(--space-4)' }}>
+            <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)' }}></i>
+                    {t('analytics.attendanceTableTitle', '顾问考勤打卡明细')}
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.04)', padding: '3px 8px', borderRadius: '4px' }}>
+                    {(t('analytics.attendanceTableSubWithDays', '共检索到 {count} 条打卡记录 · 分布于 {days} 天')).replace('{count}', filteredAttendance.length).replace('{days}', groupedAttendanceByDate.length)}
                   </span>
-                  {isHqTeam && (isOwner || isManager) && (
+                </div>
+                {isHqTeam && (isOwner || isManager) && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+                    <select
+                      value={exportMonth}
+                      onChange={(e) => setExportMonth(e.target.value)}
+                      style={{
+                        background: 'rgba(15, 23, 42, 0.85)',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        zIndex: 61
+                      }}
+                      title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
+                    >
+                      {exportMonthOptions.map(ym => (
+                        <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+                      ))}
+                    </select>
                     <button
+                      type="button"
                       className="btn btn-sm btn-outline"
                       style={{
                         display: 'inline-flex',
@@ -1724,293 +1826,385 @@ export default function AnalyticsPage() {
                         cursor: isExportingExcel ? 'wait' : 'pointer',
                         pointerEvents: isExportingExcel ? 'none' : 'auto',
                         position: 'relative',
-                        zIndex: 50,
+                        zIndex: 62,
                         flexShrink: 0
                       }}
-                      onClick={handleExportAttendanceExcel}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportAttendanceExcel();
+                      }}
                       disabled={isExportingExcel}
-                      title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
+                      title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
                     >
                       <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
                       <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
                     </button>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttPic', '打卡人 (PIC)')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttDate', '考勤日期')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colClockOut', '下班签退')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时跨度')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colVerifyMethod', '核验凭证')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定阶梯班次')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colMainProgress', '当日主要工作推进')}</th>
-                      <th style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>{t('analytics.colAction', '操作')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingLogs ? (
-                      <tr>
-                        <td colSpan="10" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
-                          <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }}></i>
-                          {t('analytics.loadingLogs', '正在加载实时打卡记录...')}
-                        </td>
-                      </tr>
-                    ) : filteredAttendance.length === 0 ? (
-                      <tr>
-                        <td colSpan="10" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
-                          {t('analytics.emptyAttendance', '所选时间范围内暂无打卡记录，可点击上方「上班签到」立即打卡')}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredAttendance.map((item, idx) => {
-                        const firstTimeStr = (item.manualClockIn || item.firstActionTime)?.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '-';
-                        const clockOutTimeStr = item.manualClockOut ? item.manualClockOut.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
-                        
-                        return (
-                          <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>
-                                  {item.picName.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                  <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{item.picName}</div>
-                                  {item.userEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.userEmail}</div>}
-                                </div>
-                              </div>
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
-                              <span style={{ fontWeight: '500', color: item.isToday ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
-                                {item.date} {item.isToday ? t('analytics.todayTag', '(今天)') : ''}
-                              </span>
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                  {firstTimeStr}
-                                </span>
-                                {item.allClockIns && item.allClockIns.length > 1 && (
-                                  <span
-                                    style={{
-                                      fontSize: '10px',
-                                      padding: '1px 5px',
-                                      borderRadius: '4px',
-                                      background: 'rgba(16, 185, 129, 0.15)',
-                                      color: 'var(--accent-emerald)',
-                                      cursor: 'help'
-                                    }}
-                                    title={t('analytics.multipleClockInTip', { count: item.allClockIns.length, list: item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n') }, `共 ${item.allClockIns.length} 次签到打卡\n` + item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n'))}
-                                  >
-                                    x{item.allClockIns.length}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              {clockOutTimeStr ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                    {clockOutTimeStr}
-                                  </span>
-                                  {item.allClockOuts && item.allClockOuts.length > 1 && (
-                                    <span
-                                      style={{
-                                        fontSize: '10px',
-                                        padding: '1px 5px',
-                                        borderRadius: '4px',
-                                        background: 'rgba(59, 130, 246, 0.15)',
-                                        color: 'var(--accent-blue)',
-                                        cursor: 'help'
-                                      }}
-                                      title={t('analytics.multipleClockOutTip', { count: item.allClockOuts.length, list: item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n') }, `共 ${item.allClockOuts.length} 次签退打卡\n` + item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n'))}
-                                    >
-                                      x{item.allClockOuts.length}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)' }}>-</span>
-                              )}
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
-                              {item.manualClockOut && item.durationHours !== null && item.durationHours !== undefined ? (
-                                item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)' }}>-</span>
-                              )}
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              {item.verifyMethod === 'WFH' ? (
-                                <span style={{
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: '600',
-                                  color: '#c084fc',
-                                  background: 'rgba(168, 85, 247, 0.15)',
-                                  border: '1px solid rgba(168, 85, 247, 0.3)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px'
-                                }} title={item.verifySnapshot?.wfhNote || `IP: ${item.verifySnapshot?.ip || 'Remote'}`}>
-                                  <i className="ph-bold ph-house-line"></i>
-                                  {t('analytics.methodWfh', '居家办公 (WFH)')}
-                                </span>
-                              ) : item.verifyMethod === 'WIFI_IP' ? (
-                                <span style={{
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: '600',
-                                  color: 'var(--accent-emerald)',
-                                  background: 'rgba(16, 185, 129, 0.15)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px'
-                                }} title={`IP: ${item.verifySnapshot?.ip || 'LAN'}`}>
-                                  <i className="ph-bold ph-wifi-high"></i>
-                                  {t('analytics.methodWifi', '公司 Wi-Fi')}
-                                </span>
-                              ) : item.verifyMethod === 'GPS_GEOFENCE' ? (
-                                <span style={{
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: '600',
-                                  color: 'var(--accent-blue)',
-                                  background: 'rgba(59, 130, 246, 0.15)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px'
-                                }} title={`Effective: ${Math.round(item.verifySnapshot?.effectiveDistance || 0)}m (±${Math.round(item.verifySnapshot?.accuracy || 0)}m)`}>
-                                  <i className="ph-bold ph-map-pin"></i>
-                                  {t('analytics.methodGeofence', '100m围栏')} ({Math.round(item.verifySnapshot?.effectiveDistance || 0)}m)
-                                </span>
-                              ) : item.verifyMethod === 'RULE_DISABLED' ? (
-                                <span style={{
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: '600',
-                                  color: 'var(--accent-amber)',
-                                  background: 'rgba(234, 179, 8, 0.15)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px'
-                                }}>
-                                  <i className="ph-bold ph-lock-simple-open"></i>
-                                  {t('analytics.methodRuleDisabled', '规则免限')}
-                                </span>
-                              ) : (
-                                <span style={{
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: '500',
-                                  color: 'var(--text-muted)',
-                                  background: 'rgba(255, 255, 255, 0.04)',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px'
-                                }}>
-                                  <i className="ph-light ph-terminal-window"></i>
-                                  {t('analytics.methodSystem', '系统操作')}
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                                  {item.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
-                                </span>
-                                {item.isOverridden ? (
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '10px',
-                                    fontWeight: '700',
-                                    color: '#c084fc',
-                                    background: 'rgba(168, 85, 247, 0.15)',
-                                    padding: '1px 6px',
-                                    borderRadius: '4px',
-                                    width: 'fit-content',
-                                    border: '1px solid rgba(168, 85, 247, 0.3)'
-                                  }} title={`调整人: ${item.overrideData?.overrideBy || '主管'}\n原因: ${item.overrideData?.reason || '无'}\n时间: ${item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''}`}>
-                                    <i className="ph-bold ph-pencil-simple"></i>
-                                    {t('analytics.tagOverridden', '主管调整')}
-                                  </span>
-                                ) : (
-                                  item.shiftAnalysis?.shift?.endStr ? (
-                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                      底线 {item.shiftAnalysis.shift.endStr}
-                                    </span>
-                                  ) : null
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                              <span style={{
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
-                                fontWeight: '600',
-                                color: item.statusColor,
-                                background: `${item.statusColor}18`,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}>
-                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
-                                {item.statusLabel || (
-                                  item.status === 'online'
-                                    ? t('analytics.statusOnDuty', '工作中 (活跃)')
-                                    : item.isToday
-                                      ? t('analytics.statusJustClockedIn', '今日已打卡')
-                                      : t('analytics.statusFullShift', '正常完成')
-                                )}
-                              </span>
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
-                              <div
-                                style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                                title={item.allPunches && item.allPunches.length > 0 ? item.allPunches.map(p => `[${p.timeStr}] ${p.actionType}: ${p.note || ''}`).join('\n') : item.actions.map(a => a.note).join('; ')}
-                              >
-                                {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '员工考勤打卡')) : t('analytics.onlineProgressNote', '在线跟进')}
-                              </div>
-                            </td>
-                            <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
-                              {canManageAttendance ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-sm"
-                                  style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
-                                  title={t('analytics.btnOverrideShift', '调整核定班次')}
-                                  onClick={() => handleOpenOverrideModal(item)}
-                                >
-                                  <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
-                                  {t('analytics.btnEditShift', '改班')}
-                                </button>
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Grouped Attendance Cards by Date */}
+          {loadingLogs ? (
+            <div className="bezel-shell">
+              <div className="bezel-core" style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite', marginRight: '8px' }}></i>
+                {t('analytics.loadingLogs', '正在加载实时打卡记录...')}
+              </div>
+            </div>
+          ) : groupedAttendanceByDate.length === 0 ? (
+            <div className="bezel-shell">
+              <div className="bezel-core" style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                {t('analytics.emptyAttendance', '所选时间范围内暂无打卡记录，可点击上方「上班签到」立即打卡')}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              {groupedAttendanceByDate.map((group) => {
+                const dayWeekday = getWeekdayLabel(group.date);
+                return (
+                  <div key={group.date} className="bezel-shell">
+                    <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+                      {/* Box Day Header */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 'var(--space-3)',
+                        paddingBottom: 'var(--space-3)',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            background: group.isToday ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: group.isToday ? 'var(--accent-blue)' : 'var(--text-secondary)'
+                          }}>
+                            <i className="ph-bold ph-calendar-dots" style={{ fontSize: '18px' }}></i>
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                fontSize: '15px',
+                                fontWeight: '700',
+                                color: group.isToday ? 'var(--accent-blue)' : 'var(--text-primary)',
+                                fontFamily: 'monospace',
+                                letterSpacing: '0.02em'
+                              }}>
+                                {group.date}
+                              </span>
+                              {dayWeekday && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  padding: '1px 7px',
+                                  borderRadius: '4px',
+                                  background: 'rgba(255, 255, 255, 0.06)',
+                                  color: 'var(--text-secondary)'
+                                }}>
+                                  {dayWeekday}
+                                </span>
+                              )}
+                              {group.isToday && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  background: 'rgba(59, 130, 246, 0.18)',
+                                  color: 'var(--accent-blue)',
+                                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px'
+                                }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)', display: 'inline-block' }}></span>
+                                  {t('analytics.todayTagLabel', '今日 (Today)')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{
+                            fontSize: '12px',
+                            color: 'var(--text-secondary)',
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-subtle)'
+                          }}>
+                            {(t('analytics.dayAdvisorCount', '当日出勤 {count} 人')).replace('{count}', group.items.length)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Day Table */}
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttPic', '打卡人 (PIC)')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colClockOut', '下班签退')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时跨度')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colVerifyMethod', '核验凭证')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定阶梯班次')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colMainProgress', '当日主要工作推进')}</th>
+                              <th style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>{t('analytics.colAction', '操作')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.items.map((item, idx) => {
+                              const firstTimeStr = (item.manualClockIn || item.firstActionTime)?.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '-';
+                              const clockOutTimeStr = item.manualClockOut ? item.manualClockOut.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+
+                              return (
+                                <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>
+                                        {item.picName.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{item.picName}</div>
+                                        {item.userEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.userEmail}</div>}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                        {firstTimeStr}
+                                      </span>
+                                      {item.allClockIns && item.allClockIns.length > 1 && (
+                                        <span
+                                          style={{
+                                            fontSize: '10px',
+                                            padding: '1px 5px',
+                                            borderRadius: '4px',
+                                            background: 'rgba(16, 185, 129, 0.15)',
+                                            color: 'var(--accent-emerald)',
+                                            cursor: 'help'
+                                          }}
+                                          title={t('analytics.multipleClockInTip', { count: item.allClockIns.length, list: item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n') }, `共 ${item.allClockIns.length} 次签到打卡\n` + item.allClockIns.map((c, i) => `${i + 1}. ${c.timeStr}${i === 0 ? ' (最早生效)' : ''}`).join('\n'))}
+                                        >
+                                          x{item.allClockIns.length}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                    {clockOutTimeStr ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                          {clockOutTimeStr}
+                                        </span>
+                                        {item.allClockOuts && item.allClockOuts.length > 1 && (
+                                          <span
+                                            style={{
+                                              fontSize: '10px',
+                                              padding: '1px 5px',
+                                              borderRadius: '4px',
+                                              background: 'rgba(59, 130, 246, 0.15)',
+                                              color: 'var(--accent-blue)',
+                                              cursor: 'help'
+                                            }}
+                                            title={t('analytics.multipleClockOutTip', { count: item.allClockOuts.length, list: item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n') }, `共 ${item.allClockOuts.length} 次签退打卡\n` + item.allClockOuts.map((c, i) => `${i + 1}. ${c.timeStr}${i === item.allClockOuts.length - 1 ? ' (最晚最终生效)' : ' (已覆盖)'}`).join('\n'))}
+                                          >
+                                            x{item.allClockOuts.length}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
+                                    {item.manualClockOut && item.durationHours !== null && item.durationHours !== undefined ? (
+                                      item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')
+                                    ) : (
+                                      <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                    {item.verifyMethod === 'WFH' ? (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        color: '#c084fc',
+                                        background: 'rgba(168, 85, 247, 0.15)',
+                                        border: '1px solid rgba(168, 85, 247, 0.3)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }} title={item.verifySnapshot?.wfhNote || `IP: ${item.verifySnapshot?.ip || 'Remote'}`}>
+                                        <i className="ph-bold ph-house-line"></i>
+                                        {t('analytics.methodWfh', '居家办公 (WFH)')}
+                                      </span>
+                                    ) : item.verifyMethod === 'WIFI_IP' ? (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        color: 'var(--accent-emerald)',
+                                        background: 'rgba(16, 185, 129, 0.15)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }} title={`IP: ${item.verifySnapshot?.ip || 'LAN'}`}>
+                                        <i className="ph-bold ph-wifi-high"></i>
+                                        {t('analytics.methodWifi', '公司 Wi-Fi')}
+                                      </span>
+                                    ) : item.verifyMethod === 'GPS_GEOFENCE' ? (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        color: 'var(--accent-blue)',
+                                        background: 'rgba(59, 130, 246, 0.15)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }} title={`Effective: ${Math.round(item.verifySnapshot?.effectiveDistance || 0)}m (±${Math.round(item.verifySnapshot?.accuracy || 0)}m)`}>
+                                        <i className="ph-bold ph-map-pin"></i>
+                                        {t('analytics.methodGeofence', '100m围栏')} ({Math.round(item.verifySnapshot?.effectiveDistance || 0)}m)
+                                      </span>
+                                    ) : item.verifyMethod === 'RULE_DISABLED' ? (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        color: 'var(--accent-amber)',
+                                        background: 'rgba(234, 179, 8, 0.15)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}>
+                                        <i className="ph-bold ph-lock-simple-open"></i>
+                                        {t('analytics.methodRuleDisabled', '规则免限')}
+                                      </span>
+                                    ) : (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '500',
+                                        color: 'var(--text-muted)',
+                                        background: 'rgba(255, 255, 255, 0.04)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}>
+                                        <i className="ph-light ph-terminal-window"></i>
+                                        {t('analytics.methodSystem', '系统操作')}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                        {item.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                                      </span>
+                                      {item.isOverridden ? (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          fontSize: '10px',
+                                          fontWeight: '700',
+                                          color: '#c084fc',
+                                          background: 'rgba(168, 85, 247, 0.15)',
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          width: 'fit-content',
+                                          border: '1px solid rgba(168, 85, 247, 0.3)'
+                                        }} title={`调整人: ${item.overrideData?.overrideBy || '主管'}\n原因: ${item.overrideData?.reason || '无'}\n时间: ${item.overrideData?.updatedAt ? new Date(item.overrideData.updatedAt).toLocaleString() : ''}`}>
+                                          <i className="ph-bold ph-pencil-simple"></i>
+                                          {t('analytics.tagOverridden', '主管调整')}
+                                        </span>
+                                      ) : (
+                                        item.shiftAnalysis?.shift?.endStr ? (
+                                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                            底线 {item.shiftAnalysis.shift.endStr}
+                                          </span>
+                                        ) : null
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                    <span style={{
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      color: item.statusColor,
+                                      background: `${item.statusColor}18`,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}>
+                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
+                                      {item.statusLabel || (
+                                        item.status === 'online'
+                                          ? t('analytics.statusOnDuty', '工作中 (活跃)')
+                                          : item.isToday
+                                            ? t('analytics.statusJustClockedIn', '今日已打卡')
+                                            : t('analytics.statusFullShift', '正常完成')
+                                      )}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
+                                    <div
+                                      style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                      title={item.allPunches && item.allPunches.length > 0 ? item.allPunches.map(p => `[${p.timeStr}] ${p.actionType}: ${p.note || ''}`).join('\n') : item.actions.map(a => a.note).join('; ')}
+                                    >
+                                      {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '员工考勤打卡')) : t('analytics.onlineProgressNote', '在线跟进')}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
+                                    {canManageAttendance ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
+                                        title={t('analytics.btnOverrideShift', '调整核定班次')}
+                                        onClick={() => handleOpenOverrideModal(item)}
+                                      >
+                                        <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
+                                        {t('analytics.btnEditShift', '改班')}
+                                      </button>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
         </div>
       )}

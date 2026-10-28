@@ -81,7 +81,7 @@ const PAGE_TITLES = {
   },
   '/leaderboard': { 
     title: 'Leaderboard', 
-    subtitle: '公司本部考勤与销售业绩数据排行',
+    subtitle: '团队考勤与销售业绩实时排行',
     docSlug: 'leaderboard',
     helpGuide: [
       '销售业绩排行：统计顾问成功入职、Offer 与面试等核心业务成单效能',

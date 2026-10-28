@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '../../components/Sidebar';
 import Header from '../../components/Header';
 import NotificationPanel from '../../components/NotificationPanel';
@@ -13,11 +14,20 @@ import { useAuth } from '../../lib/auth-context';
 import { useI18n } from '../../lib/i18n-context';
 
 export default function DashboardLayout({ children }) {
-  const { user, userProfile, signOut } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, userProfile, signOut, isOwner, isManager } = useAuth();
   const { t } = useI18n();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  // Guard /analytics route: strictly Owner & Manager only (Recruiters are redirected to /overview)
+  useEffect(() => {
+    if (pathname === '/analytics' && userProfile && userProfile.role !== 'pending' && !isOwner && !isManager) {
+      router.replace('/overview');
+    }
+  }, [pathname, userProfile, isOwner, isManager, router]);
 
   // Background ping to wake up the free Render Python instance early
   useEffect(() => {
@@ -90,7 +100,7 @@ export default function DashboardLayout({ children }) {
         <main className="app-main">
           <Header toggleSidebar={toggleSidebar} />
           <div className="app-content">
-            {children}
+            {(pathname === '/analytics' && userProfile && !isOwner && !isManager) ? null : children}
           </div>
         </main>
       </div>

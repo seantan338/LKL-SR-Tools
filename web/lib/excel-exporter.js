@@ -1,27 +1,53 @@
 /**
- * TALENT FLOW - 企业级多 Sheet Excel 导出引擎 (ExcelExporter)
- * 支持纯前端 0 延迟秒出报表、公式注入安全转义、多 Sheet 封装与列宽自适应
+ * TALENT FLOW - 企业级多 Sheet Excel 导出引擎 (ExcelExporter v2.0.0)
+ * 纯前端 0 延迟秒出报表、公式注入安全转义、三表联动（总账/日历矩阵/流水明细）与智能双宽列宽自适应
  */
 
-import { saveAs } from 'file-saver';
-import { CascadeShiftEngine } from './cascade-shift-engine';
+import { CascadeShiftEngine } from './cascade-shift-engine.js';
+import { resolveCanonicalPic } from './identity.mjs';
+
+/**
+ * 纯原生浏览器文件下载触发器（彻底规避 file-saver 在 Turbopack/Webpack 下的 UMD 导出兼容崩溃）
+ * @param {Blob} blob
+ * @param {string} filename
+ */
+function triggerBrowserDownload(blob, filename) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    if (link.parentNode) link.parentNode.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, 1500);
+}
 
 export const EXCEL_I18N = {
   zh: {
     sheetSummary: (m) => `${m} 全员出勤总账`,
+    sheetMatrix: (m) => `${m} 考勤日历矩阵`,
     sheetDetail: '每日打卡流水明细',
     colPicName: '顾问姓名 (PIC)',
     colEmail: '注册邮箱',
-    colWorkDays: '应出勤工作日 (天)',
+    colTotalWorkDays: '当月总工作日 (天)',
+    colElapsedWorkDays: '截止目前应出勤 (天)',
     colPresentDays: '实际出勤天数 (天)',
     colOfficeDays: '办公室打卡 (天)',
     colWfhDays: '🏠 WFH居家 (天)',
     colCompliantDays: '阶梯班次达标 (天)',
     colViolations: '迟到/早退违规 (次)',
-    colMissedAnomalies: '漏打卡/异常 (次)',
-    colComplianceRate: '综合合规出勤率 (%)',
+    colMissedAnomalies: '未签退/异常 (次)',
+    colAttendanceRate: '月度出勤率 (%)',
+    colComplianceRate: '班次合规率 (%)',
     colDate: '考勤日期',
+    colWeekday: '星期',
     colFirstIn: '首次签到 (In)',
+    colLunchOut: '午休离开',
+    colLunchIn: '午休返回',
     colShift: '核定阶梯班次',
     colCutoff: '要求下班底线',
     colLastOut: '实际签退 (Out)',
@@ -35,23 +61,33 @@ export const EXCEL_I18N = {
     methodWifi: '公司 Wi-Fi',
     methodGps: '100m 地理围栏',
     methodRegular: '日常打卡',
+    weekendRest: '休',
+    absentDash: '—',
+    missedOutShort: '未签退',
+    weekdays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
     emptySheetErr: '导出内容为空，无有效 Sheet'
   },
   en: {
     sheetSummary: (m) => `${m} Attendance Summary`,
+    sheetMatrix: (m) => `${m} Calendar Matrix`,
     sheetDetail: 'Daily Punch Log Details',
     colPicName: 'Consultant / PIC',
     colEmail: 'Registered Email',
-    colWorkDays: 'Working Days (Days)',
-    colPresentDays: 'Days Present (Days)',
-    colOfficeDays: 'Office Days (Days)',
-    colWfhDays: '🏠 WFH Days (Days)',
-    colCompliantDays: 'Compliant Shifts (Days)',
-    colViolations: 'Violations / Late (Count)',
-    colMissedAnomalies: 'Missed / Anomalies (Count)',
-    colComplianceRate: 'Compliance Rate (%)',
+    colTotalWorkDays: 'Month Working Days',
+    colElapsedWorkDays: 'Expected Days (To Date)',
+    colPresentDays: 'Days Present',
+    colOfficeDays: 'Office Days',
+    colWfhDays: '🏠 WFH Days',
+    colCompliantDays: 'Compliant Shifts',
+    colViolations: 'Violations / Late',
+    colMissedAnomalies: 'Missed / Anomalies',
+    colAttendanceRate: 'Attendance Rate (%)',
+    colComplianceRate: 'Shift Compliance (%)',
     colDate: 'Date',
+    colWeekday: 'Day',
     colFirstIn: 'First Clock-In (In)',
+    colLunchOut: 'Lunch Out',
+    colLunchIn: 'Lunch In',
     colShift: 'Assigned Shift',
     colCutoff: 'Mandatory Cutoff',
     colLastOut: 'Actual Clock-Out (Out)',
@@ -65,9 +101,130 @@ export const EXCEL_I18N = {
     methodWifi: 'Office Wi-Fi',
     methodGps: '100m Geofence',
     methodRegular: 'Standard Check-in',
+    weekendRest: 'OFF',
+    absentDash: '—',
+    missedOutShort: 'No Out',
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     emptySheetErr: 'Export content is empty — no valid sheet found'
   }
 };
+
+/**
+ * 将 Date 对象安全格式化为 'YYYY-MM-DD'（纯数字拼接，100% 独立于系统与浏览器 locale）
+ */
+export function toIsoDateStr(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * 将 Date 对象格式化为 'HH:mm'
+ */
+export function toShortTimeStr(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const hh = String(dateObj.getHours()).padStart(2, '0');
+  const mm = String(dateObj.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+/**
+ * 解析任意格式的月份输入（如 '2026-10', '2026年10月', '2026/10'）为纯数字年月
+ */
+export function parseTargetYearMonth(monthStr) {
+  const now = new Date();
+  if (monthStr) {
+    const nums = String(monthStr).match(/\d+/g);
+    if (nums && nums.length >= 2) {
+      const n0 = parseInt(nums[0], 10);
+      const n1 = parseInt(nums[1], 10);
+      const year = n0 >= 1970 ? n0 : n1;
+      const month = n0 >= 1970 ? n1 : n0;
+      if (year >= 2000 && month >= 1 && month <= 12) {
+        return {
+          year,
+          month,
+          formatted: `${year}-${String(month).padStart(2, '0')}`
+        };
+      }
+    }
+  }
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  return {
+    year: y,
+    month: m,
+    formatted: `${y}-${String(m).padStart(2, '0')}`
+  };
+}
+
+/**
+ * 计算当月日历元数据、自然工作日总数与截止今日已过工作日
+ */
+export function getMonthCalendarMeta(year, month) {
+  const todayStr = toIsoDateStr(new Date());
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = [];
+  let totalWorkingDays = 0;
+  let elapsedWorkingDays = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    const dateStr = toIsoDateStr(dateObj);
+    const dayOfWeek = dateObj.getDay(); // 0: Sun, 6: Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isPastOrToday = dateStr <= todayStr;
+
+    if (!isWeekend) {
+      totalWorkingDays += 1;
+      if (isPastOrToday) {
+        elapsedWorkingDays += 1;
+      }
+    }
+    days.push({
+      day: d,
+      dateStr,
+      dayOfWeek,
+      isWeekend,
+      isPastOrToday
+    });
+  }
+
+  return {
+    days,
+    totalWorkingDays,
+    elapsedWorkingDays: Math.max(elapsedWorkingDays, 1),
+    todayStr
+  };
+}
+
+/**
+ * 智能中英文双宽列宽自适应算法 (Auto-Fit Column Widths)
+ * 中文字符计 2.1 宽，ASCII 字符计 1.1 宽，外加 4 字符边距，彻底杜绝表头被切
+ */
+export function computeAutoColWidths(headers = [], rows = []) {
+  const calcDisplayLen = (val) => {
+    const str = String(val ?? '');
+    let len = 0;
+    for (let i = 0; i < str.length; i++) {
+      len += str.charCodeAt(i) > 255 ? 2.1 : 1.1;
+    }
+    return Math.ceil(len);
+  };
+
+  return headers.map((h, colIdx) => {
+    let maxWch = calcDisplayLen(h);
+    rows.forEach(r => {
+      if (r && r[colIdx] !== undefined) {
+        const w = calcDisplayLen(r[colIdx]);
+        if (w > maxWch) maxWch = w;
+      }
+    });
+    return Math.min(Math.max(maxWch + 4, 12), 55);
+  });
+}
 
 /**
  * CSV / Excel 公式注入清洗器 (Formula Injection Sanitizer)
@@ -78,8 +235,7 @@ export function sanitizeExcelValue(val) {
   if (typeof val === 'number' || typeof val === 'boolean') return val;
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return '-';
-    return val.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') + ' ' +
-      val.toTimeString().split(' ')[0];
+    return toIsoDateStr(val) + ' ' + val.toTimeString().split(' ')[0];
   }
   const str = String(val).trim();
   if (/^[=+@-]/.test(str)) {
@@ -133,12 +289,12 @@ function buildXmlSpreadsheet(sheets) {
     const cleanName = (sheet.name || 'Sheet').replace(/[:\\/?*\[\]]/g, '_').slice(0, 31);
     xml += `\n <Worksheet ss:Name="${cleanName}">\n  <Table ss:DefaultRowHeight="22">`;
 
-    // 列宽定义
-    if (Array.isArray(sheet.colWidths)) {
-      sheet.colWidths.forEach(w => {
-        xml += `\n   <Column ss:AutoFitWidth="0" ss:Width="${w || 110}"/>`;
-      });
-    }
+    // 智能列宽换算为像素 (约 wch * 7.5px)
+    const autoWchs = computeAutoColWidths(sheet.headers || [], sheet.rows || []);
+    autoWchs.forEach(wch => {
+      const pxWidth = Math.min(Math.max(wch * 7.5, 80), 380);
+      xml += `\n   <Column ss:AutoFitWidth="0" ss:Width="${Math.round(pxWidth)}"/>`;
+    });
 
     // 表头行
     if (Array.isArray(sheet.headers) && sheet.headers.length > 0) {
@@ -187,7 +343,7 @@ export const ExcelExporter = {
    * 导出多 Sheet 工作簿文件
    * @param {object} params
    * @param {string} params.filename - 文件名（如 'TalentFlow_Attendance_2026-10.xlsx'）
-   * @param {Array<{ name: string, headers: string[], rows: any[][], colWidths?: number[] }>} params.sheets
+   * @param {Array<{ name: string, headers: string[], rows: any[][] }>} params.sheets
    */
   async exportWorkbook({ filename = 'Export.xlsx', sheets = [], locale = 'zh' }) {
     const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
@@ -212,10 +368,9 @@ export const ExcelExporter = {
         }
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-        // 设置列宽
-        if (sheet.colWidths) {
-          ws['!cols'] = sheet.colWidths.map(w => ({ wch: Math.round(w / 7) }));
-        }
+        // 应用智能自适应列宽
+        const autoWchs = computeAutoColWidths(sheet.headers || [], sheet.rows || []);
+        ws['!cols'] = autoWchs.map(wch => ({ wch }));
 
         const safeSheetName = (sheet.name || 'Sheet').replace(/[:\\/?*\[\]]/g, '_').slice(0, 31);
         XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
@@ -223,7 +378,7 @@ export const ExcelExporter = {
 
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(blob, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+      triggerBrowserDownload(blob, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
       return;
     } catch (importErr) {
       console.warn('XLSX dynamic import fallback to XML Spreadsheet:', importErr);
@@ -233,11 +388,11 @@ export const ExcelExporter = {
     const xmlContent = buildXmlSpreadsheet(sheets);
     const blob = new Blob([xmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const fallbackFilename = filename.replace(/\.xlsx$/i, '.xls');
-    saveAs(blob, fallbackFilename.endsWith('.xls') ? fallbackFilename : `${fallbackFilename}.xls`);
+    triggerBrowserDownload(blob, fallbackFilename.endsWith('.xls') ? fallbackFilename : `${fallbackFilename}.xls`);
   },
 
   /**
-   * 汇聚并生成内部员工考勤报表数据（包含 Sheet 1 月度总账 + Sheet 2 每日阶梯流水）
+   * 汇聚并生成内部员工考勤报表数据（包含 Sheet 1 月度总账 + Sheet 2 考勤日历矩阵 + Sheet 3 每日阶梯流水）
    * @param {object} params
    */
   buildAttendanceReportData({
@@ -246,13 +401,16 @@ export const ExcelExporter = {
     hqMembers = [],
     shiftConfig = null,
     shiftOverrides = {},
-    workingDays = 22,
     locale = 'zh'
   }) {
     const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
 
-    // 1. 过滤当月事件并按日期+顾问 UID 聚合
-    // 键格式: `${dateStr}__${picKey}`
+    // 1. 规范化月份并提取日历元数据
+    const { year, month, formatted: formattedMonth } = parseTargetYearMonth(monthStr);
+    const meta = getMonthCalendarMeta(year, month);
+
+    // 2. 严格按纯数字年份与月份过滤打卡事件，并按日期+顾问标准身份聚合
+    // 键格式: `${dateStr}__${picCanonicalKey}`
     const dailyMap = {};
 
     attendanceEvents.forEach(evt => {
@@ -260,23 +418,33 @@ export const ExcelExporter = {
       const dateObj = CascadeShiftEngine.toSafeDate(ts);
       if (!dateObj) return;
 
-      const dStr = dateObj.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
-      if (!dStr.startsWith(monthStr)) return; // 严格过滤在指定月份内
+      // 纯数学年份月份比对，100% 免疫中英文或系统区域格式差异
+      if (dateObj.getFullYear() !== year || (dateObj.getMonth() + 1) !== month) return;
+      const dStr = toIsoDateStr(dateObj);
 
-      const picName = evt.picName || evt.userName || evt.user?.displayName || (evt.userEmail ? evt.userEmail.split('@')[0] : labels.defaultPic);
-      const userId = evt.userId || evt.user?.uid || picName;
+      const rawPic = evt.picName || evt.userName || evt.user?.displayName || (evt.userEmail ? evt.userEmail.split('@')[0] : labels.defaultPic);
+      const rawUid = evt.userId || evt.user?.uid || '';
+      const canonical = resolveCanonicalPic(rawPic, rawUid, hqMembers);
+      const picName = canonical.displayName || rawPic;
+      const userId = canonical.uid || rawUid || canonical.key || picName;
+      const userEmail = evt.userEmail || evt.user?.email || '';
+
       const key = `${dStr}__${userId}`;
 
       if (!dailyMap[key]) {
         dailyMap[key] = {
           dateStr: dStr,
+          dateObj,
           userId,
           picName,
-          userEmail: evt.userEmail || evt.user?.email || '',
+          userEmail,
           events: [],
           verifyMethod: evt.verifyMethod || '',
           verifySnapshot: evt.verifySnapshot || null
         };
+      }
+      if (userEmail && !dailyMap[key].userEmail) {
+        dailyMap[key].userEmail = userEmail;
       }
       dailyMap[key].events.push({
         ...evt,
@@ -289,31 +457,41 @@ export const ExcelExporter = {
       }
     });
 
-    // 2. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次）
-    const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+    // 3. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次）
     const dailyLogs = Object.values(dailyMap).map(day => {
       const overrideKey = `${day.dateStr}__${day.picName}`;
       const overrideKeyUid = `${day.dateStr}__${day.userId}`;
       const overrideShift = (shiftOverrides && (shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid])) || null;
-      const isToday = day.dateStr === todayStr;
+      const isToday = day.dateStr === meta.todayStr;
       const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale, overrideShift, isToday });
+
+      // 提取午休打卡流水
+      const lunchOutEvt = day.events.find(e => e.type === 'LUNCH_OUT');
+      const lunchInEvt = day.events.find(e => e.type === 'LUNCH_IN');
+      const lunchOutStr = lunchOutEvt ? toShortTimeStr(lunchOutEvt.dateObj) : '-';
+      const lunchInStr = lunchInEvt ? toShortTimeStr(lunchInEvt.dateObj) : '-';
+
       return {
         ...day,
-        analysis: res
+        analysis: res,
+        lunchOutStr,
+        lunchInStr
       };
     });
 
     // 排序：按日期升序，同日按姓名排序
     dailyLogs.sort((a, b) => a.dateStr.localeCompare(b.dateStr) || a.picName.localeCompare(b.picName));
 
-    // 3. 构建 Sheet 1: 月度全员出勤总账 (Monthly Summary)
-    // 聚合每位成员的月度指标
+    // 4. 构建 Sheet 1: 月度全员出勤总账 (Monthly Attendance Summary)
     const memberSummaryMap = {};
 
-    // 预填充所有 HQ 成员
+    // 预填充所有 HQ 顾问成员
     hqMembers.forEach(m => {
-      const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : labels.defaultPic);
-      memberSummaryMap[m.id] = {
+      const canonical = resolveCanonicalPic(m.displayName || m.name || '', m.id || m.uid || '', hqMembers);
+      const uid = m.id || m.uid || canonical.uid;
+      const name = canonical.displayName || m.displayName || m.name || (m.email ? m.email.split('@')[0] : labels.defaultPic);
+      memberSummaryMap[uid] = {
+        uid,
         name,
         email: m.email || '',
         daysPresent: 0,
@@ -325,11 +503,18 @@ export const ExcelExporter = {
       };
     });
 
-    // 累加每日判定结果
+    // 累加每日判定结果，支持 uid / email / displayName 多重容错绑定
     dailyLogs.forEach(log => {
-      const uid = log.userId;
-      if (!memberSummaryMap[uid]) {
-        memberSummaryMap[uid] = {
+      let target = memberSummaryMap[log.userId];
+      if (!target && log.userEmail) {
+        target = Object.values(memberSummaryMap).find(m => m.email && m.email.toLowerCase() === log.userEmail.toLowerCase());
+      }
+      if (!target && log.picName) {
+        target = Object.values(memberSummaryMap).find(m => m.name && m.name.toLowerCase() === log.picName.toLowerCase());
+      }
+      if (!target) {
+        target = {
+          uid: log.userId,
           name: log.picName,
           email: log.userEmail,
           daysPresent: 0,
@@ -339,22 +524,23 @@ export const ExcelExporter = {
           violationCount: 0,
           missingPunchCount: 0
         };
+        memberSummaryMap[log.userId] = target;
       }
-      const sum = memberSummaryMap[uid];
+
       if (log.analysis.hasAttendance) {
-        sum.daysPresent += 1;
+        target.daysPresent += 1;
         const isWfh = log.verifyMethod === 'WFH' || log.verifySnapshot?.method === 'WFH';
-        if (isWfh) sum.wfhDays += 1;
-        else sum.officeDays += 1;
+        if (isWfh) target.wfhDays += 1;
+        else target.officeDays += 1;
 
         if (log.analysis.isCompliant) {
-          sum.compliantDays += 1;
+          target.compliantDays += 1;
         }
         if (log.analysis.isViolation || log.analysis.isLate) {
-          sum.violationCount += 1;
+          target.violationCount += 1;
         }
         if (log.analysis.isMissingPunch) {
-          sum.missingPunchCount += 1;
+          target.missingPunchCount += 1;
         }
       }
     });
@@ -362,37 +548,95 @@ export const ExcelExporter = {
     const summaryHeaders = [
       labels.colPicName,
       labels.colEmail,
-      labels.colWorkDays,
+      labels.colTotalWorkDays,
+      labels.colElapsedWorkDays,
       labels.colPresentDays,
       labels.colOfficeDays,
       labels.colWfhDays,
       labels.colCompliantDays,
       labels.colViolations,
       labels.colMissedAnomalies,
+      labels.colAttendanceRate,
       labels.colComplianceRate
     ];
 
     const summaryRows = Object.values(memberSummaryMap).map(m => {
-      const complianceRate = workingDays > 0 ? ((m.compliantDays / workingDays) * 100).toFixed(1) + '%' : '0.0%';
+      // 出勤率 = 实际出勤天数 / 截止目前应出勤工作日
+      const attendanceRate = meta.elapsedWorkingDays > 0 ? ((m.daysPresent / meta.elapsedWorkingDays) * 100).toFixed(1) + '%' : '0.0%';
+      // 班次合规率 = 达标天数 / 实际出勤天数（若未出勤则为 0.0%）
+      const complianceRate = m.daysPresent > 0 ? ((m.compliantDays / m.daysPresent) * 100).toFixed(1) + '%' : '0.0%';
       return [
         m.name,
         m.email,
-        workingDays,
+        meta.totalWorkingDays,
+        meta.elapsedWorkingDays,
         m.daysPresent,
         m.officeDays,
         m.wfhDays,
         m.compliantDays,
         m.violationCount,
         m.missingPunchCount,
+        attendanceRate,
         complianceRate
       ];
     });
 
-    // 4. 构建 Sheet 2: 每日打卡与阶梯审计明细 (Daily Shift Logs)
+    // 5. 构建 Sheet 2: 月度考勤日历矩阵 (Monthly Calendar Matrix)
+    const matrixHeaders = [
+      labels.colPicName,
+      labels.colPresentDays,
+      labels.colCompliantDays,
+      ...meta.days.map(d => `${String(d.day).padStart(2, '0')} (${labels.weekdays[d.dayOfWeek]})`)
+    ];
+
+    const matrixRows = Object.values(memberSummaryMap).map(m => {
+      const row = [m.name, m.daysPresent, m.compliantDays];
+      meta.days.forEach(d => {
+        // 查找该顾问当天的打卡记录
+        const dayLog = dailyLogs.find(l => {
+          if (l.dateStr !== d.dateStr) return false;
+          if (l.userId === m.uid) return true;
+          if (l.userEmail && m.email && l.userEmail.toLowerCase() === m.email.toLowerCase()) return true;
+          if (l.picName && m.name && l.picName.toLowerCase() === m.name.toLowerCase()) return true;
+          return false;
+        });
+
+        if (dayLog && dayLog.analysis.hasAttendance) {
+          const a = dayLog.analysis;
+          const inStr = a.clockInStr && a.clockInStr !== '-' && a.clockInStr !== labels.notClocked ? a.clockInStr.slice(0, 5) : '';
+          const outStr = a.clockOutStr && a.clockOutStr !== '-' && a.clockOutStr !== labels.notClocked ? a.clockOutStr.slice(0, 5) : '';
+          const isWfh = dayLog.verifyMethod === 'WFH' || dayLog.verifySnapshot?.method === 'WFH';
+
+          if (a.isMissingPunch) {
+            row.push(inStr ? `❗ ${inStr}-未退` : (outStr ? `❗ -${outStr}` : `❗ ${labels.missedOutShort}`));
+          } else if (isWfh) {
+            row.push(`🏠 WFH ${inStr}-${outStr}`);
+          } else if (a.isCompliant) {
+            row.push(`✅ ${inStr}-${outStr}`);
+          } else {
+            row.push(`❌ ${inStr}-${outStr}`);
+          }
+        } else {
+          if (d.isWeekend) {
+            row.push(labels.weekendRest);
+          } else if (d.dateStr > meta.todayStr) {
+            row.push('');
+          } else {
+            row.push(labels.absentDash);
+          }
+        }
+      });
+      return row;
+    });
+
+    // 6. 构建 Sheet 3: 每日打卡与阶梯审计明细 (Daily Shift Logs)
     const dailyHeaders = [
       labels.colDate,
+      labels.colWeekday,
       labels.colPicName,
       labels.colFirstIn,
+      labels.colLunchOut,
+      labels.colLunchIn,
       labels.colShift,
       labels.colCutoff,
       labels.colLastOut,
@@ -412,9 +656,8 @@ export const ExcelExporter = {
             ? labels.methodGps
             : log.verifyMethod || labels.methodRegular;
 
-      // 提取全部打卡事件流水，多余打卡痕迹全保留
       const punchFlow = Array.isArray(log.events) && log.events.length > 2
-        ? `[全部打卡: ${log.events.map(e => `${e.type === 'CLOCK_IN' ? '签到' : e.type === 'CLOCK_OUT' ? '签退' : e.type} ${e.dateObj ? e.dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}`).join('; ')}]`
+        ? `[全部打卡: ${log.events.map(e => `${e.type === 'CLOCK_IN' ? '签到' : e.type === 'CLOCK_OUT' ? '签退' : e.type} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}`).join('; ')}]`
         : null;
 
       const verifyDetails = [
@@ -423,10 +666,15 @@ export const ExcelExporter = {
         punchFlow
       ].filter(Boolean).join('; ') || '-';
 
+      const weekdayStr = log.dateObj ? labels.weekdays[log.dateObj.getDay()] : '-';
+
       return [
         log.dateStr,
+        weekdayStr,
         log.picName,
         a.clockInStr || '-',
+        log.lunchOutStr,
+        log.lunchInStr,
         a.shift?.name || labels.unassignedShift,
         a.shift?.endStr || '-',
         a.clockOutStr || '-',
@@ -439,16 +687,19 @@ export const ExcelExporter = {
 
     return [
       {
-        name: labels.sheetSummary(monthStr),
+        name: labels.sheetSummary(formattedMonth),
         headers: summaryHeaders,
-        rows: summaryRows,
-        colWidths: [130, 190, 110, 110, 100, 100, 120, 120, 110, 130]
+        rows: summaryRows
+      },
+      {
+        name: labels.sheetMatrix(formattedMonth),
+        headers: matrixHeaders,
+        rows: matrixRows
       },
       {
         name: labels.sheetDetail,
         headers: dailyHeaders,
-        rows: dailyRows,
-        colWidths: [100, 120, 100, 190, 110, 110, 90, 190, 110, 260]
+        rows: dailyRows
       }
     ];
   }

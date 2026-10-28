@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.3';
-export const BUILD_DATE = '2026-10-27';
-export const RELEASE_CODENAME = 'Attendance Pure Lifecycle & Dynamic Lunch Punch';
+export const APP_VERSION = 'v1.7.9';
+export const BUILD_DATE = '2026-10-28';
+export const RELEASE_CODENAME = 'Leaderboard Purification & Punctuality Overhaul';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',
