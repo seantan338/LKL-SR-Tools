@@ -8,7 +8,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
-import { ExcelExporter } from '../../../lib/excel-exporter';
+import { ExcelExporter, isAccountExcluded, deduplicateDayEvents } from '../../../lib/excel-exporter';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
 import { SystemLogger } from '../../../lib/logger';
 
@@ -119,6 +119,8 @@ export default function LeaderboardPage() {
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG,
         shiftOverrides: attendanceRules?.shiftOverrides || {},
+        excludedAccounts: attendanceRules?.excludedAccounts || [],
+        hideZeroAttendance: Boolean(attendanceRules?.hideZeroAttendanceInReport),
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -306,6 +308,9 @@ export default function LeaderboardPage() {
     // Pre-populate with HQ members
     hqMembers.forEach(m => {
       const cleanName = m.displayName || m.name || m.email?.split('@')[0] || 'Advisor';
+      if (isAccountExcluded({ uid: m.id, email: m.email, name: cleanName }, attendanceRules?.excludedAccounts)) {
+        return;
+      }
       map[m.id] = {
         key: m.id,
         uid: m.id,
@@ -333,6 +338,10 @@ export default function LeaderboardPage() {
 
       const canonical = resolveCanonicalPic(evt.picName || evt.userName || evt.userEmail, evt.userId, teamMembers);
       if (!isHqAdvisor(canonical)) return;
+
+      if (isAccountExcluded({ uid: canonical.uid, email: canonical.email || evt.userEmail, name: canonical.displayName }, attendanceRules?.excludedAccounts)) {
+        return;
+      }
 
       const targetKey = canonical.uid || canonical.key;
       if (!map[targetKey]) {
@@ -395,8 +404,9 @@ export default function LeaderboardPage() {
         const overrideShift = shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid] || null;
         const isToday = dateStr === todayStr;
 
+        const cleanEvents = deduplicateDayEvents(dayData.events);
         const res = CascadeShiftEngine.resolveDailyShift(
-          dayData.events,
+          cleanEvents,
           shiftConfig,
           { locale: isEn ? 'en' : 'zh', overrideShift, isToday }
         );

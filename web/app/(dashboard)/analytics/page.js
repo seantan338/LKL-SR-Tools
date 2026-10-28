@@ -13,7 +13,7 @@ import Chart from 'chart.js/auto';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { useI18n } from '../../../lib/i18n-context';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
-import { ExcelExporter } from '../../../lib/excel-exporter';
+import { ExcelExporter, isAccountExcluded } from '../../../lib/excel-exporter';
 
 const getApiUrl = (path) => {
   return path;
@@ -74,7 +74,10 @@ export default function AnalyticsPage() {
       { name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }
     ],
     officeWifi: { allowedIps: ['127.0.0.1'], ddnsDomain: '' },
-    shiftConfig: DEFAULT_SHIFT_CONFIG
+    shiftConfig: DEFAULT_SHIFT_CONFIG,
+    shiftOverrides: {},
+    excludedAccounts: [],
+    hideZeroAttendanceInReport: false
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingRules, setEditingRules] = useState(null);
@@ -174,7 +177,9 @@ export default function AnalyticsPage() {
             : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }],
           officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' },
           shiftConfig: rules.shiftConfig || DEFAULT_SHIFT_CONFIG,
-          shiftOverrides: rules.shiftOverrides || {}
+          shiftOverrides: rules.shiftOverrides || {},
+          excludedAccounts: Array.isArray(rules.excludedAccounts) ? rules.excludedAccounts : [],
+          hideZeroAttendanceInReport: Boolean(rules.hideZeroAttendanceInReport)
         }));
       }
     });
@@ -301,6 +306,12 @@ export default function AnalyticsPage() {
       const dateStr = dateObj.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
       const canonical = resolveCanonicalPic(picName, meta.uid || '', teamMembers);
       const cleanPic = canonical.displayName || (userEmail ? userEmail.split('@')[0] : t('analytics.defaultPicName', '顾问'));
+
+      // 免考勤/排除名单过滤
+      if (isAccountExcluded({ uid: canonical.uid || meta.uid, email: userEmail || canonical.email, name: cleanPic }, attendanceRules?.excludedAccounts)) {
+        return;
+      }
+
       const key = `${dateStr}__${cleanPic}`;
 
       if (!recordMap[key]) {
@@ -328,6 +339,13 @@ export default function AnalyticsPage() {
       }
 
       const rec = recordMap[key];
+
+      // 双写记录去重：60秒内的同类型记录视为同一打卡事件
+      const isDuplicate = rec.allPunches.some(
+        p => p.actionType === actionType && Math.abs(p.time.getTime() - dateObj.getTime()) < 60 * 1000
+      );
+      if (isDuplicate) return;
+
       rec.actionCount += 1;
       if (dateObj < rec.firstActionTime) rec.firstActionTime = dateObj;
       if (dateObj > rec.lastActionTime) rec.lastActionTime = dateObj;
@@ -1082,6 +1100,8 @@ export default function AnalyticsPage() {
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
         shiftOverrides: attendanceRules.shiftOverrides || {},
+        excludedAccounts: attendanceRules.excludedAccounts || [],
+        hideZeroAttendance: Boolean(attendanceRules.hideZeroAttendanceInReport),
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -2797,6 +2817,109 @@ export default function AnalyticsPage() {
                       <span style={{
                         position: 'absolute', content: '""', height: '14px', width: '14px',
                         left: editingRules.shiftConfig?.strictClockOut !== false ? '22px' : '3px', bottom: '3px',
+                        background: '#fff', borderRadius: '50%', transition: '0.3s'
+                      }}></span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Section 4: 免考勤与报表排除账户设定 (Exempt / Excluded Accounts) */}
+              <div style={{ marginBottom: 'var(--space-5)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                  <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ph-bold ph-user-minus" style={{ color: 'var(--accent-amber)' }}></i>
+                    {t('analytics.secExemptTitle', '免考勤与报表排除账户 (Exempt Accounts)')}
+                  </h4>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {t('analytics.exemptCountTag', `已排除 ${(editingRules.excludedAccounts || []).length} 人`)}
+                  </span>
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
+                  {t('analytics.exemptDesc', '点击下方成员标签可将其设为「免考勤/测试账户」。被排除的账户将不再出现在考勤监控列表、准点排行榜及导出的 Excel 月报中。')}
+                </p>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: 'var(--space-3)' }}>
+                  {teamMembers
+                    .filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending')
+                    .map(m => {
+                      const identifier = m.email || m.id || m.uid || m.name;
+                      const currentList = editingRules.excludedAccounts || [];
+                      const isExcluded = isAccountExcluded({ uid: m.id || m.uid, email: m.email, name: m.displayName || m.name }, currentList);
+                      return (
+                        <button
+                          key={m.id || identifier}
+                          type="button"
+                          onClick={() => {
+                            const nextList = isExcluded
+                              ? currentList.filter(item => {
+                                  const tLower = String(item).toLowerCase();
+                                  return (
+                                    item !== (m.id || m.uid) &&
+                                    tLower !== String(m.email || '').toLowerCase() &&
+                                    tLower !== String(m.displayName || m.name || '').toLowerCase()
+                                  );
+                                })
+                              : [...currentList, identifier];
+                            setEditingRules({
+                              ...editingRules,
+                              excludedAccounts: nextList
+                            });
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '5px 10px',
+                            borderRadius: '999px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: '0.2s',
+                            border: isExcluded ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid var(--border-subtle)',
+                            background: isExcluded ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                            color: isExcluded ? '#fca5a5' : 'var(--text-secondary)',
+                            textDecoration: isExcluded ? 'line-through' : 'none'
+                          }}
+                          title={m.email || m.name}
+                        >
+                          <i className={`ph-bold ${isExcluded ? 'ph-eye-slash' : 'ph-user-check'}`} style={{ color: isExcluded ? '#f87171' : 'var(--accent-emerald)' }}></i>
+                          <span>{m.displayName || m.name || (m.email ? m.email.split('@')[0] : 'Advisor')}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+
+                {/* Hide Zero Attendance Switch */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                      {t('analytics.hideZeroAttTitle', '导出月报时自动隐藏当月 0 打卡账户')}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {t('analytics.hideZeroAttDesc', '开启后，当月没有任何打卡记录的账号将自动不在 Excel 总账与日历矩阵中显示。')}
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingRules.hideZeroAttendanceInReport)}
+                      onChange={(e) => {
+                        setEditingRules({
+                          ...editingRules,
+                          hideZeroAttendanceInReport: e.target.checked
+                        });
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                      background: editingRules.hideZeroAttendanceInReport ? 'var(--accent-amber)' : 'rgba(255,255,255,0.15)',
+                      borderRadius: '20px', transition: '0.3s'
+                    }}>
+                      <span style={{
+                        position: 'absolute', content: '""', height: '14px', width: '14px',
+                        left: editingRules.hideZeroAttendanceInReport ? '22px' : '3px', bottom: '3px',
                         background: '#fff', borderRadius: '50%', transition: '0.3s'
                       }}></span>
                     </span>
