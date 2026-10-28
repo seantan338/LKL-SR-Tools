@@ -569,8 +569,9 @@ export default function LeaderboardPage() {
 
       {/* Attendance Tab Action Bar */}
       {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)', position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
           <button
+            type="button"
             className="btn btn-sm btn-outline"
             style={{
               display: 'inline-flex',
@@ -586,12 +587,15 @@ export default function LeaderboardPage() {
               cursor: isExporting ? 'wait' : 'pointer',
               pointerEvents: isExporting ? 'none' : 'auto',
               position: 'relative',
-              zIndex: 50,
+              zIndex: 62,
               flexShrink: 0
             }}
-            onClick={handleExportAttendanceExcel}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleExportAttendanceExcel();
+            }}
             disabled={isExporting}
-            title={t('leaderboard.exportAttendanceTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
+            title={t('leaderboard.exportAttendanceTitle', '导出当月内部员工考勤 3-Sheet Excel 报表')}
           >
             <i className={`ph-bold ${isExporting ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
             <span style={{ pointerEvents: 'none' }}>{isExporting ? t('leaderboard.exporting', '正在导出报表...') : t('leaderboard.exportExcel', '导出考勤月报 (Excel)')}</span>

@@ -3,10 +3,28 @@
  * 纯前端 0 延迟秒出报表、公式注入安全转义、三表联动（总账/日历矩阵/流水明细）与智能双宽列宽自适应
  */
 
-import fileSaver from 'file-saver';
-const saveAs = fileSaver?.saveAs || fileSaver;
 import { CascadeShiftEngine } from './cascade-shift-engine.js';
 import { resolveCanonicalPic } from './identity.mjs';
+
+/**
+ * 纯原生浏览器文件下载触发器（彻底规避 file-saver 在 Turbopack/Webpack 下的 UMD 导出兼容崩溃）
+ * @param {Blob} blob
+ * @param {string} filename
+ */
+function triggerBrowserDownload(blob, filename) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    if (link.parentNode) link.parentNode.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, 1500);
+}
 
 export const EXCEL_I18N = {
   zh: {
@@ -360,7 +378,7 @@ export const ExcelExporter = {
 
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(blob, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+      triggerBrowserDownload(blob, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
       return;
     } catch (importErr) {
       console.warn('XLSX dynamic import fallback to XML Spreadsheet:', importErr);
@@ -370,7 +388,7 @@ export const ExcelExporter = {
     const xmlContent = buildXmlSpreadsheet(sheets);
     const blob = new Blob([xmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const fallbackFilename = filename.replace(/\.xlsx$/i, '.xls');
-    saveAs(blob, fallbackFilename.endsWith('.xls') ? fallbackFilename : `${fallbackFilename}.xls`);
+    triggerBrowserDownload(blob, fallbackFilename.endsWith('.xls') ? fallbackFilename : `${fallbackFilename}.xls`);
   },
 
   /**

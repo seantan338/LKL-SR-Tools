@@ -52,6 +52,16 @@ export default function AnalyticsPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const exportMonthOptions = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      list.push(ym);
+    }
+    return list;
+  }, []);
 
   // Attendance Rules & Settings Modal State
   const [attendanceRules, setAttendanceRules] = useState({
@@ -1387,24 +1397,30 @@ export default function AnalyticsPage() {
 
           {/* Top Quick Excel Export Button & Month Selector (HQ Owner / Manager) */}
           {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-              <input
-                type="month"
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+              <select
                 value={exportMonth}
                 onChange={(e) => setExportMonth(e.target.value)}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
+                  background: 'rgba(15, 23, 42, 0.85)',
                   border: '1px solid rgba(16, 185, 129, 0.35)',
                   color: 'var(--text-primary)',
                   fontSize: '12px',
-                  padding: '4px 8px',
+                  padding: '5px 8px',
                   borderRadius: 'var(--radius-md)',
                   outline: 'none',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  position: 'relative',
+                  zIndex: 61
                 }}
                 title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
-              />
+              >
+                {exportMonthOptions.map(ym => (
+                  <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+                ))}
+              </select>
               <button
+                type="button"
                 className="btn btn-sm btn-outline"
                 style={{
                   display: 'inline-flex',
@@ -1420,10 +1436,13 @@ export default function AnalyticsPage() {
                   cursor: isExportingExcel ? 'wait' : 'pointer',
                   pointerEvents: isExportingExcel ? 'none' : 'auto',
                   position: 'relative',
-                  zIndex: 50,
+                  zIndex: 62,
                   flexShrink: 0
                 }}
-                onClick={handleExportAttendanceExcel}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExportAttendanceExcel();
+                }}
                 disabled={isExportingExcel}
                 title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
               >
@@ -1768,24 +1787,30 @@ export default function AnalyticsPage() {
                   </span>
                 </div>
                 {isHqTeam && (isOwner || isManager) && (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    <input
-                      type="month"
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+                    <select
                       value={exportMonth}
                       onChange={(e) => setExportMonth(e.target.value)}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.06)',
+                        background: 'rgba(15, 23, 42, 0.85)',
                         border: '1px solid rgba(16, 185, 129, 0.35)',
                         color: 'var(--text-primary)',
                         fontSize: '12px',
-                        padding: '3px 8px',
+                        padding: '4px 8px',
                         borderRadius: 'var(--radius-md)',
                         outline: 'none',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        position: 'relative',
+                        zIndex: 61
                       }}
                       title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
-                    />
+                    >
+                      {exportMonthOptions.map(ym => (
+                        <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+                      ))}
+                    </select>
                     <button
+                      type="button"
                       className="btn btn-sm btn-outline"
                       style={{
                         display: 'inline-flex',
@@ -1801,10 +1826,13 @@ export default function AnalyticsPage() {
                         cursor: isExportingExcel ? 'wait' : 'pointer',
                         pointerEvents: isExportingExcel ? 'none' : 'auto',
                         position: 'relative',
-                        zIndex: 50,
+                        zIndex: 62,
                         flexShrink: 0
                       }}
-                      onClick={handleExportAttendanceExcel}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportAttendanceExcel();
+                      }}
                       disabled={isExportingExcel}
                       title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
                     >
