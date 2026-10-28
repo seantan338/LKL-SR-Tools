@@ -351,10 +351,11 @@ export class CascadeShiftEngine {
           durationHours: null,
           compliance: 'IN_PROGRESS',
           complianceLabel: labels.inProgress,
-          isCompliant: true,
-          isViolation: shift.isLateArrival,
+          isCompliant: false,
+          isInProgress: true,
+          isViolation: Boolean(shift.isLateArrival),
           isMissingPunch: false,
-          isLate: shift.isLateArrival,
+          isLate: Boolean(shift.isLateArrival),
           note: labels.inProgressNote
         };
       }
@@ -369,9 +370,10 @@ export class CascadeShiftEngine {
         compliance: 'MISSED_OUT',
         complianceLabel: labels.missedOut,
         isCompliant: false,
-        isViolation: true,
+        isInProgress: false,
+        isViolation: Boolean(shift.isLateArrival),
         isMissingPunch: true,
-        isLate: shift.isLateArrival,
+        isLate: Boolean(shift.isLateArrival),
         note: labels.missedOutNote(this.formatTime(firstIn))
       };
     }
@@ -389,6 +391,7 @@ export class CascadeShiftEngine {
         compliance: 'MISSED_IN',
         complianceLabel: labels.missedIn,
         isCompliant: false,
+        isInProgress: false,
         isViolation: false,
         isMissingPunch: true,
         isLate: false,
@@ -413,9 +416,10 @@ export class CascadeShiftEngine {
         compliance: 'ABNORMAL_PUNCH',
         complianceLabel: labels.abnormalTouch,
         isCompliant: false,
-        isViolation: true,
+        isInProgress: false,
+        isViolation: Boolean(shift.isLateArrival),
         isMissingPunch: true,
-        isLate: shift.isLateArrival,
+        isLate: Boolean(shift.isLateArrival),
         note: labels.abnormalTouchNote(Math.max(0, Math.round(durationMinutes)))
       };
     }

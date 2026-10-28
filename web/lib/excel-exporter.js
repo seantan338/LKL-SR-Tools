@@ -64,6 +64,13 @@ export const EXCEL_I18N = {
     weekendRest: '休',
     absentDash: '—',
     missedOutShort: '未签退',
+    inProgressShort: '在岗',
+    lateShort: '迟到',
+    punchInLabel: '签到',
+    punchOutLabel: '签退',
+    punchLunchOutLabel: '午休出',
+    punchLunchInLabel: '午休回',
+    allPunchesPrefix: '全部打卡',
     weekdays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
     emptySheetErr: '导出内容为空，无有效 Sheet'
   },
@@ -104,6 +111,13 @@ export const EXCEL_I18N = {
     weekendRest: 'OFF',
     absentDash: '—',
     missedOutShort: 'No Out',
+    inProgressShort: 'On Duty',
+    lateShort: 'Late',
+    punchInLabel: 'In',
+    punchOutLabel: 'Out',
+    punchLunchOutLabel: 'LunchOut',
+    punchLunchInLabel: 'LunchIn',
+    allPunchesPrefix: 'All Punches',
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     emptySheetErr: 'Export content is empty — no valid sheet found'
   }
@@ -238,10 +252,63 @@ export function sanitizeExcelValue(val) {
     return toIsoDateStr(val) + ' ' + val.toTimeString().split(' ')[0];
   }
   const str = String(val).trim();
+  // 放行单独的短横杠/破折号占位符，防止 Excel 单元格显示为 "'-"
+  if (str === '-' || str === '—' || str === '--') {
+    return str;
+  }
   if (/^[=+@-]/.test(str)) {
     return `'${str}`;
   }
   return str;
+}
+
+/**
+ * 对同一天同一人的打卡事件按时间升序排列并消除双写重复（attendance 与 logs 集合在 60 秒内的同类型重复记录）
+ */
+export function deduplicateDayEvents(events = []) {
+  if (!Array.isArray(events) || events.length === 0) return [];
+  const sorted = [...events]
+    .filter(e => e && e.dateObj && !isNaN(e.dateObj.getTime()))
+    .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+  const deduped = [];
+  for (const evt of sorted) {
+    const prev = deduped[deduped.length - 1];
+    if (
+      prev &&
+      prev.type === evt.type &&
+      Math.abs(evt.dateObj.getTime() - prev.dateObj.getTime()) < 60 * 1000
+    ) {
+      // 保留带 verifyMethod / verifySnapshot 更完整的那条
+      if (!prev.verifyMethod && evt.verifyMethod) {
+        deduped[deduped.length - 1] = evt;
+      }
+      continue;
+    }
+    deduped.push(evt);
+  }
+  return deduped;
+}
+
+/**
+ * 判断某个账户是否位于免考勤/排除统计名单中
+ */
+export function isAccountExcluded({ uid = '', email = '', name = '' }, excludedAccounts = []) {
+  if (!Array.isArray(excludedAccounts) || excludedAccounts.length === 0) return false;
+  const normUid = String(uid || '').trim();
+  const normEmail = String(email || '').trim().toLowerCase();
+  const normName = String(name || '').trim().toLowerCase();
+
+  return excludedAccounts.some(item => {
+    const target = String(item || '').trim();
+    if (!target) return false;
+    const targetLower = target.toLowerCase();
+    return (
+      (normUid && normUid === target) ||
+      (normEmail && normEmail === targetLower) ||
+      (normName && normName === targetLower)
+    );
+  });
 }
 
 /**
@@ -401,6 +468,8 @@ export const ExcelExporter = {
     hqMembers = [],
     shiftConfig = null,
     shiftOverrides = {},
+    excludedAccounts = [],
+    hideZeroAttendance = false,
     locale = 'zh'
   }) {
     const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
@@ -428,6 +497,11 @@ export const ExcelExporter = {
       const picName = canonical.displayName || rawPic;
       const userId = canonical.uid || rawUid || canonical.key || picName;
       const userEmail = evt.userEmail || evt.user?.email || '';
+
+      // 免考勤/排除名单过滤
+      if (isAccountExcluded({ uid: userId, email: userEmail, name: picName }, excludedAccounts)) {
+        return;
+      }
 
       const key = `${dStr}__${userId}`;
 
@@ -459,15 +533,19 @@ export const ExcelExporter = {
 
     // 3. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次）
     const dailyLogs = Object.values(dailyMap).map(day => {
+      // 对单日事件按时间正序排列并消除双写重复记录
+      const cleanEvents = deduplicateDayEvents(day.events);
+      day.events = cleanEvents;
+
       const overrideKey = `${day.dateStr}__${day.picName}`;
       const overrideKeyUid = `${day.dateStr}__${day.userId}`;
       const overrideShift = (shiftOverrides && (shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid])) || null;
       const isToday = day.dateStr === meta.todayStr;
-      const res = CascadeShiftEngine.resolveDailyShift(day.events, shiftConfig, { locale, overrideShift, isToday });
+      const res = CascadeShiftEngine.resolveDailyShift(cleanEvents, shiftConfig, { locale, overrideShift, isToday });
 
       // 提取午休打卡流水
-      const lunchOutEvt = day.events.find(e => e.type === 'LUNCH_OUT');
-      const lunchInEvt = day.events.find(e => e.type === 'LUNCH_IN');
+      const lunchOutEvt = cleanEvents.find(e => e.type === 'LUNCH_OUT');
+      const lunchInEvt = cleanEvents.find(e => e.type === 'LUNCH_IN');
       const lunchOutStr = lunchOutEvt ? toShortTimeStr(lunchOutEvt.dateObj) : '-';
       const lunchInStr = lunchInEvt ? toShortTimeStr(lunchInEvt.dateObj) : '-';
 
@@ -485,15 +563,21 @@ export const ExcelExporter = {
     // 4. 构建 Sheet 1: 月度全员出勤总账 (Monthly Attendance Summary)
     const memberSummaryMap = {};
 
-    // 预填充所有 HQ 顾问成员
+    // 预填充所有 HQ 顾问成员（排除免考勤人员）
     hqMembers.forEach(m => {
       const canonical = resolveCanonicalPic(m.displayName || m.name || '', m.id || m.uid || '', hqMembers);
       const uid = m.id || m.uid || canonical.uid;
       const name = canonical.displayName || m.displayName || m.name || (m.email ? m.email.split('@')[0] : labels.defaultPic);
+      const email = m.email || '';
+
+      if (isAccountExcluded({ uid, email, name }, excludedAccounts)) {
+        return;
+      }
+
       memberSummaryMap[uid] = {
         uid,
         name,
-        email: m.email || '',
+        email,
         daysPresent: 0,
         officeDays: 0,
         wfhDays: 0,
@@ -545,6 +629,18 @@ export const ExcelExporter = {
       }
     });
 
+    // 成员列表按 表现最优（达标天数降序 -> 合规率降序 -> 实际出勤降序 -> 姓名升序）排序，并按需隐藏 0 出勤账号
+    const sortedMembers = Object.values(memberSummaryMap)
+      .filter(m => !hideZeroAttendance || m.daysPresent > 0)
+      .sort((a, b) => {
+        if (b.compliantDays !== a.compliantDays) return b.compliantDays - a.compliantDays;
+        const rateA = a.daysPresent > 0 ? a.compliantDays / a.daysPresent : -1;
+        const rateB = b.daysPresent > 0 ? b.compliantDays / b.daysPresent : -1;
+        if (rateB !== rateA) return rateB - rateA;
+        if (b.daysPresent !== a.daysPresent) return b.daysPresent - a.daysPresent;
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+
     const summaryHeaders = [
       labels.colPicName,
       labels.colEmail,
@@ -560,7 +656,7 @@ export const ExcelExporter = {
       labels.colComplianceRate
     ];
 
-    const summaryRows = Object.values(memberSummaryMap).map(m => {
+    const summaryRows = sortedMembers.map(m => {
       // 出勤率 = 实际出勤天数 / 截止目前应出勤工作日
       const attendanceRate = meta.elapsedWorkingDays > 0 ? ((m.daysPresent / meta.elapsedWorkingDays) * 100).toFixed(1) + '%' : '0.0%';
       // 班次合规率 = 达标天数 / 实际出勤天数（若未出勤则为 0.0%）
@@ -589,7 +685,7 @@ export const ExcelExporter = {
       ...meta.days.map(d => `${String(d.day).padStart(2, '0')} (${labels.weekdays[d.dayOfWeek]})`)
     ];
 
-    const matrixRows = Object.values(memberSummaryMap).map(m => {
+    const matrixRows = sortedMembers.map(m => {
       const row = [m.name, m.daysPresent, m.compliantDays];
       meta.days.forEach(d => {
         // 查找该顾问当天的打卡记录
@@ -607,8 +703,10 @@ export const ExcelExporter = {
           const outStr = a.clockOutStr && a.clockOutStr !== '-' && a.clockOutStr !== labels.notClocked ? a.clockOutStr.slice(0, 5) : '';
           const isWfh = dayLog.verifyMethod === 'WFH' || dayLog.verifySnapshot?.method === 'WFH';
 
-          if (a.isMissingPunch) {
-            row.push(inStr ? `❗ ${inStr}-未退` : (outStr ? `❗ -${outStr}` : `❗ ${labels.missedOutShort}`));
+          if (a.compliance === 'IN_PROGRESS' || a.isInProgress) {
+            row.push(a.isLate ? `⚠️ ${inStr} (${labels.lateShort})` : `💼 ${inStr} (${labels.inProgressShort})`);
+          } else if (a.isMissingPunch) {
+            row.push(inStr ? `❗ ${inStr}-${labels.missedOutShort}` : (outStr ? `❗ ${labels.missedOutShort}-${outStr}` : `❗ ${labels.missedOutShort}`));
           } else if (isWfh) {
             row.push(`🏠 WFH ${inStr}-${outStr}`);
           } else if (a.isCompliant) {
@@ -646,6 +744,14 @@ export const ExcelExporter = {
       labels.colNotes
     ];
 
+    const formatPunchType = (type) => {
+      if (type === 'CLOCK_IN' || type === 'CHECK_IN') return labels.punchInLabel;
+      if (type === 'CLOCK_OUT' || type === 'CHECK_OUT') return labels.punchOutLabel;
+      if (type === 'LUNCH_OUT') return labels.punchLunchOutLabel;
+      if (type === 'LUNCH_IN') return labels.punchLunchInLabel;
+      return type;
+    };
+
     const dailyRows = dailyLogs.map(log => {
       const a = log.analysis;
       const methodLabel = log.verifyMethod === 'WFH'
@@ -657,7 +763,7 @@ export const ExcelExporter = {
             : log.verifyMethod || labels.methodRegular;
 
       const punchFlow = Array.isArray(log.events) && log.events.length > 2
-        ? `[全部打卡: ${log.events.map(e => `${e.type === 'CLOCK_IN' ? '签到' : e.type === 'CLOCK_OUT' ? '签退' : e.type} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}`).join('; ')}]`
+        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}`).join(' -> ')}]`
         : null;
 
       const verifyDetails = [
