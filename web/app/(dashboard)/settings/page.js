@@ -15,6 +15,7 @@ import { Utils } from '../../../lib/utils';
 import WhatsAppButton from '../../../components/WhatsAppButton';
 import MiniBlackHole from '../../../components/MiniBlackHole';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
+import { detectJobOrderColumns, mapSheetRowsToJobOrders, findExistingJobOrder, jobOrderSheetKey } from '../../../lib/job-order-sheet.mjs';
 import { authFetch } from '../../../lib/api-client';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../../../lib/version';
 
@@ -599,13 +600,16 @@ function onEdit(e) {
       
       const sheetInfo = GoogleSheetsAPI.parseSheetUrl(sheetUrl);
       setSheetStatus(t('settingsPage.fetchingPrivateStatus') || '拉取私有数据与工作表信息...');
-      
+
       // Auto detect tab name from spreadsheet metadata
+      let tabRange;
       try {
         const tabsMeta = await GoogleSheetsAPI.fetchSpreadsheetMetadata(sheetInfo.spreadsheetId, token);
         if (tabsMeta && tabsMeta.length > 0) {
           const matchedTab = tabsMeta.find(t => t.sheetId === String(sheetInfo.gid)) || tabsMeta[0];
           if (matchedTab && matchedTab.title) {
+            // Read the tab the URL points at (gid), not whichever tab happens to be first
+            tabRange = `'${matchedTab.title.replace(/'/g, "''")}'!A:Z`;
             const detectedComp = GoogleSheetsAPI.extractCompanyFromTab(matchedTab.title);
             if (!sheetCompany) {
               setSheetCompany(detectedComp || matchedTab.title);
@@ -616,7 +620,7 @@ function onEdit(e) {
         console.warn('Metadata tab detection fallback:', metaErr);
       }
 
-      const data = await GoogleSheetsAPI.fetchPrivateSheetData(sheetInfo.spreadsheetId, token);
+      const data = await GoogleSheetsAPI.fetchPrivateSheetData(sheetInfo.spreadsheetId, token, tabRange);
       handleSheetDataLoaded(data);
     } catch (err) {
       setSheetStatus((t('settingsPage.authOrFetchFailed') || '授权或拉取失败: ') + err.message);
@@ -661,14 +665,64 @@ function onEdit(e) {
     setFieldMapping(newMapping);
   };
 
+  // Auto match PIC to UID and populate company using canonical PIC resolution
+  const withCanonicalPic = (item) => {
+    let matchedUid = user?.uid || 'system';
+    let canonicalName = item.picName || '';
+    if (item.picName) {
+      const canonical = resolveCanonicalPic(item.picName, null, teamMembers);
+      if (canonical.displayName && canonical.displayName !== '未分配顾问') {
+        canonicalName = canonical.displayName;
+      }
+      if (canonical.uid) {
+        matchedUid = canonical.uid;
+      }
+    }
+    return {
+      ...item,
+      picName: canonicalName,
+      company: item.company || sheetCompany?.trim() || '',
+      _assignedTo: matchedUid
+    };
+  };
+
+  const getSelectedRowRange = () => {
+    const s = specifyRows ? Math.max(1, parseInt(startRow) || 1) : 1;
+    const e = specifyRows ? Math.min(sheetData.length - 1, parseInt(endRow) || 50) : sheetData.length - 1;
+    return [s, e];
+  };
+
+  // Sheets that already hold one job order per row (e.g. "Job Order 2026" > Database) map column-by-column, no AI needed
+  const directJobOrderColumns = importTarget === 'jobOrder' ? detectJobOrderColumns(sheetHeaders) : null;
+
+  const handleDirectJobOrderMap = () => {
+    if (!sheetData || sheetData.length < 2) return;
+    const [s, e] = getSelectedRowRange();
+    const { orders, skipped, mergedCount } = mapSheetRowsToJobOrders(sheetData[0], sheetData.slice(s, e + 1), { rowOffset: s + 1 });
+    if (orders.length === 0) {
+      setSheetStatus(isEn ? 'No importable job orders found in the selected rows (Company Name and Job Title are required).' : '选定范围内没有可导入的岗位（公司名与职位为必填）。');
+      return;
+    }
+
+    setAiPreviewData(orders.map(withCanonicalPic));
+    const skippedRows = skipped.map(x => x.row);
+    const skippedNote = skippedRows.length > 0
+      ? (isEn
+        ? ` Skipped ${skippedRows.length} row(s) missing Company Name or Job Title: ${skippedRows.slice(0, 20).join(', ')}${skippedRows.length > 20 ? '…' : ''}.`
+        : ` 跳过 ${skippedRows.length} 行（缺公司名或职位）：第 ${skippedRows.slice(0, 20).join(', ')}${skippedRows.length > 20 ? '…' : ''} 行。`)
+      : '';
+    setSheetStatus(isEn
+      ? `Mapped ${orders.length} job orders by column (${mergedCount} re-posted rows merged, newest kept). Existing orders with the same company + position + location will be updated, not duplicated.${skippedNote}`
+      : `已按表头直接映射 ${orders.length} 个岗位（合并 ${mergedCount} 行重复发布，保留最新）。系统中公司 + 职位 + 地点相同的岗位将被更新而非重复创建。${skippedNote}`);
+  };
+
   const handleAiProcess = async () => {
     if (!sheetData || sheetData.length < 2) return;
     setIsAiProcessing(true);
     setSheetStatus(isEn ? 'AI smart cleaning and parsing in progress, this may take a few moments...' : '正在使用 AI 智能清洗与解析，这可能需要几十秒时间...');
     
     try {
-      const s = specifyRows ? Math.max(1, parseInt(startRow) || 1) : 1;
-      const e = specifyRows ? Math.min(sheetData.length - 1, parseInt(endRow) || 50) : sheetData.length - 1;
+      const [s, e] = getSelectedRowRange();
       const targetRows = sheetData.slice(s, e + 1);
 
       if (targetRows.length === 0) {
@@ -813,25 +867,7 @@ function onEdit(e) {
       }
 
       // Auto match PIC to UID and populate company using canonical PIC resolution
-      const mappedData = dedupedData.map(item => {
-        let matchedUid = user?.uid || 'system';
-        let canonicalName = item.picName || '';
-        if (item.picName) {
-          const canonical = resolveCanonicalPic(item.picName, null, teamMembers);
-          if (canonical.displayName && canonical.displayName !== '未分配顾问') {
-            canonicalName = canonical.displayName;
-          }
-          if (canonical.uid) {
-            matchedUid = canonical.uid;
-          }
-        }
-        return { 
-          ...item, 
-          picName: canonicalName,
-          company: item.company || sheetCompany?.trim() || '',
-          _assignedTo: matchedUid 
-        };
-      });
+      const mappedData = dedupedData.map(withCanonicalPic);
 
       setAiPreviewData(mappedData);
       const itemNoun = isJobOrder ? t('settingsPage.itemNounJobOrder', '招聘需求岗位') : t('settingsPage.itemNounCandidate', '候选人');
@@ -857,12 +893,29 @@ function onEdit(e) {
     
     let successCount = 0;
     let errorCount = 0;
+    let updatedCount = 0;
     let lastError = null;
 
     const safeTeamId = teamId || 'default_team';
     const defaultUserId = user?.uid || 'system';
 
+    // Job orders upsert: re-importing the same sheet syncs status/salary changes instead of creating duplicates
+    let existingOrders = [];
+    if (importTarget !== 'candidate') {
+      try {
+        const snapshot = await getDocs(collection(db, 'teams', safeTeamId, 'job_orders'));
+        existingOrders = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      } catch (err) {
+        setSheetStatus((isEn ? 'Failed to load existing job orders: ' : '读取现有岗位失败：') + err.message);
+        setIsImporting(false);
+        return;
+      }
+    }
+
     for (let item of aiPreviewData) {
+      if ((successCount + errorCount) % 25 === 0 && successCount + errorCount > 0) {
+        setSheetStatus(isEn ? `Importing... ${successCount + errorCount}/${aiPreviewData.length}` : `导入中... ${successCount + errorCount}/${aiPreviewData.length}`);
+      }
       try {
         // 若已匹配内部顾问 UID 则指派；若为外部 Freelance 顾问，留空避免被当前操作员的 UID 劫持误判；若完全未指定 PIC 则指派当前操作员
         const assignedTo = item._assignedTo || (item.picName ? '' : defaultUserId);
@@ -922,7 +975,15 @@ function onEdit(e) {
           await FirestoreStore.addCandidate(safeTeamId, assignedTo, candidatePayload);
         } else {
           if (!item.company && !item.position) continue;
-          await FirestoreStore.addJobOrder(safeTeamId, assignedTo, item);
+          // Recompute in case company/position/location were edited in the preview
+          const order = { ...item, sheetKey: jobOrderSheetKey(item) };
+          const existing = findExistingJobOrder(existingOrders, order);
+          if (existing) {
+            await FirestoreStore.updateJobOrder(safeTeamId, existing.id, order);
+            updatedCount++;
+          } else {
+            existingOrders.push(await FirestoreStore.addJobOrder(safeTeamId, assignedTo, order));
+          }
         }
         successCount++;
       } catch (err) {
@@ -936,7 +997,13 @@ function onEdit(e) {
       setSheetStatus(isEn ? `Import failed! Succeeded: 0, Failed: ${errorCount}. Reason: ${lastError?.message || 'Unknown error'}` : `导入失败！成功: 0, 失败: ${errorCount}。原因: ${lastError?.message || '未知错误'}`);
       // 保留 aiPreviewData 让用户无需重新花费额度让 AI 解析，可直接排查重试
     } else {
-      setSheetStatus(isEn ? `Import complete! Succeeded: ${successCount}, Failed: ${errorCount}${lastError ? ` (Partial failure: ${lastError.message})` : ''}` : `导入完成！成功: ${successCount}, 失败: ${errorCount}${lastError ? ` (部分失败: ${lastError.message})` : ''}`);
+      const upsertNote = importTarget !== 'candidate'
+        ? (isEn ? ` (${successCount - updatedCount} new, ${updatedCount} updated)` : `（新建 ${successCount - updatedCount}，更新 ${updatedCount}）`)
+        : '';
+      setSheetStatus(isEn ? `Import complete! Succeeded: ${successCount}${upsertNote}, Failed: ${errorCount}${lastError ? ` (Partial failure: ${lastError.message})` : ''}` : `导入完成！成功: ${successCount}${upsertNote}, 失败: ${errorCount}${lastError ? ` (部分失败: ${lastError.message})` : ''}`);
+      if (importTarget !== 'candidate') {
+        SystemLogger.audit(teamId, user, 'CREATE', 'JOB_ORDER', `Sheet Import (${successCount - updatedCount} new, ${updatedCount} updated)`);
+      }
       setAiPreviewData(null);
     }
     setIsImporting(false);
@@ -1361,7 +1428,9 @@ function onEdit(e) {
                       <button className="btn btn-secondary btn-sm" onClick={handleFetchSheet} disabled={!sheetUrl || isFetchingSheet || isImporting}>
                         <i className={`ph-light ${isFetchingSheet ? 'ph-spinner ph-spin' : 'ph-download-simple'}`}></i> {t('settingsPage.fetchBtn', '拉取并预览数据')}
                       </button>
-                      {(sheetStatus === '该表格是私有的，需要授权。' || sheetStatus === t('settingsPage.privateSheetStatus')) && (
+                      {/* A private sheet's CSV export fails with a CORS error rather than a "Sign in" page, so the
+                          status never matches PRIVATE_SHEET — offer Google authorization whenever a URL is entered */}
+                      {sheetUrl && (
                         <button className="btn btn-secondary btn-sm" onClick={handleAuthAndFetchSheet} disabled={isFetchingSheet}>
                           <i className="ph-light ph-google-logo"></i> {t('settingsPage.authBtn')}
                         </button>
@@ -1423,11 +1492,19 @@ function onEdit(e) {
                     )}
                     
                     {sheetData && sheetData.length > 0 && !aiPreviewData && (
-                      <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
-                        <button className="btn btn-secondary" onClick={handleImportSheetData} disabled={isImporting}>
-                          {isImporting ? t('settingsPage.importingBtn') : (t('settingsPage.forceImportBtn') || `按上述映射强制导入 (${sheetData.length - 1}行)`).replace('{count}', sheetData.length - 1)}
-                        </button>
-                        <button className="btn btn-primary" onClick={handleAiProcess} disabled={isAiProcessing}>
+                      <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
+                        {/* Column mapping above only produces candidates, so it is hidden for job orders */}
+                        {importTarget !== 'jobOrder' && (
+                          <button className="btn btn-secondary" onClick={handleImportSheetData} disabled={isImporting}>
+                            {isImporting ? t('settingsPage.importingBtn') : (t('settingsPage.forceImportBtn') || `按上述映射强制导入 (${sheetData.length - 1}行)`).replace('{count}', sheetData.length - 1)}
+                          </button>
+                        )}
+                        {directJobOrderColumns && (
+                          <button className="btn btn-primary" onClick={handleDirectJobOrderMap} disabled={isAiProcessing || isImporting}>
+                            <i className="ph-light ph-lightning"></i> {t('settingsPage.directJobOrderBtn')}
+                          </button>
+                        )}
+                        <button className={directJobOrderColumns ? 'btn btn-secondary' : 'btn btn-primary'} onClick={handleAiProcess} disabled={isAiProcessing}>
                           <i className={`ph-light ${isAiProcessing ? 'ph-spinner ph-spin' : 'ph-magic-wand'}`}></i> 
                           {t('settingsPage.aiCleanBtn')}
                         </button>

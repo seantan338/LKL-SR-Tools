@@ -655,8 +655,8 @@ export const Utils = {
             isPureProbe: true,
             message: '🛡️ 第一层安全防御已生效：已拦截并清除原型链污染攻击，未检测到有效候选人数据 / Security Layer 1 active: Prototype pollution blocked, no valid candidate records found.'
           };
-        } else if (nonProtoKeys.length > 0) {
-          // Single candidate object, auto-wrap
+        } else if (nonProtoKeys.length > 0 && !Array.isArray(parsed.jobOrders)) {
+          // Single candidate object, auto-wrap (a { jobOrders: [...] } backup is not a candidate)
           rawCandidates = [parsed];
         }
       }
@@ -811,7 +811,8 @@ export const Utils = {
     }
 
     // Allowed job order keys whitelist
-    const allowedOrderKeys = new Set(['id', 'title', 'company', 'department', 'headcount', 'status', 'salaryRange', 'requirements', 'notes', 'createdAt', 'updatedAt']);
+    // Matches the JobOrder schema in FIREBASE_SCHEMA.md; `title` / `salaryRange` kept as legacy aliases
+    const allowedOrderKeys = new Set(['id', 'title', 'position', 'company', 'department', 'headcount', 'status', 'salary', 'salaryRange', 'location', 'workHours', 'requirements', 'benefits', 'notes', 'picName', 'createdAt', 'updatedAt']);
     for (const raw of rawJobOrders) {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         sanitizedCount++;
@@ -827,14 +828,18 @@ export const Utils = {
       }
       const pure = Object.create(null);
       pure.id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : this.generateId();
-      pure.title = safeStr(raw.title, 100) || '未命名需求';
+      pure.position = safeStr(raw.position || raw.title, 100) || '未命名需求';
       pure.company = safeStr(raw.company, 100);
-      pure.department = safeStr(raw.department, 100);
+      if (raw.department) pure.department = safeStr(raw.department, 100);
       pure.headcount = typeof raw.headcount === 'number' ? raw.headcount : parseInt(raw.headcount, 10) || 1;
-      pure.status = ['open', 'closed', 'paused'].includes(raw.status) ? raw.status : 'open';
-      pure.salaryRange = safeStr(raw.salaryRange, 50);
-      pure.requirements = safeStr(raw.requirements, 2000);
+      pure.status = ['open', 'urgent', 'closed', 'paused', 'filled'].includes(raw.status) ? raw.status : 'open';
+      pure.salary = safeStr(raw.salary || raw.salaryRange, 100) || 'Negotiable';
+      pure.location = safeStr(raw.location, 200) || 'TBD';
+      pure.workHours = safeStr(raw.workHours, 200) || 'TBD';
+      pure.requirements = safeStr(raw.requirements, 2000) || 'TBD';
+      pure.benefits = safeStr(raw.benefits, 1000);
       pure.notes = safeStr(raw.notes, 2000);
+      if (raw.picName) pure.picName = safeStr(raw.picName, 100);
       pure.createdAt = safeStr(raw.createdAt, 40) || new Date().toISOString();
       pure.updatedAt = safeStr(raw.updatedAt, 40) || new Date().toISOString();
 

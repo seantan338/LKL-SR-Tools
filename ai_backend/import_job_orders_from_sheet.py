@@ -1,0 +1,95 @@
+"""
+CLI: import Job Orders from a Google Sheet tab straight into Firestore (no AI, no web UI needed).
+
+Requires in ai_backend/:
+  - credentials.json (Google service account; share the sheet with its client_email) or GOOGLE_SERVICE_ACCOUNT_FILE
+  - Firebase Admin credentials (FIREBASE_SERVICE_ACCOUNT_JSON / firebase-service-account.json)
+
+Examples:
+  python import_job_orders_from_sheet.py --list-teams
+  python import_job_orders_from_sheet.py --sheet-id 1Fc3_q77r8Eph665aqqmeDqEalRjEFBDhIZ3-F2qxYt8 --tab Database --team-id <teamId>
+  python import_job_orders_from_sheet.py --sheet-id ... --tab Database --team-id <teamId> --apply
+"""
+import argparse
+import csv
+import json
+import sys
+
+from services.job_order_sheet import map_sheet_rows_to_job_orders, upsert_job_orders
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Import Job Orders from a Google Sheet tab into Firestore")
+    ap.add_argument("--sheet-id", help="Spreadsheet ID from the URL")
+    ap.add_argument("--tab", default="Database", help="Tab name (default: Database)")
+    ap.add_argument("--team-id", help="Firestore teams/{teamId} to write into")
+    ap.add_argument("--assigned-to", default="system", help="UID used for orders whose PIC is blank")
+    ap.add_argument("--apply", action="store_true", help="Actually write. Default is a dry run")
+    ap.add_argument("--list-teams", action="store_true", help="Print team IDs and exit")
+    ap.add_argument("--preview-csv", help="Write the mapped orders to this CSV for review")
+    args = ap.parse_args()
+
+    from firebase_admin_init import get_firestore_client
+    db = get_firestore_client()
+    if db is None:
+        print("Firebase Admin credentials not found — see firebase_admin_init.py", file=sys.stderr)
+        return 2
+
+    if args.list_teams:
+        # list_documents() also returns teams that only exist as a parent of subcollections
+        # (e.g. HQ "default_team" has no team doc of its own), which stream() silently skips
+        for ref in db.collection("teams").list_documents():
+            snap = ref.get()
+            data = (snap.to_dict() or {}) if snap.exists else {}
+            order_count = sum(1 for _ in ref.collection("job_orders").list_documents())
+            name = data.get("displayName") or data.get("name") or ("公司本部 (HQ)" if ref.id == "default_team" else "")
+            print(f"{ref.id}\t{name}\t{order_count} job orders")
+        return 0
+
+    if not args.sheet_id or not args.team_id:
+        ap.error("--sheet-id and --team-id are required (or use --list-teams)")
+
+    from sheets_service import get_sheet_values
+    values = get_sheet_values(args.sheet_id, args.tab)
+    if len(values) < 2:
+        print("Sheet tab is empty", file=sys.stderr)
+        return 1
+
+    result = map_sheet_rows_to_job_orders(values[0], values[1:])
+    if result["columns"] is None:
+        print(f"Could not find 'Company Name' and 'Job Title' columns in header: {values[0]}", file=sys.stderr)
+        return 1
+
+    print(f"Mapped {len(result['orders'])} job orders ({result['mergedCount']} re-posted rows merged, "
+          f"{len(result['skipped'])} rows skipped)")
+    for s in result["skipped"]:
+        print(f"  skipped row {s['row']}: {s['reason']} ({s['company'] or s['position']})")
+
+    if args.preview_csv:
+        cols = ["sourceRow", "company", "position", "status", "location", "salary", "workHours", "requirements",
+                "benefits", "notes", "picName", "sourceUpdatedAt"]
+        with open(args.preview_csv, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+            w.writeheader()
+            w.writerows(result["orders"])
+        print(f"Preview written to {args.preview_csv}")
+
+    res = upsert_job_orders(db, args.team_id, result["orders"], default_assigned_to=args.assigned_to,
+                            dry_run=not args.apply, report_orphans=True)
+    mode = "APPLIED" if args.apply else "DRY RUN (add --apply to write)"
+    print(f"{mode}: {len(res['created'])} new, {len(res['updated'])} updated, {res['unchanged']} unchanged "
+          f"in teams/{args.team_id}/job_orders")
+    for u in res["updated"]:
+        status = f" status {u['statusChange'][0]} -> {u['statusChange'][1]}" if u.get("statusChange") else ""
+        print(f"  ~ {u['company']} / {u['position']}: {', '.join(u['changedFields'])}{status}")
+    if res["orphans"]:
+        print(f"{len(res['orphans'])} open order(s) imported from the sheet are no longer in it (renamed or deleted rows; not changed):")
+        for o in res["orphans"]:
+            print(f"  ? {o['company']} / {o['position']} [{o['status']}] id={o['id']}")
+    if not args.apply:
+        print(json.dumps({"created": res["created"][:5], "updated": res["updated"][:5]}, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

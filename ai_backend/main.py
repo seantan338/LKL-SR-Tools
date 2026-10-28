@@ -799,6 +799,28 @@ from fastapi import BackgroundTasks
 
 async def process_webhook_in_background(req: SheetsWebhookRequest):
     try:
+        # A Job Order sheet (Company Name + Job Title headers) must never be parsed as candidates
+        from services.job_order_sheet import detect_job_order_columns
+        header_row = req.headers[0] if req.headers else []
+        if detect_job_order_columns(header_row):
+            from fastapi.concurrency import run_in_threadpool
+            from firebase_admin_init import get_firestore_client
+            from services.job_order_sheet import sync_job_order_rows
+            import re as _re
+
+            row_match = _re.search(r"\d+", req.range or "")
+            first_row = int(row_match.group()) if row_match else 2
+            res = await run_in_threadpool(
+                sync_job_order_rows, get_firestore_client(), req.teamId or "default_team",
+                header_row, req.values, first_row,
+            )
+            logger.info(
+                f"Sheets webhook routed to job orders for '{req.sheetName}' row {first_row}: "
+                f"{len(res['created'])} new, {len(res['updated'])} updated, {res['unchanged']} unchanged, "
+                f"{len(res['skipped'])} skipped"
+            )
+            return
+
         # 合并表头与数据行，向大模型提供最高精度的列语义上下文
         all_rows = []
         if req.headers and len(req.headers) > 0 and req.headers != req.values:
@@ -862,6 +884,63 @@ async def process_webhook_in_background(req: SheetsWebhookRequest):
         logger.info(f"Background webhook parsed and UPSERTED {saved_count} candidates for team '{safe_team_id}' with UID: {req.uid}")
     except Exception as e:
         logger.error(f"Background Webhook error: {e}", exc_info=True)
+
+class ImportJobOrdersRequest(BaseModel):
+    spreadsheetId: str
+    sheetName: str = "Database"
+    teamId: str
+    assignedTo: Optional[str] = "system"
+    dryRun: Optional[bool] = True
+
+@app.post("/api/sheets/import-job-orders")
+async def import_job_orders_endpoint(req: ImportJobOrdersRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
+    """
+    Column-mapped (no AI) Job Order import from a sheet tab such as "Job Order 2026" > Database.
+    Upserts by company + position + location, so n8n can call it on a schedule to keep Firestore in sync.
+    dryRun=true (default) only reports what would change.
+    """
+    from services.job_order_sheet import map_sheet_rows_to_job_orders, upsert_job_orders
+    from firebase_admin_init import get_firestore_client
+
+    logger.info(f"Received request at /api/sheets/import-job-orders for {req.spreadsheetId} / {req.sheetName} (dryRun={req.dryRun})")
+    from fastapi.concurrency import run_in_threadpool
+
+    try:
+        values = await run_in_threadpool(get_sheet_values, req.spreadsheetId, req.sheetName)
+    except FileNotFoundError as fnf:
+        return {"status": "error", "message": str(fnf)}
+    if len(values) < 2:
+        raise HTTPException(status_code=400, detail="工作表为空 / Sheet tab is empty")
+
+    mapped = map_sheet_rows_to_job_orders(values[0], values[1:])
+    if mapped["columns"] is None:
+        raise HTTPException(status_code=400, detail="未找到 Company Name / Job Title 列 / Header must contain Company Name and Job Title columns")
+
+    db = get_firestore_client()
+    if db is None:
+        return {"status": "error", "message": "Firestore 未配置 / Firebase Admin credentials not configured"}
+
+    # Blocking Firestore / Sheets I/O stays off the event loop
+    result = await run_in_threadpool(
+        upsert_job_orders, db, req.teamId, mapped["orders"],
+        default_assigned_to=req.assignedTo or "system", dry_run=bool(req.dryRun), report_orphans=True,
+    )
+    return {
+        "status": "success",
+        "dryRun": result["dryRun"],
+        "mapped": len(mapped["orders"]),
+        "mergedRows": mapped["mergedCount"],
+        "skipped": mapped["skipped"],
+        "created": len(result["created"]),
+        "updated": len(result["updated"]),
+        "unchanged": result["unchanged"],
+        # Capped so an n8n / Telegram summary stays readable
+        "createdItems": result["created"][:30],
+        "updatedItems": result["updated"][:30],
+        # Sheet-imported orders whose row was renamed or deleted; reported, never auto-deleted
+        "orphans": len(result["orphans"]),
+        "orphanItems": result["orphans"][:30],
+    }
 
 @app.post("/api/sheets/webhook")
 async def sheets_webhook_endpoint(req: SheetsWebhookRequest, background_tasks: BackgroundTasks, _webhook_ok: bool = Depends(verify_optional_webhook_secret)):

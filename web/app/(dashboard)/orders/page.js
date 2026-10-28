@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../lib/auth-context';
 import { useFeedback } from '../../../lib/feedback-context';
@@ -10,7 +10,19 @@ import { SystemLogger } from '../../../lib/logger';
 import { MatchService } from '../../../lib/match-service';
 import { authFetch } from '../../../lib/api-client';
 import OrderDrawer from '../../../components/OrderDrawer';
+import OrdersViewToolbar, { OrdersFilterSelect, OrdersPagination } from '../../../components/orders/OrdersViewToolbar';
+import OrdersCardsView from '../../../components/orders/OrdersCardsView';
+import OrdersTableView from '../../../components/orders/OrdersTableView';
+import OrdersGroupedView from '../../../components/orders/OrdersGroupedView';
+import OrdersSplitView from '../../../components/orders/OrdersSplitView';
+import OrdersKanbanView from '../../../components/orders/OrdersKanbanView';
+import OrdersCompactView from '../../../components/orders/OrdersCompactView';
+import { useOrdersViewPrefs } from '../../../lib/orders-view-prefs';
+import { buildFilterOptions, defaultSortDir, groupOrders, matchesFilter, sortOrders } from '../../../lib/order-view.mjs';
 import { useI18n } from '../../../lib/i18n-context';
+
+// Cards / rows per page; the grouped view pages through groups, the kanban shows "more" per column instead
+const PAGE_SIZES = { cards: 30, table: 50, grouped: 20, split: 50, kanban: null, compact: 100 };
 
 export default function OrdersPage() {
   const [mounted, setMounted] = useState(false);
@@ -22,6 +34,13 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [picFilter, setPicFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [splitSelectedId, setSplitSelectedId] = useState(null);
+  const [viewPrefs, updateViewPrefs] = useOrdersViewPrefs();
+  const listTopRef = useRef(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Modal State for Creation/Editing
@@ -431,30 +450,79 @@ export default function OrdersPage() {
     }
   };
 
-  // Derived state: Search, Filter & Guaranteed Descending Order by Latest Creation/Import Time
-  const filteredOrders = orders
-    .filter(order => {
-      // 1. Status Filter
-      if (statusFilter !== 'all' && order.status !== statusFilter) return false;
-      
-      // 2. Keyword Search
-      const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
-      if (tokens.length === 0) return true;
+  // Derived state: Search & Filters, then the sort picked in the view toolbar (default: most recently updated first)
+  const searchTokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const filteredOrders = sortOrders(orders.filter(order => {
+    // 1. Status / PIC / Location / Company Filters
+    if (statusFilter !== 'all' && order.status !== statusFilter) return false;
+    if (!matchesFilter(order, 'pic', picFilter)) return false;
+    if (!matchesFilter(order, 'location', locationFilter)) return false;
+    if (!matchesFilter(order, 'company', companyFilter)) return false;
 
-      const compositeText = [
-        order.company, order.position, order.salary, order.benefits,
-        order.requirements, order.workHours, order.location, order.notes
-      ].filter(Boolean).join(' ').toLowerCase();
+    // 2. Keyword Search
+    if (searchTokens.length === 0) return true;
 
-      return tokens.every(token => compositeText.includes(token));
-    })
-    .sort((a, b) => Utils.getRecordTimestamp(b) - Utils.getRecordTimestamp(a));
+    const compositeText = [
+      order.company, order.position, order.salary, order.benefits,
+      order.requirements, order.workHours, order.location, order.notes
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    return searchTokens.every(token => compositeText.includes(token));
+  }), viewPrefs.sortKey, viewPrefs.sortDir);
+
+  const filterOptions = {
+    pic: buildFilterOptions(orders, 'pic'),
+    location: buildFilterOptions(orders, 'location'),
+    company: buildFilterOptions(orders, 'company')
+  };
+  const hasActiveFilters = Boolean(statusFilter !== 'all' || picFilter || locationFilter || companyFilter || searchQuery.trim());
+
+  // Pagination
+  const { view } = viewPrefs;
+  const orderGroups = view === 'grouped' ? groupOrders(filteredOrders, viewPrefs.groupBy) : [];
+  const pageItems = view === 'grouped' ? orderGroups : filteredOrders;
+  const pageSize = PAGE_SIZES[view] ?? Math.max(pageItems.length, 1);
+  const pageCount = Math.max(1, Math.ceil(pageItems.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedItems = pageItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const splitOrder = view === 'split' ? (pagedItems.find(o => o.id === splitSelectedId) || pagedItems[0] || null) : null;
+
+  // Any filter, sort or view change starts again from page 1
+  const setFilter = (setter, value) => {
+    setter(value);
+    setPage(1);
+  };
+
+  const handleViewPrefsChange = (patch) => {
+    updateViewPrefs(patch);
+    setPage(1);
+  };
+
+  const handleTableSort = (key) => {
+    handleViewPrefsChange(key === viewPrefs.sortKey
+      ? { sortDir: viewPrefs.sortDir === 'asc' ? 'desc' : 'asc' }
+      : { sortKey: key, sortDir: defaultSortDir(key) });
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setPicFilter('');
+    setLocationFilter('');
+    setCompanyFilter('');
+    setPage(1);
+  };
+
+  const handlePageChange = (nextPage) => {
+    setPage(nextPage);
+    listTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
 
   return (
     <div className="page-view active">
       
       {/* Utility Bar */}
-      <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 'var(--space-2)', flex: 1, minWidth: '260px', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ marginBottom: 0, flex: '1 1 180px' }}>
             <div className="combo-input-wrapper">
@@ -463,13 +531,13 @@ export default function OrdersPage() {
                 className="form-input" 
                 placeholder={t('orders.searchPlaceholder')} 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setFilter(setSearchQuery, e.target.value)}
               />
               <i className="ph-light ph-magnifying-glass"></i>
             </div>
           </div>
           <div className="form-group" style={{ marginBottom: 0, flex: '0 1 130px', minWidth: '110px' }}>
-            <select className="form-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <select className="form-select" value={statusFilter} onChange={(e) => setFilter(setStatusFilter, e.target.value)}>
               <option value="all">{t('orders.filterAll')}</option>
               <option value="open">{t('orders.statusOpen')}</option>
               <option value="urgent">{t('orders.statusUrgent')}</option>
@@ -477,6 +545,33 @@ export default function OrdersPage() {
               <option value="filled">{t('orders.statusFilled')}</option>
               <option value="closed">{t('orders.statusClosed')}</option>
             </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: '0 1 150px', minWidth: '120px' }}>
+            <OrdersFilterSelect 
+              value={picFilter} 
+              onChange={(value) => setFilter(setPicFilter, value)} 
+              options={filterOptions.pic} 
+              allLabel={t('ordersView.allPic')} 
+              noneLabel={t('ordersView.noPic')} 
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: '0 1 150px', minWidth: '120px' }}>
+            <OrdersFilterSelect 
+              value={locationFilter} 
+              onChange={(value) => setFilter(setLocationFilter, value)} 
+              options={filterOptions.location} 
+              allLabel={t('ordersView.allLocations')} 
+              noneLabel={t('ordersView.noLocation')} 
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: '0 1 170px', minWidth: '120px' }}>
+            <OrdersFilterSelect 
+              value={companyFilter} 
+              onChange={(value) => setFilter(setCompanyFilter, value)} 
+              options={filterOptions.company} 
+              allLabel={t('ordersView.allCompanies')} 
+              noneLabel={t('ordersView.noCompany')} 
+            />
           </div>
         </div>
 
@@ -517,7 +612,29 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Grid or Empty State */}
+      {/* View Toolbar */}
+      <div ref={listTopRef} style={{ scrollMarginTop: 'var(--space-4)' }}>
+        <OrdersViewToolbar 
+          prefs={viewPrefs} 
+          onChange={handleViewPrefsChange}
+          summary={(
+            <>
+              <span>
+                {view === 'grouped'
+                  ? t('ordersView.groupedCount', { count: filteredOrders.length, groups: orderGroups.length })
+                  : t('ordersView.resultCount', { count: filteredOrders.length })}
+              </span>
+              {hasActiveFilters && (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                  <i className="ph-light ph-x"></i> {t('ordersView.clearFilters')}
+                </button>
+              )}
+            </>
+          )}
+        />
+      </div>
+
+      {/* Orders View or Empty State */}
       {filteredOrders.length === 0 ? (
         <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
           <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
@@ -528,88 +645,58 @@ export default function OrdersPage() {
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', maxWidth: '420px', margin: 0, lineHeight: 1.6 }}>
               {t('orders.emptyDesc')}
             </p>
-            <button className="btn btn-primary btn-sm" style={{ marginTop: 'var(--space-2)' }} onClick={() => openModal(null)}>
-              <i className="ph-bold ph-plus"></i> {t('orders.createNow')}
-            </button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {hasActiveFilters && (
+                <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                  <i className="ph-light ph-x"></i> {t('ordersView.clearFilters')}
+                </button>
+              )}
+              <button className="btn btn-primary btn-sm" onClick={() => openModal(null)}>
+                <i className="ph-bold ph-plus"></i> {t('orders.createNow')}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="orders-cards-grid">
-          {filteredOrders.map(order => {
-          const statusMeta = Utils.getJobOrderStatusMeta(order.status, t);
-          return (
-            <div key={order.id} className="bezel-shell">
-              <div className="bezel-core" style={{ padding: 'var(--space-5)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
-                  <h3 style={{ fontSize: 'var(--text-md)', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    {order.position || t('orders.unnamedPosition')}
-                  </h3>
-                  <span className="badge" style={{ 
-                    color: statusMeta.color,
-                    background: statusMeta.bg,
-                    borderColor: statusMeta.border
-                  }}>
-                    {statusMeta.label}
-                  </span>
-                </div>
-
-                <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="ph-light ph-buildings"></i> {order.company || t('components.orderDrawer.unnamedCompany')}
-                  </div>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }} title={order.createdAt ? Utils.formatDate(order.createdAt) : ''}>
-                    <i className="ph-light ph-clock"></i>
-                    {Utils.formatRelativeTime(order.createdAt, t, order)}
-                  </span>
-                </div>
-                
-                {/* Key Metrics Only */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: 'var(--space-5)' }}>
-                  <span className="badge" style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                    <i className="ph-light ph-currency-circle-dollar" style={{ marginRight: '4px' }}></i>
-                    {order.salary || t('orders.salaryNegotiable')}
-                  </span>
-                  <span className="badge" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
-                    <i className="ph-light ph-map-pin" style={{ marginRight: '4px' }}></i>
-                    {order.location || t('orders.locationAny')}
-                  </span>
-                  <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
-                    <i className="ph-light ph-users" style={{ marginRight: '4px' }}></i>
-                    {t('orders.headcountReq')} {order.headcount || 1} {t('orders.pax')}
-                  </span>
-                </div>
-                
-                {/* Footer Action */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-subtle)', gap: 'var(--space-2)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <select 
-                      className="form-select btn-sm" 
-                      style={{ fontSize: '11px', padding: '2px 8px', height: '28px', background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', cursor: 'pointer' }}
-                      value={order.status || 'open'}
-                      onChange={(e) => handleQuickStatusChange(order.id, e.target.value, order.position)}
-                      title={t('orders.quickChangeStatusTitle')}
-                    >
-                      <option value="open">{t('orders.statusOpen')}</option>
-                      <option value="urgent">{t('orders.statusUrgent')}</option>
-                      <option value="paused">{t('orders.statusPaused')}</option>
-                      <option value="filled">{t('orders.statusFilled')}</option>
-                      <option value="closed">{t('orders.statusClosed')}</option>
-                    </select>
-                  </div>
-                  <button 
-                    className="btn btn-sm btn-primary" 
-                    onClick={() => openDrawer(order)}
-                  >
-                    {t('orders.viewDetails')} <i className="ph-bold ph-arrow-right"></i>
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          );
-        })}
-        </div>
+        <>
+          {view === 'cards' && (
+            <OrdersCardsView orders={pagedItems} onOpen={openDrawer} onQuickStatusChange={handleQuickStatusChange} />
+          )}
+          {view === 'table' && (
+            <OrdersTableView 
+              orders={pagedItems}
+              sortKey={viewPrefs.sortKey}
+              sortDir={viewPrefs.sortDir}
+              onSort={handleTableSort}
+              hiddenColumns={viewPrefs.hiddenColumns}
+              onOpen={openDrawer}
+              onQuickStatusChange={handleQuickStatusChange}
+              canEdit={!isReadOnlyView}
+            />
+          )}
+          {view === 'grouped' && (
+            <OrdersGroupedView groups={pagedItems} groupBy={viewPrefs.groupBy} onOpen={openDrawer} />
+          )}
+          {view === 'split' && (
+            <OrdersSplitView 
+              orders={pagedItems}
+              selectedOrder={splitOrder}
+              onSelect={setSplitSelectedId}
+              onOpenDrawer={openDrawer}
+              onEdit={openModal}
+              onQuickStatusChange={handleQuickStatusChange}
+              canEdit={!isReadOnlyView}
+              keyboardEnabled={!isModalOpen && !isDrawerOpen && !isDuplicateModalOpen}
+            />
+          )}
+          {view === 'kanban' && (
+            <OrdersKanbanView orders={pagedItems} onOpen={openDrawer} onQuickStatusChange={handleQuickStatusChange} canEdit={!isReadOnlyView} />
+          )}
+          {view === 'compact' && (
+            <OrdersCompactView orders={pagedItems} onOpen={openDrawer} />
+          )}
+          <OrdersPagination page={currentPage} pageCount={pageCount} onChange={handlePageChange} />
+        </>
       )}
 
       {/* Add / Edit Modal - Teleported to document.body via Portal to prevent centering issues caused by parent CSS transforms */}

@@ -78,8 +78,44 @@
 3. **Google Apps Script 配置**：
    将 Google 表格中的 `backendUrl` 指向 n8n Webhook：
    ```javascript
-   var backendUrl = 'https://unsafe-islamist-idealist.ngrok-free.dev/webhook/sheets-sync';
+   var backendUrl = 'https://sunriserecruit.zeabur.app/webhook/sheets-sync';  // n8n 生产 Webhook（旧版为本地 ngrok 域名）
    ```
-4. **运作效果**：Google 表格编辑后，n8n 实时抓取并通过 `http://host.docker.internal:8000/api/sheets/webhook` 转发至 FastAPI，实现 Telegram 简历与 Google 表格同步无缝共存。
+4. **运作效果**：Google 表格编辑后，n8n 实时抓取并转发至 AI 后端 `/api/sheets/webhook`（当前部署：`https://lkl-sr-tools-1.onrender.com`；本地 Docker 版可改回 `http://host.docker.internal:8000`）。
+5. **Job Order 表格**：表头含 `Company Name` + `Job Title` 的表格（如 `Job Order 2026 > Database`）会被后端自动识别，只同步被编辑的那一行到 Job Orders（按「公司 + 职位 + 地点」匹配），不会被当成候选人解析。
 
 
+
+---
+
+## 7. Job Order 每日自动同步工作流 (Google Sheets → Firestore)
+
+每天 08:00（Asia/Kuala_Lumpur）把 `Job Order 2026 > Database` 同步进系统，并把结果推送到 Telegram。
+
+- **导入文件**：`n8n/talentflow_job_order_daily_sync_workflow.json`
+- **流程**：`Daily 08:00` / `Run Now (Test)` → `Config` → `Sync Job Orders`（`POST /api/sheets/import-job-orders`）→ `Sync OK?` → Telegram 推送摘要或失败原因
+- **同步规则**：按「公司 + 职位 + 地点」匹配；只新建新岗位、只更新内容有变化的岗位，不会重复；缺公司名或职位的行会跳过，并在推送消息里列出行号。
+- **改名 / 删除的行**：表格里已找不到、但系统中仍在招聘的岗位会列在推送消息里，系统不会自动删除或关闭，由你确认处理。
+
+### 设置步骤
+1. **Config 节点**：填写 `apiBaseUrl`（后端地址，例如 Zeabur 的 `https://xxx.zeabur.app`；本地 Docker n8n 可用 `http://host.docker.internal:8000`）和 `telegramChatId`。`dryRun` 默认为 `true`（只报告不写入），试跑确认后改为 `false`。
+2. **Sync Job Orders 节点** → Credential → 新建 **Header Auth**：Name = `X-API-Key`，Value = 后端环境变量 `INTERNAL_API_SECRET` 的值。
+3. **Telegram Notify 节点** → 选择已有的 Telegram Bot 凭据。
+4. 点 **Test workflow** 确认 Telegram 收到消息后，打开右上角 **Active**。
+
+### 后端前提
+| 环境变量 | 用途 |
+| :--- | :--- |
+| `INTERNAL_API_SECRET` | n8n 调用接口的密钥（与 Header Auth 的值一致） |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | 写 Firestore；没有 `credentials.json` 时也用它读 Google Sheets |
+
+表格需共享给该 service account 的 `client_email`（Viewer），且对应 GCP 项目需启用 **Google Sheets API**。
+
+本地手动同步可直接运行 `ai_backend\sync_job_orders.ps1`（`-Apply` 写入）。
+
+---
+
+## 8. 当前线上部署与 Render 冷启动
+
+- **n8n**：Zeabur `https://sunriserecruit.zeabur.app`；**AI 后端**：Render `https://lkl-sr-tools-1.onrender.com`。
+- Render 免费实例闲置约 15 分钟会休眠，第一个请求只会返回 "Application loading" 页面。CV Ingest 与 Job Order 每日同步在调用后端前都有 **Wake Backend → Backend Awake? → Wait For Cold Start (60s)** 三个节点：后端已醒则直接继续，否则先等 60 秒。
+- 后端需要 `main` 最新代码（`/api/sheets/import-job-orders` 存在）。Render 未开启 Auto-Deploy 时，请在 Render 控制台手动 **Deploy latest commit**。

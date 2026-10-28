@@ -99,7 +99,7 @@ export const GoogleSheetsAPI = {
       if (error.message === 'PRIVATE_SHEET') {
         throw error;
       }
-      throw new Error('无法访问公开表格，请检查链接或尝试授权登录获取 / Cannot access public sheet. Check URL or authorize with Google.');
+      throw new Error('无法访问公开表格，请点击「Google 授权」按钮获取私有表格 / Cannot access public sheet. Click the Google authorize button for private sheets.');
     }
   },
 
@@ -108,7 +108,7 @@ export const GoogleSheetsAPI = {
    * Requires OAuth access_token with 'https://www.googleapis.com/auth/spreadsheets.readonly' scope
    */
   async fetchPrivateSheetData(spreadsheetId, accessToken, range = 'A1:Z1000') {
-    const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
     
     try {
       const response = await fetch(apiUrl, {

@@ -21,15 +21,27 @@
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "string": [],
-          "number": [],
-          "custom": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
             {
-              "value": "={{ Boolean($json.message && ($json.message.document || $json.message.photo || ($json.message.text && $json.message.text.length >= 80))) }}"
+              "id": "is-resume-message",
+              "leftValue": "={{ Boolean($json.message && ($json.message.document || $json.message.photo || ($json.message.text && $json.message.text.length >= 80))) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "id": "1a2b3c4d-0002-4000-8000-000000000002",
       "name": "Is Resume Document / Photo / Text?",
@@ -43,7 +55,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/api/telegram/webhook?sync=true",
+        "url": "https://lkl-sr-tools-1.onrender.com/api/telegram/webhook?sync=true",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -55,9 +67,9 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}",
+        "jsonBody": "={{ JSON.stringify($('Telegram Trigger (Listen Message Flow)').item.json) }}",
         "options": {
-          "timeout": 60000
+          "timeout": 180000
         }
       },
       "id": "1a2b3c4d-0003-4000-8000-000000000003",
@@ -65,13 +77,16 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        740,
-        280
-      ]
+        1240,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
-        "content": "## Talent Flow - Telegram Candidate Ingest Workflow\n\n### Work Distribution Architecture:\n1. **n8n (Visual Orchestrator)**: Listens to incoming group messages / files, filters non-resume traffic, and manages notifications.\n2. **FastAPI :8000 (AI & Database Core)**: Extracts text from DOCX/PDF/Images, runs Gemini 3.8 Flash analysis, deduplicates by phone number, and saves to Firestore.\n\n### Network Host Configuration:\n- If n8n runs inside **Docker (Windows/Mac)**: use `http://host.docker.internal:8000`\n- If n8n runs directly on **Host Node.js**: use `http://localhost:8000`\n\n### Telegram Privacy Mode Requirement:\nIn Telegram `@BotFather`, run `/setprivacy` -> Select Bot -> **Disable**.",
+        "content": "## Talent Flow - Telegram Candidate Ingest\n\n1. **Telegram Trigger** → **IF**：只放行文件 / 照片 / ≥80 字的文字。\n2. **Wake Backend**：Render 免费实例休眠时先等 60 秒冷启动，避免 CV 丢失。\n3. **AI Engine**：`POST /api/telegram/webhook?sync=true`（解析 DOCX/PDF/图片 → 按电话去重 → 写入 Firestore），失败自动重试 3 次。\n\n### 后端要求\n- `TELEGRAM_BOT_TOKEN` = 本 workflow 所用 bot 的 token（后端用它下载文件）；`TELEGRAM_ENABLE_POLLING` 保持 false。\n- 同一个 bot 只能有一个 webhook：不要和其他 Telegram Trigger workflow 共用 bot。\n- Telegram `@BotFather` → `/setprivacy` → **Disable**（群组里才收得到文件）。",
         "height": 380,
         "width": 560
       },
@@ -82,6 +97,75 @@
       "position": [
         220,
         -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://lkl-sr-tools-1.onrender.com/",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "1a2b3c4d-0001-4000-8000-000000000101",
+      "name": "Wake Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        540,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "backend-awake",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "1a2b3c4d-0001-4000-8000-000000000102",
+      "name": "Backend Awake?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "1a2b3c4d-0001-4000-8000-000000000103",
+      "name": "Wait For Cold Start",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        420
       ]
     }
   ],
@@ -99,6 +183,46 @@
       ]
     },
     "Is Resume Document / Photo / Text?": {
+      "main": [
+        [
+          {
+            "node": "Wake Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wake Backend": {
+      "main": [
+        [
+          {
+            "node": "Backend Awake?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backend Awake?": {
+      "main": [
+        [
+          {
+            "node": "Talent Flow AI Engine (Parse & Firestore Upsert)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait For Cold Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait For Cold Start": {
       "main": [
         [
           {

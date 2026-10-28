@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.8';
+export const APP_VERSION = 'v1.7.9';
 export const BUILD_DATE = '2026-10-28';
-export const RELEASE_CODENAME = 'Attendance Excel Pure Native Downloader & Stacking Context Hotspot Hardening';
+export const RELEASE_CODENAME = 'Leaderboard Purification & Punctuality Overhaul';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',
