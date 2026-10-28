@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.5';
+export const APP_VERSION = 'v1.7.6';
 export const BUILD_DATE = '2026-10-28';
-export const RELEASE_CODENAME = 'Attendance Daily Card Grouping & Per-Day Box Layout';
+export const RELEASE_CODENAME = 'Attendance 3-Sheet Matrix Architecture & Chinese Locale Date Filter Fix';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

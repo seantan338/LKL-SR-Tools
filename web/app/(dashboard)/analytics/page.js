@@ -48,6 +48,10 @@ export default function AnalyticsPage() {
   const [clockInStatusMsg, setClockInStatusMsg] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [exportMonth, setExportMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   // Attendance Rules & Settings Modal State
   const [attendanceRules, setAttendanceRules] = useState({
@@ -148,16 +152,20 @@ export default function AnalyticsPage() {
     if (!teamId) return;
     const unsubscribe = FirestoreStore.subscribeToAttendanceRules(teamId, (rules) => {
       if (rules && typeof rules === 'object') {
-        setAttendanceRules({
+        setAttendanceRules(prev => ({
+          ...prev,
           enabled: rules.enabled ?? true,
           allowWfh: rules.allowWfh ?? true,
+          enableLunchPunch: rules.enableLunchPunch ?? false,
           maxDistanceMeters: rules.maxDistanceMeters || 100,
           maxDriftCompensation: rules.maxDriftCompensation || 40,
           officeLocations: rules.officeLocations && rules.officeLocations.length > 0
             ? rules.officeLocations
             : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }],
-          officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' }
-        });
+          officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' },
+          shiftConfig: rules.shiftConfig || DEFAULT_SHIFT_CONFIG,
+          shiftOverrides: rules.shiftOverrides || {}
+        }));
       }
     });
     return () => unsubscribe();
@@ -1037,7 +1045,7 @@ export default function AnalyticsPage() {
     });
   };
 
-  // Export Attendance Excel (Dual-Sheet Report)
+  // Export Attendance Excel (3-Sheet Report: Summary / Matrix / Details)
   const handleExportAttendanceExcel = async () => {
     if (!isHqTeam || (!isOwner && !isManager)) {
       showToast(t('analytics.exportNoPermission', '仅 HQ 本部管理人员具备全员考勤月报导出权限'), 'error');
@@ -1050,7 +1058,9 @@ export default function AnalyticsPage() {
 
     setIsExportingExcel(true);
     try {
-      const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
+      const now = new Date();
+      const fallbackMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const activeMonthStr = exportMonth || fallbackMonth;
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
 
       const attendanceLogs = logs.filter(l => !l.isDeleted && l.targetType === 'ATTENDANCE' && ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'].includes(l.action || l.type));
@@ -1062,7 +1072,6 @@ export default function AnalyticsPage() {
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG,
         shiftOverrides: attendanceRules.shiftOverrides || {},
-        workingDays: 22,
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -1376,34 +1385,52 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* Top Quick Excel Export Button (HQ Owner / Manager) */}
+          {/* Top Quick Excel Export Button & Month Selector (HQ Owner / Manager) */}
           {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
-            <button
-              className="btn btn-sm btn-outline"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                borderColor: 'rgba(16, 185, 129, 0.4)',
-                color: 'var(--accent-emerald)',
-                background: 'rgba(16, 185, 129, 0.08)',
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                borderRadius: 'var(--radius-md)',
-                cursor: isExportingExcel ? 'wait' : 'pointer',
-                pointerEvents: isExportingExcel ? 'none' : 'auto',
-                position: 'relative',
-                zIndex: 50,
-                flexShrink: 0
-              }}
-              onClick={handleExportAttendanceExcel}
-              disabled={isExportingExcel}
-              title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
-            >
-              <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
-              <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+              <input
+                type="month"
+                value={exportMonth}
+                onChange={(e) => setExportMonth(e.target.value)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  padding: '4px 8px',
+                  borderRadius: 'var(--radius-md)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+                title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
+              />
+              <button
+                className="btn btn-sm btn-outline"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  borderColor: 'rgba(16, 185, 129, 0.4)',
+                  color: 'var(--accent-emerald)',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  padding: '5px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: isExportingExcel ? 'wait' : 'pointer',
+                  pointerEvents: isExportingExcel ? 'none' : 'auto',
+                  position: 'relative',
+                  zIndex: 50,
+                  flexShrink: 0
+                }}
+                onClick={handleExportAttendanceExcel}
+                disabled={isExportingExcel}
+                title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
+              >
+                <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+                <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
+              </button>
+            </div>
           )}
 
           {/* Quick Clock-in Buttons (HQ only) */}
@@ -1741,32 +1768,50 @@ export default function AnalyticsPage() {
                   </span>
                 </div>
                 {isHqTeam && (isOwner || isManager) && (
-                  <button
-                    className="btn btn-sm btn-outline"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      borderColor: 'rgba(16, 185, 129, 0.4)',
-                      color: 'var(--accent-emerald)',
-                      background: 'rgba(16, 185, 129, 0.08)',
-                      padding: '4px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      borderRadius: 'var(--radius-md)',
-                      cursor: isExportingExcel ? 'wait' : 'pointer',
-                      pointerEvents: isExportingExcel ? 'none' : 'auto',
-                      position: 'relative',
-                      zIndex: 50,
-                      flexShrink: 0
-                    }}
-                    onClick={handleExportAttendanceExcel}
-                    disabled={isExportingExcel}
-                    title={t('analytics.exportBtnTitle', '导出当月内部员工考勤出勤双 Sheet Excel 报表')}
-                  >
-                    <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
-                    <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
-                  </button>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <input
+                      type="month"
+                      value={exportMonth}
+                      onChange={(e) => setExportMonth(e.target.value)}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                      title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
+                    />
+                    <button
+                      className="btn btn-sm btn-outline"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        borderColor: 'rgba(16, 185, 129, 0.4)',
+                        color: 'var(--accent-emerald)',
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        padding: '4px 12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: isExportingExcel ? 'wait' : 'pointer',
+                        pointerEvents: isExportingExcel ? 'none' : 'auto',
+                        position: 'relative',
+                        zIndex: 50,
+                        flexShrink: 0
+                      }}
+                      onClick={handleExportAttendanceExcel}
+                      disabled={isExportingExcel}
+                      title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
+                    >
+                      <i className={`ph-bold ${isExportingExcel ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+                      <span style={{ pointerEvents: 'none' }}>{isExportingExcel ? t('analytics.exportingBtn', '正在生成报表...') : t('analytics.exportBtn', '导出考勤月报 (Excel)')}</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

@@ -109,7 +109,8 @@ export default function LeaderboardPage() {
 
     setIsExporting(true);
     try {
-      const activeMonthStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' }).replace(/\//g, '-');
+      const now = new Date();
+      const activeMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
 
       const sheets = ExcelExporter.buildAttendanceReportData({
@@ -117,7 +118,7 @@ export default function LeaderboardPage() {
         attendanceEvents: combinedEvents,
         hqMembers: hqAdvisors,
         shiftConfig: attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG,
-        workingDays: 22,
+        shiftOverrides: attendanceRules?.shiftOverrides || {},
         locale: isEn ? 'en' : 'zh'
       });
 

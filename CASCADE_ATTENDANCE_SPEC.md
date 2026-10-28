@@ -1,191 +1,343 @@
-# 📘 TALENT FLOW 阶梯式弹性考勤与双 Sheet 报表导出开发技术规范 (CASCADE_ATTENDANCE_SPEC.md)
+# 📘 TALENT FLOW 阶梯式弹性考勤与三表联动 Excel 导出开发技术规范 (CASCADE_ATTENDANCE_SPEC.md)
 
-> **版本**：v1.0.0  
-> **状态**：定稿待开发 (Approved & Ready for Implementation)  
-> **最后更新时间**：2026-10-26  
-> **适用范围**：TALENT FLOW Web 端 (`/analytics`, `/leaderboard`, `AttendanceModal`) 及底层 Excel 导出引擎
-
----
-
-## 1. 业务背景与管理核心目标
-
-在 TALENT FLOW 的日常运营中，内部员工考勤核算一直面临两大痛点：
-1. **现实打卡异常多**：员工经常忘记打下班卡，或早上误触连击导致系统聚合出“签退时间 = 签到时间”以及“0 工时”的尴尬数据；
-2. **阶梯式弹性考勤新规落地**：管理层制定了全新的“阶梯顺延式弹性工时”考核体系，要求系统能够智能核算员工打卡所属的阶梯档位，并严格执行“提前签退按迟到计”的纪律约束。
-
-### 核心管理规则要点：
-- **4 档标准班次**：`07:30 - 16:30`、`08:00 - 17:00`、`08:30 - 17:30`、`09:00 - 18:00`（工时跨度均为 9 小时，含 1 小时午休）。
-- **零冗余阶梯顺延 (Cascade Punitive Shifts)**：
-  - 8:30 班次必须在 `08:30:00` 及之前打卡；
-  - 只要晚了 1 秒/1 分钟（如 `08:31:00`），**绝不给任何隐性宽限**，直接强制顺延至下一档（9:00 - 18:00 班次），当日下班底线强制变为 `18:00:00`；
-  - 超过 `09:00:00` 打卡，属于超额严重迟到。
-- **动态可配置性 (Admin Configurable)**：
-  - 当前默认打卡宽限容差为 `graceMinutes = 0`；
-  - 但**严禁将时间硬编码在代码中**，管理员可在设置面板随时修改各班次时间及宽限容差（如后续调整为 2 或 5 分钟）。
-- **离线一分钟绝杀 (Strict Clock-Out)**：
-  - 若核定下班时间为 18:00，员工在 `17:59:xx` 签退（哪怕差 1 秒），**直接判定为违规早退，并按迟到记录**。
-- **双 Sheet 报表直出**：
-  - 导出 Excel 账本包含：Sheet 1（月度全员汇总，供老板/HR 算工资全勤）与 Sheet 2（每日打卡阶梯流水，供行政对账与审计）。
+> **版本**：v2.0.0 (3-Sheet 矩阵升级与日期格式断崖修复版)  
+> **状态**：已批准，待轻量级 AI 按步骤执行 (Approved — Ready for Step-by-Step Execution)  
+> **最后更新时间**：2026-10-28  
+> **适用范围**：`web/lib/excel-exporter.js`、`web/app/(dashboard)/analytics/page.js`、`web/app/(dashboard)/leaderboard/page.js`
 
 ---
 
-## 2. 数据模型规范 (Data Models)
+## 🤖 给执行 AI 的最高指令 (Instructions for Executing AI)
 
-### 2.1 考勤规则扩展实体 (`teams/{teamId}/settings/attendance`)
-在既有的考勤网络与地理围栏配置中，新增 `shiftConfig` 实体：
+你现在的任务是**严格按照本规范的 4 个步骤（Step 1 ~ Step 4）**，修复考勤 Excel 导出全为 0 的 Bug，并将报表升级为**“三表联动（3-Sheet）智能考勤账本”**。
 
-```typescript
-interface AttendanceShiftRule {
-  id: string;                      // 班次唯一标识 (如 'shift_a')
-  name: string;                    // 班次显示名称 (如 'Shift A (7:30am - 4:30pm)')
-  startTime: string;               // 签到基准/截止时间 'HH:mm' (如 '07:30')
-  endTime: string;                 // 下班达标底线时间 'HH:mm' (如 '16:30')
-}
+### ⚠️ 严禁触碰的红线 (Strict Guardrails)
+1. **严禁使用 `toLocaleDateString` 生成月份或过滤日期**：在中文环境下 `toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' })` 会输出 `"2026年10月"`，与 `"2026-10-28"` 进行 `.startsWith()` 匹配会 100% 失败导致数据全空。必须使用纯数字 `getFullYear()` 与 `getMonth() + 1`。
+2. **严禁在订阅考勤规则时丢失字段**：`analytics/page.js` 的 `subscribeToAttendanceRules` 必须保留 `enableLunchPunch`、`shiftConfig`、`shiftOverrides`。
+3. **严禁调用原生弹窗**：前端不得使用 `window.alert` / `window.confirm` / `window.prompt`。
+4. **必须完成记忆库同步**：代码修改完成后，必须将变更同步至 `memory/05_pitfalls.md` 与 `CHANGELOG.md`。
 
-interface AttendanceShiftConfig {
-  enabled: boolean;                // 是否开启阶梯班次考核 (默认 true)
-  graceMinutes: number;            // 打卡宽限容差分钟数 (【当前默认 0】，零冗余)
-  strictClockOut: boolean;         // 提前签退是否直接按迟到计 (默认 true)
-  shifts: AttendanceShiftRule[];   // 阶梯班次列表 (按时间升序)
-}
+---
+
+## 🛠️ Step 1：重构 `web/lib/excel-exporter.js`
+
+### 1.1 修改目标
+1. 引入 `resolveCanonicalPic`（来自 `./identity.mjs`），确保打卡记录与 HQ 顾问身份 100% 归一化对齐（支持 `uid`、`email`、姓名变体匹配）。
+2. 新增纯数字日期解析与日历工作日计算函数：
+   - `parseTargetYearMonth(monthStr)`：无论传入 `"2026-10"`、`"2026年10月"` 还是 `"2026/10"`，均用正则提取数字 `{ year, month, formatted: 'YYYY-MM' }`；
+   - `toIsoDateStr(dateObj)`：用 `getFullYear()`、`getMonth() + 1`、`getDate()` 拼接标准的 `YYYY-MM-DD`；
+   - `getMonthCalendarMeta(year, month)`：自动计算该月所有日期列表、法定工作日总数（排除周六日 `totalWorkingDays`）以及截止今日已过去的工作日数（`elapsedWorkingDays`）。
+3. 升级为 **3 张工作表（3-Sheet）**：
+   - **Sheet 1（月度全员出勤总账 `Attendance Summary`）**：包含 `当月总工作日`、`截止目前应出勤`、`实际出勤`、`办公室打卡`、`🏠 WFH居家`、`阶梯班次达标`、`迟到/早退违规`、`未签退/异常`、`出勤率 (实出勤/应出勤)`、`班次合规率 (达标/实出勤)`。
+   - **Sheet 2（月度考勤日历矩阵 `Monthly Calendar Matrix`）**：纵轴为每位顾问，横轴为当月 `01` ~ 月末每一天（带星期标识），单元格直观填入 `✅ 08:55-18:02`、`🏠 WFH (09:00-18:05)`、`❌ 迟到/早退`、`❗ 未签退(08:58-)`、周末填 `休`、无打卡工作日填 `—`。
+   - **Sheet 3（每日打卡流水明细 `Daily Punch Log Details`）**：增加 `星期`、`午休离开`、`午休返回` 列，并展示主管人工改派备注与多次打卡完整流水。
+4. 实现 **智能中英文自适应列宽 (`autoFitColumnWidths`)**：扫描表头与每行单元格，按中文字符 `2.1` 倍宽、英文数字 `1.1` 倍宽 + `4` 字符边距动态计算 `!cols` 的 `wch`（范围 `12 ~ 55`），彻底解决表头文字被截断的问题。
+
+### 1.2 关键代码实现蓝图（`web/lib/excel-exporter.js`）
+
+请在 `web/lib/excel-exporter.js` 顶部引入 `resolveCanonicalPic`：
+```javascript
+import { saveAs } from 'file-saver';
+import { CascadeShiftEngine } from './cascade-shift-engine';
+import { resolveCanonicalPic } from './identity.mjs';
 ```
 
-**系统默认配置种子 (Fallback Default)**：
+在 `EXCEL_I18N` 中补齐 3-Sheet 双语字典：
 ```javascript
-export const DEFAULT_SHIFT_CONFIG = {
-  enabled: true,
-  graceMinutes: 0, // 零打卡冗余
-  strictClockOut: true,
-  shifts: [
-    { id: 'shift_a', name: 'Shift A (7:30am - 4:30pm)', startTime: '07:30', endTime: '16:30' },
-    { id: 'shift_b', name: 'Shift B (8:00am - 5:00pm)', startTime: '08:00', endTime: '17:00' },
-    { id: 'shift_c', name: 'Shift C (8:30am - 5:30pm)', startTime: '08:30', endTime: '17:30' },
-    { id: 'shift_d', name: 'Shift D (9:00am - 6:00pm)', startTime: '09:00', endTime: '18:00' }
-  ]
+export const EXCEL_I18N = {
+  zh: {
+    sheetSummary: (m) => `${m} 全员出勤总账`,
+    sheetMatrix: (m) => `${m} 考勤日历矩阵`,
+    sheetDetail: '每日打卡流水明细',
+    colPicName: '顾问姓名 (PIC)',
+    colEmail: '注册邮箱',
+    colTotalWorkDays: '当月总工作日 (天)',
+    colElapsedWorkDays: '截止目前应出勤 (天)',
+    colPresentDays: '实际出勤天数 (天)',
+    colOfficeDays: '办公室打卡 (天)',
+    colWfhDays: '🏠 WFH居家 (天)',
+    colCompliantDays: '阶梯班次达标 (天)',
+    colViolations: '迟到/早退违规 (次)',
+    colMissedAnomalies: '未签退/异常 (次)',
+    colAttendanceRate: '月度出勤率 (%)',
+    colComplianceRate: '班次合规率 (%)',
+    colDate: '考勤日期',
+    colWeekday: '星期',
+    colFirstIn: '首次签到 (In)',
+    colLunchOut: '午休离开',
+    colLunchIn: '午休返回',
+    colShift: '核定阶梯班次',
+    colCutoff: '要求下班底线',
+    colLastOut: '实际签退 (Out)',
+    colDuration: '当日工时 (h)',
+    colComplianceStatus: '综合合规判定',
+    colVerifyMethod: '核验模式',
+    colNotes: '核验凭证与备注',
+    defaultPic: '顾问',
+    unassignedShift: '未定班次',
+    methodWfh: '居家办公 (WFH)',
+    methodWifi: '公司 Wi-Fi',
+    methodGps: '100m 地理围栏',
+    methodRegular: '日常打卡',
+    weekendRest: '休',
+    absentDash: '—',
+    missedOutShort: '未签退',
+    weekdays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
+    emptySheetErr: '导出内容为空，无有效 Sheet'
+  },
+  en: {
+    sheetSummary: (m) => `${m} Attendance Summary`,
+    sheetMatrix: (m) => `${m} Calendar Matrix`,
+    sheetDetail: 'Daily Punch Log Details',
+    colPicName: 'Consultant / PIC',
+    colEmail: 'Registered Email',
+    colTotalWorkDays: 'Month Working Days',
+    colElapsedWorkDays: 'Expected Days (To Date)',
+    colPresentDays: 'Days Present',
+    colOfficeDays: 'Office Days',
+    colWfhDays: '🏠 WFH Days',
+    colCompliantDays: 'Compliant Shifts',
+    colViolations: 'Violations / Late',
+    colMissedAnomalies: 'Missed / Anomalies',
+    colAttendanceRate: 'Attendance Rate (%)',
+    colComplianceRate: 'Shift Compliance (%)',
+    colDate: 'Date',
+    colWeekday: 'Day',
+    colFirstIn: 'First Clock-In (In)',
+    colLunchOut: 'Lunch Out',
+    colLunchIn: 'Lunch In',
+    colShift: 'Assigned Shift',
+    colCutoff: 'Mandatory Cutoff',
+    colLastOut: 'Actual Clock-Out (Out)',
+    colDuration: 'Hours Worked (h)',
+    colComplianceStatus: 'Compliance Status',
+    colVerifyMethod: 'Verification Method',
+    colNotes: 'Credentials & Notes',
+    defaultPic: 'Advisor',
+    unassignedShift: 'Unassigned Shift',
+    methodWfh: 'Work From Home (WFH)',
+    methodWifi: 'Office Wi-Fi',
+    methodGps: '100m Geofence',
+    methodRegular: 'Standard Check-in',
+    weekendRest: 'OFF',
+    absentDash: '—',
+    missedOutShort: 'No Out',
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    emptySheetErr: 'Export content is empty — no valid sheet found'
+  }
 };
 ```
 
----
+新增核心日期与列宽辅助函数：
+```javascript
+/**
+ * 将 Date 对象安全格式化为 'YYYY-MM-DD'（不依赖任何浏览器 locale）
+ */
+export function toIsoDateStr(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
-## 3. 核心算法判定引擎规范 (`web/lib/cascade-shift-engine.js`)
+/**
+ * 将 Date 对象安全格式化为 'HH:mm'
+ */
+export function toShortTimeStr(dateObj) {
+  if (!dateObj || isNaN(dateObj.getTime())) return '';
+  const hh = String(dateObj.getHours()).padStart(2, '0');
+  const mm = String(dateObj.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
 
-系统必须封装纯函数类 `CascadeShiftEngine`，负责计算单日考勤状态与班次匹配。
-
-### 3.1 零冗余与动态容差班次匹配逻辑
-设员工当天首次有效签到时间为 $T_{\text{firstIn}}$，转换成当天从 0 点起的分钟数 $M_{\text{in}}$：
-1. 遍历 `shifts` 列表（按 `startTime` 由早到晚排序）；
-2. 针对第 $i$ 个班次，计算其最大签到有效截止分钟线：
-   $$Cutoff_i = \text{parseMinutes}(shifts[i].startTime) + \text{graceMinutes}$$
-3. 若 $M_{\text{in}} \le Cutoff_i$，则命中该班次 $shifts[i]$，其要求的最低下班时间为 $shifts[i].endTime$；
-4. 若遍历完毕仍未命中（即 $M_{\text{in}} > Cutoff_{\text{last}}$），则归入 `Shift Late (严重迟到档)`，下班底线默认不早于最后一个班次的 `endTime`（即 18:00），同时标记为迟到。
-
-### 3.2 签退与异常容错判定规则（黄金避坑 #81）
-1. **只有签到无签退 (Missed Out)**：
-   - 签退时间显示为 `"未打卡 (Missed)"`；
-   - **严禁填入签到时间**（绝不伪造签退）；
-   - 当日工时显示为 `"-"`；
-   - 算作当天出勤（出勤天数 $+1$），但计入 `缺卡异常次数 +1`。
-2. **只有签退无签到 (Missed In)**：
-   - 签到时间显示为 `"未打卡 (Missed)"`；
-   - 工时显示为 `"-"`；
-   - 计入 `缺卡异常次数 +1`。
-3. **连击手滑误触防呆 (Abnormal Duration)**：
-   - 若 $T_{\text{lastOut}} - T_{\text{firstIn}} < 30 \text{ 分钟}$：
-   - 判定为 `⚠️ 异常签退 (疑似误触)`；
-   - 工时显示为 `"-"`（严禁导出 0.02h 等荒谬数据）；
-   - 计入 `缺卡异常次数 +1`，备注提醒行政核查。
-4. **提前签退违规判定 (Early Leave as Late)**：
-   - 若实际签退分钟数 $M_{\text{out}} < \text{parseMinutes}(shift.endTime)$：
-   - 判定为 `❌ 违规早退 (提前 N 秒按迟到计)`；
-   - 记入 `迟到/违规次数 +1`。
-5. **合规达标 (Compliant)**：
-   - 实际签退 $\ge$ 核定班次下班线，且上班未超标：判定为 `✅ 达标完成`。
-
----
-
-## 4. Excel 报表双 Sheet 结构规范
-
-使用纯前端库生成 `.xlsx`，文件命名格式：`TalentFlow_Attendance_YYYY-MM.xlsx`。
-
-### Sheet 1：月度全员出勤总账 (Monthly Summary)
-供老板和 HR 一眼审阅全员月度出勤、全勤及违规扣款指标：
-
-| 列序 | 列标题 (中/英) | 数据类型 | 统计/计算逻辑 |
-| :--- | :--- | :--- | :--- |
-| **A** | 顾问姓名 (PIC) | 字符串 | 经过 `resolveCanonicalPic` 归一化后的主姓名 |
-| **B** | 注册邮箱 | 字符串 | 顾问账号邮箱 |
-| **C** | 应出勤天数 (Work Days) | 整数 | 当月法定工作日总数（或当月天数，可由筛选器指定） |
-| **D** | 实际出勤天数 (Days Present)| 整数 | 当月有至少 1 次有效打卡的总天数 |
-| **E** | 办公室打卡 (Office Days) | 整数 | 命中 Wi-Fi 或 GPS 围栏的天数 |
-| **F** | 🏠 WFH 居家 (WFH Days) | 整数 | 经核准的居家办公打卡天数 |
-| **G** | 班次合规天数 (Compliant) | 整数 | 完美按班次上下班的天数 |
-| **H** | 迟到/早退违规 (Violations) | 整数 | $\sum (上班迟到 + 提前签退)$ |
-| **I** | 漏打卡/异常打卡 (Missing) | 整数 | $\sum (未打下班卡 + 连击误触异常)$ |
-| **J** | 综合出勤率 (%) | 百分比 | $\frac{\text{实际出勤天数}}{\text{应出勤天数}} \times 100\%$ |
-
-### Sheet 2：每日打卡与阶梯审计明细 (Daily Shift Logs)
-供行政日常对账、漏卡核对与复核审计：
-
-| 列序 | 列标题 (中/英) | 数据类型 | 说明与示例 |
-| :--- | :--- | :--- | :--- |
-| **A** | 日期 (Date) | 日期 | `2026-10-26` |
-| **B** | 顾问姓名 (PIC) | 字符串 | `Kalap Lok` |
-| **C** | 首次签到 (Clock-In) | 时间 | `08:31:12` |
-| **D** | 核定阶梯班次 (Assigned Shift) | 字符串 | `Shift D (9:00am - 6:00pm) [顺延]` |
-| **E** | 要求下班底线 (Required Out) | 时间 | `18:00:00` |
-| **F** | 实际下班签退 (Actual Out) | 时间/文本 | `17:59:05` 或 `未打卡 (Missed)` |
-| **G** | 当日实际工时 (Work Hours) | 文本/数值 | `9.5h` 或 `-` |
-| **H** | 综合合规判定 (Status) | 状态文本 | `❌ 违规早退 (提前55秒按迟到计)` |
-| **I** | 打卡核验凭证 (Method) | 文本 | `公司 Wi-Fi` / `100m围栏` / `WFH` |
-| **J** | 核验快照与备注 (Audit Snapshot)| 文本 | `IP: 115.164.x.x; 未达班次底线 18:00:00` |
-
----
-
-## 5. 安全、权限与防呆设计规范
-
-### 5.1 RBAC 权限与 HQ 本部物理隔离
-- **入口保护**：
-  - 仅对 HQ 本部开放：`isHqTeam && (teamId === 'default_team')`；
-  - 外部合作团队或分支机构在 UI 树上**完全不渲染**考勤报表导出按钮（防止越权访问与代码泄露）；
-  - 全员月报仅对 `isOwner || isManager` 开放；普通 recruiter 仅可查看或导出本人打卡流水。
-
-### 5.2 前端打卡防呆拦截 (Guardrails)
-在 `AttendanceModal.js` 中增加双重保护：
-1. **上午签到反馈**：
-   - 签到成功后，Toast 醒目告知：`✅ 已核定为【Shift D】班次，今日必须在 18:00:00 之后签退，提前签退将被计为迟到/早退！`
-2. **傍晚签退拦截**：
-   - 若员工尝试在核定下班时间之前（例如 17:58）点击签退，系统弹出异步确认对话框（非原生 alert/confirm）：
-     *“⚠️ 当前距离核定下班时间 (18:00) 还差 2 分钟！按照公司考勤制度，提前签退将直接按迟到/违规记录。确定要现在签退吗？”*
-
-### 5.3 导出安全与公式注入防御 (CSV/Excel Injection)
-- 写入 Excel 前，所有文本字段（尤其是备注、姓名）必须经过转义：
-  ```javascript
-  function sanitizeExcelCell(value) {
-    if (typeof value !== 'string') return value;
-    if (/^[=+@-]$/.test(value.charAt(0))) {
-      return "'" + value;
+/**
+ * 解析任意格式月份字符串（如 '2026-10', '2026年10月', '10/2026'）为标准数字年月
+ */
+export function parseTargetYearMonth(monthStr) {
+  const now = new Date();
+  if (monthStr) {
+    const nums = String(monthStr).match(/\d+/g);
+    if (nums && nums.length >= 2) {
+      const n0 = parseInt(nums[0], 10);
+      const n1 = parseInt(nums[1], 10);
+      const year = n0 >= 1970 ? n0 : n1;
+      const month = n0 >= 1970 ? n1 : n0;
+      if (year >= 2000 && month >= 1 && month <= 12) {
+        return {
+          year,
+          month,
+          formatted: `${year}-${String(month).padStart(2, '0')}`
+        };
+      }
     }
-    return value;
   }
-  ```
-- 导出完成时，自动调用 `SystemLogger.audit` 留存不可变操作轨迹：
-  ```javascript
-  SystemLogger.audit(teamId, {
-    action: 'EXPORT_ATTENDANCE_EXCEL',
-    targetType: 'ATTENDANCE_REPORT',
-    details: `导出全员考勤出勤月报 (${exportMonth})`
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  return {
+    year: y,
+    month: m,
+    formatted: `${y}-${String(m).padStart(2, '0')}`
+  };
+}
+
+/**
+ * 计算目标月份的日历元数据、总工作日与截止今日已过工作日
+ */
+export function getMonthCalendarMeta(year, month) {
+  const todayStr = toIsoDateStr(new Date());
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = [];
+  let totalWorkingDays = 0;
+  let elapsedWorkingDays = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    const dateStr = toIsoDateStr(dateObj);
+    const dayOfWeek = dateObj.getDay(); // 0: Sun, 6: Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isPastOrToday = dateStr <= todayStr;
+
+    if (!isWeekend) {
+      totalWorkingDays += 1;
+      if (isPastOrToday) {
+        elapsedWorkingDays += 1;
+      }
+    }
+    days.push({
+      day: d,
+      dateStr,
+      dayOfWeek,
+      isWeekend,
+      isPastOrToday
+    });
+  }
+
+  return {
+    days,
+    totalWorkingDays,
+    elapsedWorkingDays: Math.max(elapsedWorkingDays, 1),
+    todayStr
+  };
+}
+
+/**
+ * 根据表头和数据内容自动计算最佳 Excel 列宽 (wch)
+ */
+export function computeAutoColWidths(headers = [], rows = []) {
+  const calcDisplayLen = (val) => {
+    const str = String(val ?? '');
+    let len = 0;
+    for (let i = 0; i < str.length; i++) {
+      len += str.charCodeAt(i) > 255 ? 2.1 : 1.1;
+    }
+    return Math.ceil(len);
+  };
+
+  return headers.map((h, colIdx) => {
+    let maxWch = calcDisplayLen(h);
+    rows.forEach(r => {
+      if (r && r[colIdx] !== undefined) {
+        const w = calcDisplayLen(r[colIdx]);
+        if (w > maxWch) maxWch = w;
+      }
+    });
+    return Math.min(Math.max(maxWch + 4, 12), 55);
   });
-  ```
+}
+```
+
+在 `exportWorkbook` 中应用自动列宽：
+```javascript
+const autoWchs = computeAutoColWidths(sheet.headers || [], sheet.rows || []);
+ws['!cols'] = autoWchs.map(wch => ({ wch }));
+```
+
+在 `buildAttendanceReportData` 中：
+1. 使用 `parseTargetYearMonth(monthStr)` 获取 `{ year, month, formatted }`；
+2. 过滤打卡记录时，使用：
+   ```javascript
+   const dateObj = CascadeShiftEngine.toSafeDate(ts);
+   if (!dateObj) return;
+   if (dateObj.getFullYear() !== year || (dateObj.getMonth() + 1) !== month) return;
+   const dStr = toIsoDateStr(dateObj);
+   ```
+3. 使用 `resolveCanonicalPic(rawPicName, rawUid, hqMembers)` 解析每位打卡人的标准身份，确保与 `hqMembers` 完美对齐（若未命中 `uid`，继续尝试按 `email.toLowerCase()` 或 `displayName.toLowerCase()` 对齐到 `memberSummaryMap`）。
+4. 提取 `LUNCH_OUT` 与 `LUNCH_IN` 时间并在 Sheet 3 中输出。
+5. 生成并返回 `[summarySheet, matrixSheet, detailSheet]` 共 3 个 Sheet。
 
 ---
 
-## 6. 开发实施执行清单 (Implementation Checklist)
+## 🛠️ Step 2：修复并升级 `web/app/(dashboard)/analytics/page.js`
 
-- [ ] **Step 1**：创建 `web/lib/cascade-shift-engine.js`，实现 `CascadeShiftEngine` 算法内核与单元测试；
-- [ ] **Step 2**：创建 `web/lib/excel-exporter.js`，基于轻量前端引擎封装多 Sheet 生成、公式注入清洗与 Blob 保存；
-- [ ] **Step 3**：扩展 `web/app/(dashboard)/analytics/page.js`：
-  - 在考勤规则设置弹窗中增加 `shiftConfig` 班次时间与容差（`graceMinutes`）配置；
-  - 在打卡记录 Tab 头部挂载 `导出考勤月报` 按钮，集成 Loading 态与防抖；
-- [ ] **Step 4**：在 `web/app/(dashboard)/leaderboard/page.js` 考勤出勤榜挂载同步导出入口；
-- [ ] **Step 5**：在 `web/components/AttendanceModal.js` 完善打卡成功提示与提前签退防呆确认；
-- [ ] **Step 6**：增量同步记忆库文档（`memory/02_data_models.md`、`memory/06_roadmap.md`、`CHANGELOG.md`）。
+### 2.1 修复 `subscribeToAttendanceRules` 丢字段问题（约第 147-164 行）
+将原来的 `setAttendanceRules` 修改为保留完整考勤配置：
+```javascript
+    const unsubscribe = FirestoreStore.subscribeToAttendanceRules(teamId, (rules) => {
+      if (rules && typeof rules === 'object') {
+        setAttendanceRules(prev => ({
+          ...prev,
+          enabled: rules.enabled ?? true,
+          allowWfh: rules.allowWfh ?? true,
+          enableLunchPunch: rules.enableLunchPunch ?? false,
+          maxDistanceMeters: rules.maxDistanceMeters || 100,
+          maxDriftCompensation: rules.maxDriftCompensation || 40,
+          officeLocations: rules.officeLocations && rules.officeLocations.length > 0
+            ? rules.officeLocations
+            : [{ name: t('analytics.defaultOfficeName', '公司总部'), latitude: 1.440472, longitude: 103.617917, radiusMeters: 100 }],
+          officeWifi: rules.officeWifi || { allowedIps: [], ddnsDomain: '' },
+          shiftConfig: rules.shiftConfig || DEFAULT_SHIFT_CONFIG,
+          shiftOverrides: rules.shiftOverrides || {}
+        }));
+      }
+    });
+```
+
+### 2.2 新增导出月份选择器 State 与规范化 `handleExportAttendanceExcel`
+1. 在组件 State 区（约第 50 行）新增导出月份状态（使用纯数字拼接默认值）：
+   ```javascript
+   const [exportMonth, setExportMonth] = useState(() => {
+     const now = new Date();
+     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+   });
+   ```
+2. 在 `handleExportAttendanceExcel`（约第 1041-1090 行）中：
+   - 将 `activeMonthStr` 改为：
+     ```javascript
+     const now = new Date();
+     const fallbackMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+     const activeMonthStr = exportMonth || fallbackMonth;
+     ```
+   - 确保传入 `shiftConfig: attendanceRules.shiftConfig || DEFAULT_SHIFT_CONFIG` 与 `shiftOverrides: attendanceRules.shiftOverrides || {}`。
+3. 在导出按钮旁（约第 1380 行与第 1745 行附近）渲染一个紧凑型月份选择输入框 `<input type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} />`，方便 HR/管理员随时切换导出当月或上月考勤报表。
+
+---
+
+## 🛠️ Step 3：修复 `web/app/(dashboard)/leaderboard/page.js`
+
+在 `web/app/(dashboard)/leaderboard/page.js` 的 `handleExportAttendanceExcel`（约第 112-125 行）中：
+1. 替换 `toLocaleDateString` 为安全纯数字年月：
+   ```javascript
+   const now = new Date();
+   const activeMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+   ```
+2. 在调用 `ExcelExporter.buildAttendanceReportData` 时补充传入 `shiftOverrides`：
+   ```javascript
+   const sheets = ExcelExporter.buildAttendanceReportData({
+     monthStr: activeMonthStr,
+     attendanceEvents: combinedEvents,
+     hqMembers: hqAdvisors,
+     shiftConfig: attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG,
+     shiftOverrides: attendanceRules?.shiftOverrides || {},
+     locale: isEn ? 'en' : 'zh'
+   });
+   ```
+
+---
+
+## 🛠️ Step 4：验证与记忆库同步清单 (Verification & Memory Sync)
+
+执行完上述修改后，请依次完成以下验证与归档：
+1. **自动化验证脚本**：使用 `node` 运行快速测试，验证传入 `"2026年10月"` 和 `"2026-10"` 时，`ExcelExporter.buildAttendanceReportData` 均能正确过滤出 2026 年 10 月的打卡事件，且生成的 `sheets` 长度为 `3`（总账、日历矩阵、每日明细），无全 0 现象。
+2. **更新 `memory/05_pitfalls.md`**：记录避坑条目 —— *“禁止使用 `toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit' })` 生成 `YYYY-MM` 字符串，因其在中文环境下会输出 `YYYY年MM月` 导致与 `YYYY-MM-DD` 的前缀匹配 100% 失败”*。
+3. **更新 `CHANGELOG.md`**：增量记录本次考勤报表 3-Sheet 矩阵升级与日期过滤修复。
