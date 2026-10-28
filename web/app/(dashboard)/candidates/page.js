@@ -57,6 +57,7 @@ function fuseCandidateRecords(master, secondaries, currentUser) {
   const offered = pickField('offered') || expectedSalary || '';
   const availability = pickField('availability') || 'Immediate';
   const experience = pickField('experience');
+  const remarks = pickField('remarks') || pickField('rawStatus');
 
   // 意向企业与应聘职位：如果主档案未指定，从副档案优先提取有实际企业/职位的
   let company = master.company;
@@ -152,6 +153,7 @@ function fuseCandidateRecords(master, secondaries, currentUser) {
     offered: offered || '',
     availability,
     experience: experience || '',
+    remarks: remarks || '',
     tags,
     skills,
     languages,
@@ -161,6 +163,40 @@ function fuseCandidateRecords(master, secondaries, currentUser) {
     mergedAt: now.toISOString(),
     mergedFromCount: allRecords.length
   };
+}
+
+/**
+ * 提取候选人列表轻量 Remark 摘要（优先显示显式 remarks/rawStatus，若为空则回退提取 notes 首行摘要）
+ */
+function getCandidateRemarkDisplay(c) {
+  if (!c) return { shortText: '', fullText: '', isPrimary: false };
+  const primaryRemark = String(c.remarks || c.rawStatus || '').trim();
+  const normalizedNotes = Utils.normalizeCandidateNotes(c.notes);
+
+  if (primaryRemark) {
+    const firstLine = primaryRemark.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || primaryRemark;
+    const fullText = normalizedNotes ? `${primaryRemark}\n\n${normalizedNotes}` : primaryRemark;
+    return { shortText: firstLine, fullText, isPrimary: true };
+  }
+
+  if (normalizedNotes) {
+    const lines = normalizedNotes
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .filter(line => !/^---.*---$/.test(line));
+    const firstLine = lines[0] || normalizedNotes;
+    return { shortText: firstLine, fullText: normalizedNotes, isPrimary: false };
+  }
+
+  if (c.status === 'rejected' && c.rejectNote) {
+    const rejText = String(c.rejectNote).trim();
+    if (rejText) {
+      return { shortText: rejText, fullText: rejText, isPrimary: true };
+    }
+  }
+
+  return { shortText: '', fullText: '', isPrimary: false };
 }
 
 export default function CandidatesPage() {
@@ -474,6 +510,7 @@ export default function CandidatesPage() {
                   <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.name', '候选人')}</th>
                   <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('candidates.table.companyPosition', '意向企业 / 应聘岗位')}</th>
                   <th style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.stage', '当前阶段')}</th>
+                  <th className="candidate-col-remarks" style={{ padding: 'var(--space-4) var(--space-3)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.remarks', '备注')}</th>
                   <th className="candidate-col-updated" style={{ padding: 'var(--space-4) var(--space-4)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{t('candidates.table.updatedAt', t('candidates.table.interviewTime', '更新时间'))}</th>
                   <th style={{ padding: 'var(--space-4) var(--space-4)', width: '72px', textAlign: 'right' }}></th>
                 </tr>
@@ -481,7 +518,7 @@ export default function CandidatesPage() {
               <tbody>
                 {filteredCandidates.length === 0 ? (
                   <tr>
-                    <td colSpan={isReadOnlyView ? 5 : 6} style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={isReadOnlyView ? 6 : 7} style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
                       <i className="ph-light ph-users" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block' }}></i>
                       {t('candidates.emptyList', '暂无匹配的候选人数据')}
                     </td>
@@ -491,6 +528,7 @@ export default function CandidatesPage() {
                     const isSelected = selectedIds.has(c.id);
                     const stageMeta = Utils.getStageMeta(c.stage, t);
                     const subInfo = [c.phone, c.location || c.degree || c.school].filter(Boolean).join(' · ');
+                    const remarkInfo = getCandidateRemarkDisplay(c);
                     
                     return (
                       <tr 
@@ -601,6 +639,40 @@ export default function CandidatesPage() {
                             </span>
                           )}
                         </td>
+                        <td className="candidate-col-remarks" style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '200px' }}>
+                          {remarkInfo.shortText ? (
+                            <div
+                              title={remarkInfo.fullText}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                maxWidth: '185px',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                background: remarkInfo.isPrimary ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+                                border: remarkInfo.isPrimary ? '1px solid var(--border-hairline)' : 'none',
+                                color: remarkInfo.isPrimary ? 'var(--text-secondary)' : 'var(--text-muted)',
+                                fontSize: '0.76rem',
+                                lineHeight: '1.35'
+                              }}
+                            >
+                              <i
+                                className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'}
+                                style={{
+                                  fontSize: '0.82rem',
+                                  color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-faint)',
+                                  flexShrink: 0
+                                }}
+                              ></i>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {remarkInfo.shortText}
+                              </span>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-faint)', fontSize: '0.75rem', opacity: 0.4 }}>—</span>
+                          )}
+                        </td>
                         <td className="candidate-col-updated" style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                           {Utils.formatDate(c.updatedAt?.toDate ? c.updatedAt.toDate() : c.updatedAt)}
                         </td>
@@ -669,6 +741,7 @@ export default function CandidatesPage() {
             filteredCandidates.map(c => {
               const isSelected = selectedIds.has(c.id);
               const stageMeta = Utils.getStageMeta(c.stage, t);
+              const remarkInfo = getCandidateRemarkDisplay(c);
               return (
                 <div 
                   key={c.id} 
@@ -743,6 +816,25 @@ export default function CandidatesPage() {
                         </>
                       )}
                     </div>
+
+                    {remarkInfo.shortText && (
+                      <div
+                        title={remarkInfo.fullText}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '0.74rem',
+                          color: remarkInfo.isPrimary ? 'var(--text-secondary)' : 'var(--text-muted)',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        <i className={remarkInfo.isPrimary ? 'ph ph-note' : 'ph ph-chat-centered-text'} style={{ color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-muted)', fontSize: '12px', flexShrink: 0 }}></i>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{remarkInfo.shortText}</span>
+                      </div>
+                    )}
 
                     {/* Card Bottom Row: Phone + School/Location + WhatsApp Button + Delete Button */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid var(--border-hairline)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>

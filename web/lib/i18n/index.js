@@ -698,6 +698,7 @@ export const zh = {
     table: {
       name: '候选人',
       companyPosition: '意向企业 / 应聘岗位',
+      remarks: '备注',
       updatedAt: '更新时间',
       interviewTime: '更新时间',
       contact: '联系方式',
@@ -2967,6 +2968,7 @@ export const en = {
     table: {
       name: 'Candidate',
       companyPosition: 'Target Company / Role',
+      remarks: 'Remarks',
       updatedAt: 'Updated At',
       interviewTime: 'Updated At',
       contact: 'Contact Info',
