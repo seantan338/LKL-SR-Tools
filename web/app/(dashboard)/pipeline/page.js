@@ -18,7 +18,7 @@ import { StrictModeDroppable } from '../../../components/StrictModeDroppable';
 import ScrollContainer from 'react-indiana-drag-scroll';
 
 export default function PipelinePage() {
-  const { teamId, role, user, isReadOnlyView } = useAuth();
+  const { teamId, role, user, isOwner, isReadOnlyView } = useAuth();
   const { candidates, candidatesLoading: loading } = useNotifications();
   const { showToast } = useFeedback();
   const { t } = useI18n();
@@ -89,8 +89,8 @@ const stages = [
       const candidate = candidates.find(c => c.id === candidateId);
       if (!candidate) return;
 
-      // Intercept transition to onboarding: open CommissionDealModal!
-      if (targetStageKey === 'onboarding') {
+      // Intercept transition to onboarding: open CommissionDealModal for Owner only!
+      if (targetStageKey === 'onboarding' && isOwner) {
         setDealCandidate(candidate);
         setIsDealModalOpen(true);
         return;

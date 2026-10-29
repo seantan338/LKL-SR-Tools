@@ -34,13 +34,9 @@ export default function LeaderboardPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
-  // Commission Engine States (Phase 6)
+  // Commission Engine States (Phase 6 - Owner Only)
   const [commissionRecords, setCommissionRecords] = useState([]);
   const [commissionConfig, setCommissionConfig] = useState(null);
-  const [dealStatusFilter, setDealStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'UNLOCKED' | 'CANCELLED'
-  const [clawbackModalDeal, setClawbackModalDeal] = useState(null);
-  const [clawbackReason, setClawbackReason] = useState('');
-  const [isProcessingCommission, setIsProcessingCommission] = useState(false);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -109,8 +105,9 @@ export default function LeaderboardPage() {
     return () => unsub();
   }, [isHqTeam]);
 
-  // 2.6 Subscribe to Commission Records & Config (Phase 6)
+  // 2.6 Subscribe to Commission Records & Config (Phase 6 - Owner Only)
   useEffect(() => {
+    if (!isOwner) return;
     const currentTeam = teamId || 'default_team';
     const unsubRecords = FirestoreStore.subscribeToCommissionRecords(currentTeam, (recs) => {
       setCommissionRecords(recs || []);
@@ -122,7 +119,7 @@ export default function LeaderboardPage() {
       unsubRecords();
       unsubConfig();
     };
-  }, [teamId]);
+  }, [teamId, isOwner]);
 
   const canViewAllAmounts = Boolean(isOwner || isManager || commissionConfig?.leaderboardVisibility === 'PUBLIC_AMOUNT');
 
@@ -131,53 +128,6 @@ export default function LeaderboardPage() {
       return formatCommissionCurrency(amount, 'MYR');
     }
     return 'RM ***';
-  };
-
-  const handleUnlockDeal = async (record) => {
-    if (!isOwner && !isManager) return;
-    try {
-      setIsProcessingCommission(true);
-      const currentTeam = teamId || 'default_team';
-      await FirestoreStore.updateCommissionStatus(currentTeam, user?.displayName || user?.email || 'manager', record.id, 'UNLOCKED', {
-        candidateName: record.candidateName,
-        unlockedAt: new Date().toISOString(),
-        unlockedBy: user?.displayName || user?.email || 'supervisor'
-      });
-      showToast(t('commission.dealUnlockedToast', `已确认回款并解锁 ${record.candidateName} 的佣金！`));
-    } catch (err) {
-      console.error('Failed to unlock deal:', err);
-      showToast(t('commission.dealUnlockFailed', '解锁失败: ') + (err.message || err));
-    } finally {
-      setIsProcessingCommission(false);
-    }
-  };
-
-  const handleConfirmClawback = async () => {
-    if (!clawbackModalDeal) return;
-    if (!clawbackReason.trim()) {
-      showToast(t('commission.clawbackReasonRequired', '请填写退工离职原因以便审计留痕'));
-      return;
-    }
-    try {
-      setIsProcessingCommission(true);
-      const currentTeam = teamId || 'default_team';
-      await FirestoreStore.updateCommissionStatus(currentTeam, user?.displayName || user?.email || 'manager', clawbackModalDeal.id, 'CANCELLED', {
-        candidateName: clawbackModalDeal.candidateName,
-        cancellation: {
-          cancelledAt: new Date().toISOString(),
-          cancelledBy: user?.displayName || user?.email || 'supervisor',
-          reason: clawbackReason.trim()
-        }
-      });
-      showToast(t('commission.dealCancelledToast', `已冲销 ${clawbackModalDeal.candidateName} 的保证期佣金`));
-      setClawbackModalDeal(null);
-      setClawbackReason('');
-    } catch (err) {
-      console.error('Failed to cancel deal:', err);
-      showToast(t('commission.dealCancelFailed', '冲销失败: ') + (err.message || err));
-    } finally {
-      setIsProcessingCommission(false);
-    }
   };
 
   const handleExportAttendanceExcel = async () => {
@@ -223,35 +173,6 @@ export default function LeaderboardPage() {
     } catch (err) {
       console.error('Export leaderboard attendance error:', err);
       showToast(`${t('leaderboard.exportFailed', '导出失败: ')}${err.message}`, 'error');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleExportCommissionExcel = async () => {
-    if (!isHqTeam || (!isOwner && !isManager)) {
-      showToast(t('commission.exportNoPermission', '仅 HQ 本部管理人员可导出佣金结算报表'));
-      return;
-    }
-    if (commissionRecords.length === 0) {
-      showToast(t('commission.exportNoData', '当前无可导出的成单佣金数据'));
-      return;
-    }
-
-    try {
-      setIsExporting(true);
-      const targetMonth = new Date().toISOString().slice(0, 7);
-      await ExcelExporter.exportCommissionReport({
-        records: commissionRecords,
-        teamMembers: teamMembers,
-        monthStr: dateFilter === 'month' ? targetMonth : '',
-        locale: lang
-      });
-
-      showToast(t('commission.exportSuccess', '🎉 月度佣金结算报表导出成功！'));
-    } catch (err) {
-      console.error('Failed to export commission Excel:', err);
-      showToast(t('commission.exportFailed', '导出佣金报表失败: ') + (err.message || err));
     } finally {
       setIsExporting(false);
     }
@@ -762,41 +683,6 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* Sales Tab Action Bar: Export Commission Excel */}
-      {activeTab === 'sales' && isHqTeam && (isOwner || isManager) && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)', position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
-          <button
-            type="button"
-            className="btn btn-sm btn-outline"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              borderColor: 'rgba(16, 185, 129, 0.4)',
-              color: '#10B981',
-              background: 'rgba(16, 185, 129, 0.08)',
-              padding: '5px 14px',
-              fontSize: '12px',
-              fontWeight: '600',
-              borderRadius: 'var(--radius-md)',
-              cursor: isExporting ? 'wait' : 'pointer',
-              pointerEvents: isExporting ? 'none' : 'auto',
-              position: 'relative',
-              zIndex: 62,
-              flexShrink: 0
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleExportCommissionExcel();
-            }}
-            disabled={isExporting}
-            title={t('commission.exportExcelTitle', '导出月度顾问佣金结算与成单风控双 Sheet Excel 报表')}
-          >
-            <i className={`ph-bold ${isExporting ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
-            <span style={{ pointerEvents: 'none' }}>{isExporting ? t('leaderboard.exporting', '正在导出报表...') : t('commission.exportExcelBtn', '导出月度佣金报表 (Excel)')}</span>
-          </button>
-        </div>
-      )}
 
       {/* Attendance Tab Action Bar */}
       {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
@@ -1177,8 +1063,12 @@ export default function LeaderboardPage() {
                       <th style={{ padding: '10px 12px' }}>{t('leaderboard.interviews', '面试数')}</th>
                       <th style={{ padding: '10px 12px' }}>{t('leaderboard.sourced', '推人量')}</th>
                       <th style={{ padding: '10px 12px', minWidth: '130px' }}>{t('leaderboard.conversionRate', '成单转化率')}</th>
-                      <th style={{ padding: '10px 12px', minWidth: '130px', color: 'var(--accent-amber)' }}>{t('commission.pendingColumn', '🔒 保证期待解')}</th>
-                      <th style={{ padding: '10px 12px', minWidth: '130px', color: '#10B981', fontWeight: '700' }}>{t('commission.unlockedColumn', '✅ 可结算佣金')}</th>
+                      {isOwner && (
+                        <>
+                          <th style={{ padding: '10px 12px', minWidth: '130px', color: 'var(--accent-amber)' }}>{t('commission.pendingColumn', '🔒 保证期待解')}</th>
+                          <th style={{ padding: '10px 12px', minWidth: '130px', color: '#10B981', fontWeight: '700' }}>{t('commission.unlockedColumn', '✅ 可结算佣金')}</th>
+                        </>
+                      )}
                       <th style={{ padding: '10px 12px', color: 'var(--accent-amber)', fontWeight: '700' }}>{t('leaderboard.compositeScore', '综合积分')}</th>
                     </>
                   ) : (
@@ -1195,7 +1085,7 @@ export default function LeaderboardPage() {
               <tbody>
                 {currentRankingList.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'sales' ? 10 : 7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                    <td colSpan={activeTab === 'sales' ? (isOwner ? 10 : 8) : 7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                       {t('leaderboard.noData', '暂无榜单数据')}
                     </td>
                   </tr>
@@ -1287,16 +1177,20 @@ export default function LeaderboardPage() {
                                 </span>
                               </div>
                             </td>
-                            <td style={{ padding: '12px' }}>
-                              <span style={{ fontSize: '0.84rem', color: (item.pendingCommission || 0) > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontWeight: '600' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
-                                {formatLeaderboardAmount(item.pendingCommission || 0, item.uid)}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px' }}>
-                              <span style={{ fontSize: '0.88rem', color: (item.unlockedCommission || 0) > 0 ? '#10B981' : 'var(--text-muted)', fontWeight: '700' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
-                                {formatLeaderboardAmount(item.unlockedCommission || 0, item.uid)}
-                              </span>
-                            </td>
+                            {isOwner && (
+                              <>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{ fontSize: '0.84rem', color: (item.pendingCommission || 0) > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontWeight: '600' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
+                                    {formatLeaderboardAmount(item.pendingCommission || 0, item.uid)}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{ fontSize: '0.88rem', color: (item.unlockedCommission || 0) > 0 ? '#10B981' : 'var(--text-muted)', fontWeight: '700' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
+                                    {formatLeaderboardAmount(item.unlockedCommission || 0, item.uid)}
+                                  </span>
+                                </td>
+                              </>
+                            )}
                             <td style={{ padding: '12px' }}>
                               <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', fontWeight: '700', fontSize: '12px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
                                 {item.compositeScore}
@@ -1359,312 +1253,6 @@ export default function LeaderboardPage() {
           </div>
         </div>
       </div>
-
-      {/* Guarantee Period & Deal Commission Ledger (Phase 6) */}
-      {activeTab === 'sales' && (
-        <div className="bezel-shell" style={{ marginTop: 'var(--space-6)' }}>
-          <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-              <div>
-                <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="ph-bold ph-shield-check" style={{ color: 'var(--accent-emerald, #10B981)' }}></i>
-                  <span>{t('commission.ledgerTitle', '保证期双态风控与成单佣金台账')}</span>
-                  <span className="badge" style={{ fontSize: '11px', background: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
-                    {commissionRecords.length} {t('commission.dealsCount', '单记录')}
-                  </span>
-                </h3>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-                  {t('commission.ledgerSubtitle', '猎头试用期 90 天保证期风控跟踪、客户回款确认解锁与离职退工冲销')}
-                </p>
-              </div>
-
-              {/* Status Filter Buttons */}
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {[
-                  { key: 'ALL', label: t('common.all', '全部') },
-                  { key: 'PENDING', label: t('commission.filterPending', '🔒 保证期内') },
-                  { key: 'UNLOCKED', label: t('commission.filterUnlocked', '✅ 已解锁/待发') },
-                  { key: 'CANCELLED', label: t('commission.filterCancelled', '🛑 退工冲销') }
-                ].map(f => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setDealStatusFilter(f.key)}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: '0.76rem',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      border: `1px solid ${dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
-                      background: dealStatusFilter === f.key ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-subtle, transparent)',
-                      color: dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--text-muted)',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Ledger Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
-                    <th style={{ padding: '10px 12px' }}>{t('commission.colCandidate', '候选人 / 入职岗位')}</th>
-                    <th style={{ padding: '10px 12px' }}>{t('commission.colCompany', '客户单位')}</th>
-                    <th style={{ padding: '10px 12px' }}>{t('commission.colOnboardDate', '入职日期')}</th>
-                    <th style={{ padding: '10px 12px' }}>{t('commission.colGuarantee', '保证期风控')}</th>
-                    <th style={{ padding: '10px 12px' }}>{t('commission.colTotalPool', '佣金池总额')}</th>
-                    <th style={{ padding: '10px 12px', minWidth: '180px' }}>{t('commission.colSplits', '顾问分成明细')}</th>
-                    <th style={{ padding: '10px 12px' }}>{t('commission.colStatus', '账单状态')}</th>
-                    {(isOwner || isManager) && (
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>{t('common.actions', '主管操作')}</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const filtered = commissionRecords.filter(rec => {
-                      if (dealStatusFilter === 'ALL') return true;
-                      if (dealStatusFilter === 'PENDING') return rec.status === 'PENDING';
-                      if (dealStatusFilter === 'UNLOCKED') return rec.status === 'UNLOCKED' || rec.status === 'SETTLED';
-                      if (dealStatusFilter === 'CANCELLED') return rec.status === 'CANCELLED';
-                      return true;
-                    });
-
-                    if (filtered.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={(isOwner || isManager) ? 8 : 7} style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--text-muted)' }}>
-                            {t('commission.noRecordsMatch', '暂无符合筛选条件的成单佣金台账')}
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    const todayStr = new Date().toISOString().split('T')[0];
-
-                    return filtered.map(rec => {
-                      const remainingDays = getGuaranteeRemainingDays(rec.unlockDate, todayStr);
-                      const isReadyToUnlock = rec.status === 'PENDING' && (remainingDays === 0 || Number(rec.guaranteeDays) <= 0);
-
-                      return (
-                        <tr key={rec.id} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{rec.candidateName}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rec.position}</div>
-                          </td>
-
-                          <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>
-                            {rec.companyName}
-                          </td>
-
-                          <td style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                            {rec.onboardDate || '-'}
-                          </td>
-
-                          <td style={{ padding: '12px' }}>
-                            {rec.status === 'CANCELLED' ? (
-                              <span style={{ fontSize: '0.74rem', color: '#EF4444' }}>🛑 {t('commission.clawedBackLabel', '已退工冲销')}</span>
-                            ) : rec.status === 'UNLOCKED' || rec.status === 'SETTLED' ? (
-                              <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: '10px' }}>
-                                ✅ {t('commission.unlockedReady', '保证期已达标')}
-                              </span>
-                            ) : isReadyToUnlock ? (
-                              <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)', fontSize: '10px' }}>
-                                ⏳ {t('commission.readyToUnlockBadge', '已到期待解锁')}
-                              </span>
-                            ) : (
-                              <div>
-                                <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.3)', fontSize: '10px' }}>
-                                  🔒 {remainingDays} {t('common.days', '天到期')}
-                                </span>
-                                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                  {rec.unlockDate}
-                                </div>
-                              </div>
-                            )}
-                          </td>
-
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '0.88rem' }}>
-                              {canViewAllAmounts ? formatCommissionCurrency(rec.billingSnapshot?.totalCommissionPool || rec.totalCommissionPool || 0, 'MYR') : 'RM ***'}
-                            </div>
-                            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                              {rec.billingSnapshot?.billingMode || 'DIRECT_FLAT'}
-                            </div>
-                          </td>
-
-                          <td style={{ padding: '12px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              {(rec.splits || []).map((s, idx) => (
-                                <div key={idx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                                  <span style={{ color: 'var(--text-secondary)' }}>
-                                    {s.displayName} ({s.role}):
-                                  </span>
-                                  <strong style={{ color: canViewAllAmounts || s.uid === user?.uid ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                                    {canViewAllAmounts || s.uid === user?.uid ? formatCommissionCurrency(s.amount, 'MYR') : 'RM ***'}
-                                  </strong>
-                                </div>
-                              ))}
-                            </div>
-                            {rec.isOverridden && (
-                              <div style={{ fontSize: '10px', color: 'var(--accent-amber)', marginTop: '3px', fontStyle: 'italic' }}>
-                                ⚠️ {rec.overrideReason || t('commission.overriddenNote', '特批改派')}
-                              </div>
-                            )}
-                          </td>
-
-                          <td style={{ padding: '12px' }}>
-                            <span
-                              className="badge"
-                              style={{
-                                fontSize: '10px',
-                                background: rec.status === 'CANCELLED' ? 'rgba(239, 68, 68, 0.12)' : (rec.status === 'UNLOCKED' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)'),
-                                color: rec.status === 'CANCELLED' ? '#EF4444' : (rec.status === 'UNLOCKED' ? '#10B981' : 'var(--accent-amber)'),
-                                borderColor: rec.status === 'CANCELLED' ? 'rgba(239, 68, 68, 0.3)' : (rec.status === 'UNLOCKED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)')
-                              }}
-                            >
-                              {rec.status === 'CANCELLED' ? t('commission.statusCancelled', '已冲销') : (rec.status === 'UNLOCKED' ? t('commission.statusUnlocked', '可结算') : t('commission.statusPending', '保证期内'))}
-                            </span>
-                          </td>
-
-                          {(isOwner || isManager) && (
-                            <td style={{ padding: '12px', textAlign: 'right' }}>
-                              {rec.status === 'PENDING' && (
-                                <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                  <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    disabled={isProcessingCommission}
-                                    onClick={() => handleUnlockDeal(rec)}
-                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.4)' }}
-                                    title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
-                                  >
-                                    <i className="ph-bold ph-lock-key-open"></i> {t('commission.unlockAction', '解锁')}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    disabled={isProcessingCommission}
-                                    onClick={() => setClawbackModalDeal(rec)}
-                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                    title={t('commission.clawbackActionTitle', '候选人试用期离职，标记退工冲销')}
-                                  >
-                                    <i className="ph-bold ph-prohibit"></i> {t('commission.clawbackAction', '退工')}
-                                  </button>
-                                </div>
-                              )}
-                              {rec.status === 'UNLOCKED' && (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  {t('commission.readyForExport', '待月报导出')}
-                                </span>
-                              )}
-                              {rec.status === 'CANCELLED' && (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  {rec.cancellation?.reason ? `${rec.cancellation.reason.slice(0, 16)}...` : '-'}
-                                </span>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    });
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Clawback / Deal Cancellation Modal */}
-      {clawbackModalDeal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-            padding: '16px'
-          }}
-          onClick={() => setClawbackModalDeal(null)}
-        >
-          <div
-            className="bezel-shell modal-bezel"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '480px', width: '100%', animation: 'modalEnter 0.25s ease-out' }}
-          >
-            <div className="bezel-core modal-core" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444', fontSize: '1.25rem' }}>
-                  <i className="ph-bold ph-warning-octagon"></i>
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)', fontWeight: '700' }}>
-                    {t('commission.clawbackModalTitle', '确认标记退工冲销 (Clawback)')}
-                  </h3>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    {clawbackModalDeal.candidateName} ➔ {clawbackModalDeal.companyName}
-                  </div>
-                </div>
-              </div>
-
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                {t('commission.clawbackWarning', '候选人在保证期试用期内离职或退工。冲销后，该单所有参与顾问的待解锁提成将被自动清零，杜绝坏账错发。')}
-              </p>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: '600' }}>
-                  {t('commission.clawbackReasonLabel', '离职 / 退单具体原因 (必填审计)')} *
-                </label>
-                <textarea
-                  className="form-control"
-                  rows={3}
-                  placeholder="例如：候选人入职第 18 天因个人家庭原因主动离职 / 未通过客户试用期技能考核"
-                  value={clawbackReason}
-                  onChange={(e) => setClawbackReason(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: 'var(--space-2)' }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={isProcessingCommission}
-                  onClick={() => setClawbackModalDeal(null)}
-                >
-                  {t('common.cancel', '取消')}
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={isProcessingCommission || !clawbackReason.trim()}
-                  onClick={handleConfirmClawback}
-                  style={{ background: '#EF4444', borderColor: '#DC2626' }}
-                >
-                  {isProcessingCommission ? (
-                    <i className="ph-bold ph-spinner ph-spin"></i>
-                  ) : (
-                    <i className="ph-bold ph-trash"></i>
-                  )}
-                  <span>{t('commission.confirmClawbackBtn', '确认冲销佣金')}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

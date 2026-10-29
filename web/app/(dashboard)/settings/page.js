@@ -2286,8 +2286,8 @@ function onEdit(e) {
               </div>
             )}
 
-            {/* Dynamic Commission & Incentive Rules Section (Phase 6) */}
-            {canManageAttendance && (
+            {/* Dynamic Commission & Incentive Rules Section (Phase 6 - Owner Only) */}
+            {isOwner && (
               <div className="form-section">
                 <h4 style={{ fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 'var(--space-3)' }}>
                   {t('commission.settingsSectionTitle', '成单佣金规则与风控引擎')}

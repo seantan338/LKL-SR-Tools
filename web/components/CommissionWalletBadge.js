@@ -47,7 +47,7 @@ function useCountUp(targetValue, duration = 600) {
 }
 
 export default function CommissionWalletBadge() {
-  const { teamId, user } = useAuth();
+  const { teamId, user, isOwner } = useAuth();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
   const [records, setRecords] = useState([]);
@@ -131,7 +131,7 @@ export default function CommissionWalletBadge() {
   const animatedPending = useCountUp(walletSummary.pending);
   const animatedUnlocked = useCountUp(walletSummary.unlocked);
 
-  if (!user) return null;
+  if (!user || !isOwner) return null;
 
   return (
     <div style={{ position: 'relative' }} ref={popoverRef}>

@@ -14,6 +14,11 @@ import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { useI18n } from '../../../lib/i18n-context';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
 import { ExcelExporter, isAccountExcluded } from '../../../lib/excel-exporter';
+import {
+  getGuaranteeRemainingDays,
+  evaluateGuaranteeStatus,
+  formatCommissionCurrency
+} from '../../../lib/commission-engine';
 
 const getApiUrl = (path) => {
   return path;
@@ -28,10 +33,21 @@ export default function AnalyticsPage() {
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
 
-  // Active Tab: 'performance' (业绩看板) or 'attendance' (打卡记录)
+  // Active Tab: 'performance' (业绩看板) or 'attendance' (打卡记录) or 'commission' (成单佣金流水账 - Owner Only)
   const [selectedTab, setActiveTab] = useState('performance');
-  // 分部 / 合作方团队无需打卡：非本部团队固定显示业绩看板
-  const activeTab = isHqTeam ? selectedTab : 'performance';
+  // 分部 / 合作方团队无需打卡：非本部团队固定显示业绩看板；若为 commission 且为 owner 则允许
+  const activeTab = (selectedTab === 'commission' && isOwner) 
+    ? 'commission' 
+    : (isHqTeam ? selectedTab : 'performance');
+
+  // Commission Engine States (Phase 6 - Owner Only)
+  const [commissionRecords, setCommissionRecords] = useState([]);
+  const [commissionConfig, setCommissionConfig] = useState(null);
+  const [dealStatusFilter, setDealStatusFilter] = useState('ALL');
+  const [isProcessingCommission, setIsProcessingCommission] = useState(false);
+  const [clawbackModalDeal, setClawbackModalDeal] = useState(null);
+  const [clawbackReason, setClawbackReason] = useState('');
+  const [isExportingCommission, setIsExportingCommission] = useState(false);
 
   // Orders and Logs State
   const [orders, setOrders] = useState([]);
@@ -202,6 +218,94 @@ export default function AnalyticsPage() {
     return () => unsub();
   }, [teamId]);
 
+  // 6. Subscribe to Commission Records & Config (Phase 6 - Owner Only)
+  useEffect(() => {
+    if (!isOwner || !teamId) return;
+    const unsubRecords = FirestoreStore.subscribeToCommissionRecords(teamId, (recs) => {
+      setCommissionRecords(recs || []);
+    });
+    const unsubConfig = FirestoreStore.subscribeToCommissionConfig(teamId, (cfg) => {
+      setCommissionConfig(cfg);
+    });
+    return () => {
+      unsubRecords();
+      unsubConfig();
+    };
+  }, [isOwner, teamId]);
+
+  const handleUnlockDeal = async (record) => {
+    if (!isOwner) return;
+    try {
+      setIsProcessingCommission(true);
+      await FirestoreStore.updateCommissionStatus(teamId, user?.displayName || user?.email || 'owner', record.id, 'UNLOCKED', {
+        candidateName: record.candidateName,
+        unlockedAt: new Date().toISOString(),
+        unlockedBy: user?.displayName || user?.email || 'owner'
+      });
+      showToast(t('commission.dealUnlockedToast', `已确认回款并解锁 ${record.candidateName} 的佣金！`));
+    } catch (err) {
+      console.error('Failed to unlock deal:', err);
+      showToast(t('commission.dealUnlockFailed', '解锁失败: ') + (err.message || err));
+    } finally {
+      setIsProcessingCommission(false);
+    }
+  };
+
+  const handleConfirmClawback = async () => {
+    if (!clawbackModalDeal || !isOwner) return;
+    if (!clawbackReason.trim()) {
+      showToast(t('commission.clawbackReasonRequired', '请填写退工离职原因以便审计留痕'));
+      return;
+    }
+    try {
+      setIsProcessingCommission(true);
+      await FirestoreStore.updateCommissionStatus(teamId, user?.displayName || user?.email || 'owner', clawbackModalDeal.id, 'CANCELLED', {
+        candidateName: clawbackModalDeal.candidateName,
+        cancellation: {
+          cancelledAt: new Date().toISOString(),
+          cancelledBy: user?.displayName || user?.email || 'owner',
+          reason: clawbackReason.trim()
+        }
+      });
+      showToast(t('commission.dealCancelledToast', `已冲销 ${clawbackModalDeal.candidateName} 的保证期佣金`));
+      setClawbackModalDeal(null);
+      setClawbackReason('');
+    } catch (err) {
+      console.error('Failed to cancel deal:', err);
+      showToast(t('commission.dealCancelFailed', '冲销失败: ') + (err.message || err));
+    } finally {
+      setIsProcessingCommission(false);
+    }
+  };
+
+  const handleExportCommissionExcel = async () => {
+    if (!isOwner) {
+      showToast(t('commission.exportNoPermission', '仅系统所有者 (Owner) 可导出佣金结算报表'));
+      return;
+    }
+    if (commissionRecords.length === 0) {
+      showToast(t('commission.exportNoData', '当前无可导出的成单佣金数据'));
+      return;
+    }
+
+    try {
+      setIsExportingCommission(true);
+      await ExcelExporter.exportCommissionReport({
+        records: commissionRecords,
+        teamMembers: teamMembers,
+        monthStr: exportMonth || '',
+        locale: lang
+      });
+
+      showToast(t('commission.exportSuccess', '🎉 月度佣金结算报表导出成功！'));
+    } catch (err) {
+      console.error('Failed to export commission Excel:', err);
+      showToast(t('commission.exportFailed', '导出佣金报表失败: ') + (err.message || err));
+    } finally {
+      setIsExportingCommission(false);
+    }
+  };
+
   // -------------------------------------------------------------
   // Data Aggregation: PIC Performance (业绩指标统计 - 智能归一化合并)
   // -------------------------------------------------------------
@@ -275,16 +379,39 @@ export default function AnalyticsPage() {
       // Performance score: (onboarded * 100) + (offer * 40) + (interview * 15) + (totalSourced * 2)
       const score = (p.onboarded * 100) + (p.offer * 40) + (p.interview * 15) + (p.totalSourced * 2);
 
+      // Aggregate commissions if Owner
+      let pendingComm = 0;
+      let unlockedComm = 0;
+      if (isOwner && commissionRecords.length > 0) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        commissionRecords.forEach(rec => {
+          if (rec.status === 'CANCELLED') return;
+          const remainingDays = getGuaranteeRemainingDays(rec.unlockDate, todayStr);
+          const isUnlocked = rec.status === 'UNLOCKED' || rec.status === 'SETTLED' || (rec.guaranteeDays <= 0) || (remainingDays === 0);
+          (rec.splits || []).forEach(s => {
+            const matchPic = (s.uid && (s.uid === p.uid || s.uid === p.key)) ||
+              (s.displayName && s.displayName.toLowerCase().trim() === p.name.toLowerCase().trim());
+            if (matchPic) {
+              const amt = Number(s.amount) || 0;
+              if (isUnlocked) unlockedComm += amt;
+              else pendingComm += amt;
+            }
+          });
+        });
+      }
+
       return {
         ...p,
         rate: Number(rate),
-        score
+        score,
+        pendingCommission: Math.round(pendingComm * 100) / 100,
+        unlockedCommission: Math.round(unlockedComm * 100) / 100
       };
     });
 
     // Sort by Placed Descending, then TotalSourced Descending
     return result.sort((a, b) => b.onboarded - a.onboarded || b.score - a.score || b.totalSourced - a.totalSourced);
-  }, [candidates, orders, teamMembers]);
+  }, [candidates, orders, teamMembers, commissionRecords, isOwner]);
 
   // All distinct PIC names for filter dropdown
   const allPicNames = useMemo(() => {
@@ -1413,7 +1540,74 @@ export default function AnalyticsPage() {
               {t('analytics.tabAttendance', 'PIC 打卡记录')}
             </button>
             )}
+            {isOwner && (
+            <button
+              className={`btn btn-sm ${activeTab === 'commission' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ border: 'none', gap: '6px' }}
+              onClick={() => setActiveTab('commission')}
+            >
+              <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)' }}></i>
+              {t('commission.tabCommission', '成单佣金流水账')}
+            </button>
+            )}
           </div>
+
+          {/* Top Quick Excel Export Button & Month Selector for Commission (Owner Only) */}
+          {activeTab === 'commission' && isOwner && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+              <select
+                value={exportMonth}
+                onChange={(e) => setExportMonth(e.target.value)}
+                style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  padding: '5px 8px',
+                  borderRadius: 'var(--radius-md)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  zIndex: 61
+                }}
+                title={t('commission.selectExportMonth', '选择导出佣金报表的月份')}
+              >
+                {exportMonthOptions.map(ym => (
+                  <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  borderColor: 'rgba(16, 185, 129, 0.4)',
+                  color: 'var(--accent-emerald)',
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  padding: '5px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: isExportingCommission ? 'wait' : 'pointer',
+                  pointerEvents: isExportingCommission ? 'none' : 'auto',
+                  position: 'relative',
+                  zIndex: 62,
+                  flexShrink: 0
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExportCommissionExcel();
+                }}
+                disabled={isExportingCommission}
+                title={t('commission.exportExcelTitle', '导出月度顾问佣金结算与成单风控双 Sheet Excel 报表')}
+              >
+                <i className={`ph-bold ${isExportingCommission ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
+                <span style={{ pointerEvents: 'none' }}>{isExportingCommission ? t('leaderboard.exporting', '正在生成报表...') : t('commission.exportExcelBtn', '导出月度佣金报表 (Excel)')}</span>
+              </button>
+            </div>
+          )}
 
           {/* Top Quick Excel Export Button & Month Selector (HQ Owner / Manager) */}
           {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
@@ -1612,12 +1806,18 @@ export default function AnalyticsPage() {
                       <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colOffers', 'Offer 数')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--accent-emerald)' }}>{t('analytics.colOnboarded', '成功入职 (业绩成单)')}</th>
                       <th style={{ padding: 'var(--space-3) var(--space-3)', minWidth: '160px' }}>{t('analytics.colRate', '成单转化率')}</th>
+                      {isOwner && (
+                        <>
+                          <th style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--accent-amber)', minWidth: '130px' }}>{t('commission.pendingColumn', '🔒 保证期待解')}</th>
+                          <th style={{ padding: 'var(--space-3) var(--space-3)', color: '#10B981', minWidth: '130px' }}>{t('commission.unlockedColumn', '✅ 可结算佣金')}</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {picPerformanceData.length === 0 ? (
                       <tr>
-                        <td colSpan="7" style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                        <td colSpan={isOwner ? 9 : 7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                           {t('analytics.emptyPerformance', '暂无顾问业绩数据')}
                         </td>
                       </tr>
@@ -1705,6 +1905,20 @@ export default function AnalyticsPage() {
                                 </span>
                               </div>
                             </td>
+                            {isOwner && (
+                              <>
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '600', color: (pic.pendingCommission || 0) > 0 ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
+                                    {formatCommissionCurrency(pic.pendingCommission || 0, 'MYR')}
+                                  </span>
+                                </td>
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '700', color: (pic.unlockedCommission || 0) > 0 ? '#10B981' : 'var(--text-muted)' }}>
+                                    {formatCommissionCurrency(pic.unlockedCommission || 0, 'MYR')}
+                                  </span>
+                                </td>
+                              </>
+                            )}
                           </tr>
                         );
                       })
@@ -2230,6 +2444,228 @@ export default function AnalyticsPage() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: 成单佣金流水账与保证期风控台账 (Phase 6 - Owner Only)              */}
+      {/* ========================================================================= */}
+      {activeTab === 'commission' && isOwner && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          {/* Guarantee Period & Deal Commission Ledger */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+                <div>
+                  <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ph-bold ph-shield-check" style={{ color: 'var(--accent-emerald, #10B981)' }}></i>
+                    <span>{t('commission.ledgerTitle', '保证期双态风控与成单佣金台账')}</span>
+                    <span className="badge" style={{ fontSize: '11px', background: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+                      {commissionRecords.length} {t('commission.dealsCount', '单记录')}
+                    </span>
+                  </h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                    {t('commission.ledgerSubtitle', '猎头试用期 90 天保证期风控跟踪、客户回款确认解锁与离职退工冲销')}
+                  </p>
+                </div>
+
+                {/* Status Filter Buttons */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'ALL', label: t('common.all', '全部') },
+                    { key: 'PENDING', label: t('commission.filterPending', '🔒 保证期内') },
+                    { key: 'UNLOCKED', label: t('commission.filterUnlocked', '✅ 已解锁/待发') },
+                    { key: 'CANCELLED', label: t('commission.filterCancelled', '🛑 退工冲销') }
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setDealStatusFilter(f.key)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.76rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        border: `1px solid ${dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
+                        background: dealStatusFilter === f.key ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-subtle, transparent)',
+                        color: dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--text-muted)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ledger Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: '10px 12px' }}>{t('commission.colCandidate', '候选人 / 入职岗位')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('commission.colCompany', '客户单位')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('commission.colOnboardDate', '入职日期')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('commission.colGuarantee', '保证期风控')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('commission.colTotalPool', '佣金池总额')}</th>
+                      <th style={{ padding: '10px 12px', minWidth: '180px' }}>{t('commission.colSplits', '顾问分成明细')}</th>
+                      <th style={{ padding: '10px 12px' }}>{t('commission.colStatus', '账单状态')}</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>{t('common.actions', '主管操作')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const filtered = commissionRecords.filter(rec => {
+                        if (dealStatusFilter === 'ALL') return true;
+                        if (dealStatusFilter === 'PENDING') return rec.status === 'PENDING';
+                        if (dealStatusFilter === 'UNLOCKED') return rec.status === 'UNLOCKED' || rec.status === 'SETTLED';
+                        if (dealStatusFilter === 'CANCELLED') return rec.status === 'CANCELLED';
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--text-muted)' }}>
+                              {t('commission.noRecordsMatch', '暂无符合筛选条件的成单佣金台账')}
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      const todayStr = new Date().toISOString().split('T')[0];
+
+                      return filtered.map(rec => {
+                        const remainingDays = getGuaranteeRemainingDays(rec.unlockDate, todayStr);
+                        const isReadyToUnlock = rec.status === 'PENDING' && (remainingDays === 0 || Number(rec.guaranteeDays) <= 0);
+
+                        return (
+                          <tr key={rec.id} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{rec.candidateName}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rec.position}</div>
+                            </td>
+
+                            <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>
+                              {rec.companyName}
+                            </td>
+
+                            <td style={{ padding: '12px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                              {rec.onboardDate || '-'}
+                            </td>
+
+                            <td style={{ padding: '12px' }}>
+                              {rec.status === 'CANCELLED' ? (
+                                <span style={{ fontSize: '0.74rem', color: '#EF4444' }}>🛑 {t('commission.clawedBackLabel', '已退工冲销')}</span>
+                              ) : rec.status === 'UNLOCKED' || rec.status === 'SETTLED' ? (
+                                <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: '10px' }}>
+                                  ✅ {t('commission.unlockedReady', '保证期已达标')}
+                                </span>
+                              ) : isReadyToUnlock ? (
+                                <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)', fontSize: '10px' }}>
+                                  ⏳ {t('commission.readyToUnlockBadge', '已到期待解锁')}
+                                </span>
+                              ) : (
+                                <div>
+                                  <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.3)', fontSize: '10px' }}>
+                                    🔒 {remainingDays} {t('common.days', '天到期')}
+                                  </span>
+                                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {rec.unlockDate}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '0.88rem' }}>
+                                {formatCommissionCurrency(rec.billingSnapshot?.totalCommissionPool || rec.totalCommissionPool || 0, 'MYR')}
+                              </div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                {rec.billingSnapshot?.billingMode || 'DIRECT_FLAT'}
+                              </div>
+                            </td>
+
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {(rec.splits || []).map((s, idx) => (
+                                  <div key={idx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>
+                                      {s.displayName} ({s.role}):
+                                    </span>
+                                    <strong style={{ color: 'var(--text-primary)' }}>
+                                      {formatCommissionCurrency(s.amount, 'MYR')}
+                                    </strong>
+                                  </div>
+                                ))}
+                              </div>
+                              {rec.isOverridden && (
+                                <div style={{ fontSize: '10px', color: 'var(--accent-amber)', marginTop: '3px', fontStyle: 'italic' }}>
+                                  ⚠️ {rec.overrideReason || t('commission.overriddenNote', '特批改派')}
+                                </div>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '12px' }}>
+                              <span
+                                className="badge"
+                                style={{
+                                  fontSize: '10px',
+                                  background: rec.status === 'CANCELLED' ? 'rgba(239, 68, 68, 0.12)' : (rec.status === 'UNLOCKED' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)'),
+                                  color: rec.status === 'CANCELLED' ? '#EF4444' : (rec.status === 'UNLOCKED' ? '#10B981' : 'var(--accent-amber)'),
+                                  borderColor: rec.status === 'CANCELLED' ? 'rgba(239, 68, 68, 0.3)' : (rec.status === 'UNLOCKED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)')
+                                }}
+                              >
+                                {rec.status === 'CANCELLED' ? t('commission.statusCancelled', '已冲销') : (rec.status === 'UNLOCKED' ? t('commission.statusUnlocked', '可结算') : t('commission.statusPending', '保证期内'))}
+                              </span>
+                            </td>
+
+                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                              {rec.status === 'PENDING' && (
+                                <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    disabled={isProcessingCommission}
+                                    onClick={() => handleUnlockDeal(rec)}
+                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.4)' }}
+                                    title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
+                                  >
+                                    <i className="ph-bold ph-lock-key-open"></i> {t('commission.unlockAction', '解锁')}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    disabled={isProcessingCommission}
+                                    onClick={() => setClawbackModalDeal(rec)}
+                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                                    title={t('commission.clawbackActionTitle', '候选人试用期离职，标记退工冲销')}
+                                  >
+                                    <i className="ph-bold ph-prohibit"></i> {t('commission.clawbackAction', '退工')}
+                                  </button>
+                                </div>
+                              )}
+                              {rec.status === 'UNLOCKED' && (
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  {t('commission.readyForExport', '待月报导出')}
+                                </span>
+                              )}
+                              {rec.status === 'CANCELLED' && (
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  {rec.cancellation?.reason ? `${rec.cancellation.reason.slice(0, 16)}...` : '-'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3140,6 +3576,91 @@ export default function AnalyticsPage() {
               >
                 {t('attendanceModal.earlyForce', '坚持提前签退')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clawback / Deal Cancellation Modal (Owner Only) */}
+      {clawbackModalDeal && isOwner && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '16px'
+          }}
+          onClick={() => setClawbackModalDeal(null)}
+        >
+          <div
+            className="bezel-shell modal-bezel"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '480px', width: '100%', animation: 'modalEnter 0.25s ease-out' }}
+          >
+            <div className="bezel-core modal-core" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444', fontSize: '1.25rem' }}>
+                  <i className="ph-bold ph-warning-octagon"></i>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)', fontWeight: '700' }}>
+                    {t('commission.clawbackModalTitle', '确认标记退工冲销 (Clawback)')}
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    {clawbackModalDeal.candidateName} · {clawbackModalDeal.companyName}
+                  </div>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                {t('commission.clawbackWarning', '候选人在保证期试用期内离职或退工。冲销后，该单所有参与顾问的待解锁提成将被自动清零，杜绝坏账错发。')}
+              </p>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: '600' }}>
+                  {t('commission.clawbackReasonLabel', '离职 / 退单具体原因 (必填审计)')} *
+                </label>
+                <textarea
+                  className="form-control"
+                  rows={3}
+                  placeholder={t('commission.clawbackReasonPlaceholder', '例如：候选人入职第 18 天因个人家庭原因主动离职 / 未通过客户试用期技能考核')}
+                  value={clawbackReason}
+                  onChange={(e) => setClawbackReason(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: 'var(--space-2)' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={isProcessingCommission}
+                  onClick={() => setClawbackModalDeal(null)}
+                >
+                  {t('common.cancel', '取消')}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={isProcessingCommission || !clawbackReason.trim()}
+                  onClick={handleConfirmClawback}
+                  style={{ background: '#EF4444', borderColor: '#DC2626' }}
+                >
+                  {isProcessingCommission ? (
+                    <i className="ph-bold ph-spinner ph-spin"></i>
+                  ) : (
+                    <i className="ph-bold ph-trash"></i>
+                  )}
+                  <span>{t('commission.confirmClawbackBtn', '确认冲销佣金')}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

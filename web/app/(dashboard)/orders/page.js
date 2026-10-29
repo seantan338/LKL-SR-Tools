@@ -28,7 +28,7 @@ export default function OrdersPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const { teamId, role, user, isRecruiter, isReadOnlyView } = useAuth();
+  const { teamId, role, user, isOwner, isRecruiter, isReadOnlyView } = useAuth();
   const { showToast, confirm } = useFeedback();
   const { t, lang } = useI18n();
   const [orders, setOrders] = useState([]);
@@ -990,142 +990,144 @@ export default function OrdersPage() {
                       <input type="text" className="form-input" name="notes" value={formData.notes || ''} onChange={handleChange} placeholder={t('orders.notesPlaceholder')} />
                     </div>
 
-                    {/* Job Order Custom Commission Override (Phase 6) */}
-                    <div style={{ gridColumn: '1 / -1', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)', background: 'var(--bg-subtle, rgba(255,255,255,0.02))' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.86rem', color: 'var(--text-primary)', margin: 0 }}>
-                            <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)' }}></i>
-                            <span>{t('commission.jobOverrideTitle', '自定义职位专属佣金与保证期规则 (可选覆写)')}</span>
-                          </label>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            {formData.commissionOverride?.enabled
-                              ? t('commission.jobOverrideActiveDesc', '已开启职位覆写：成单时将优先采用本岗位的专属提成与保证期参数')
-                              : t('commission.jobOverrideInactiveDesc', '未开启时：自动继承团队全局默认佣金模板')}
+                    {/* Job Order Custom Commission Override (Phase 6 - Owner Only) */}
+                    {isOwner && (
+                      <div style={{ gridColumn: '1 / -1', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)', background: 'var(--bg-subtle, rgba(255,255,255,0.02))' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.86rem', color: 'var(--text-primary)', margin: 0 }}>
+                              <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)' }}></i>
+                              <span>{t('commission.jobOverrideTitle', '自定义职位专属佣金与保证期规则 (可选覆写)')}</span>
+                            </label>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              {formData.commissionOverride?.enabled
+                                ? t('commission.jobOverrideActiveDesc', '已开启职位覆写：成单时将优先采用本岗位的专属提成与保证期参数')
+                                : t('commission.jobOverrideInactiveDesc', '未开启时：自动继承团队全局默认佣金模板')}
+                            </div>
                           </div>
+
+                          <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px', cursor: 'pointer', flexShrink: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(formData.commissionOverride?.enabled)}
+                              onChange={(e) => {
+                                const enabled = e.target.checked;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  commissionOverride: {
+                                    enabled,
+                                    billingMode: prev.commissionOverride?.billingMode || 'DIRECT_FLAT',
+                                    flatCommissionAmount: prev.commissionOverride?.flatCommissionAmount ?? 500,
+                                    agencyFlatFee: prev.commissionOverride?.agencyFlatFee ?? 2000,
+                                    agencyFlatRate: prev.commissionOverride?.agencyFlatRate ?? 20,
+                                    guaranteeDays: prev.commissionOverride?.guaranteeDays ?? 90
+                                  }
+                                }));
+                              }}
+                              style={{ opacity: 0, width: 0, height: 0 }}
+                            />
+                            <span style={{
+                              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                              background: formData.commissionOverride?.enabled ? 'var(--accent-blue)' : 'rgba(255,255,255,0.2)',
+                              borderRadius: '20px', transition: '0.3s'
+                            }}>
+                              <span style={{
+                                position: 'absolute', content: '""', height: '14px', width: '14px',
+                                left: formData.commissionOverride?.enabled ? '21px' : '3px', bottom: '3px',
+                                background: '#fff', borderRadius: '50%', transition: '0.3s'
+                              }}></span>
+                            </span>
+                          </label>
                         </div>
 
-                        <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px', cursor: 'pointer', flexShrink: 0 }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(formData.commissionOverride?.enabled)}
-                            onChange={(e) => {
-                              const enabled = e.target.checked;
-                              setFormData(prev => ({
-                                ...prev,
-                                commissionOverride: {
-                                  enabled,
-                                  billingMode: prev.commissionOverride?.billingMode || 'DIRECT_FLAT',
-                                  flatCommissionAmount: prev.commissionOverride?.flatCommissionAmount ?? 500,
-                                  agencyFlatFee: prev.commissionOverride?.agencyFlatFee ?? 2000,
-                                  agencyFlatRate: prev.commissionOverride?.agencyFlatRate ?? 20,
-                                  guaranteeDays: prev.commissionOverride?.guaranteeDays ?? 90
-                                }
-                              }));
-                            }}
-                            style={{ opacity: 0, width: 0, height: 0 }}
-                          />
-                          <span style={{
-                            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                            background: formData.commissionOverride?.enabled ? 'var(--accent-blue)' : 'rgba(255,255,255,0.2)',
-                            borderRadius: '20px', transition: '0.3s'
-                          }}>
-                            <span style={{
-                              position: 'absolute', content: '""', height: '14px', width: '14px',
-                              left: formData.commissionOverride?.enabled ? '21px' : '3px', bottom: '3px',
-                              background: '#fff', borderRadius: '50%', transition: '0.3s'
-                            }}></span>
-                          </span>
-                        </label>
-                      </div>
-
-                      {formData.commissionOverride?.enabled && (
-                        <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-hairline)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-                          <div className="form-group">
-                            <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.modeLabel', '专属计费模式')}</label>
-                            <select
-                              className="form-select btn-sm"
-                              style={{ height: '32px', fontSize: '12px' }}
-                              value={formData.commissionOverride?.billingMode || 'DIRECT_FLAT'}
-                              onChange={(e) => setFormData(prev => ({
-                                ...prev,
-                                commissionOverride: { ...prev.commissionOverride, billingMode: e.target.value }
-                              }))}
-                            >
-                              <option value="DIRECT_FLAT">{t('commission.modeDirectFlat', '按单固定佣金')}</option>
-                              <option value="AGENCY_FLAT">{t('commission.modeAgencyFlat', '固定服务费 + 提成')}</option>
-                              <option value="PERCENTAGE">{t('commission.modePercentage', '薪资百分比模式')}</option>
-                            </select>
-                          </div>
-
-                          {formData.commissionOverride?.billingMode === 'DIRECT_FLAT' && (
+                        {formData.commissionOverride?.enabled && (
+                          <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-hairline)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                             <div className="form-group">
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.flatAmountShort', '本单固定提成池 (RM)')}</label>
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.modeLabel', '专属计费模式')}</label>
+                              <select
+                                className="form-select btn-sm"
+                                style={{ height: '32px', fontSize: '12px' }}
+                                value={formData.commissionOverride?.billingMode || 'DIRECT_FLAT'}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  commissionOverride: { ...prev.commissionOverride, billingMode: e.target.value }
+                                }))}
+                              >
+                                <option value="DIRECT_FLAT">{t('commission.modeDirectFlat', '按单固定佣金')}</option>
+                                <option value="AGENCY_FLAT">{t('commission.modeAgencyFlat', '固定服务费 + 提成')}</option>
+                                <option value="PERCENTAGE">{t('commission.modePercentage', '薪资百分比模式')}</option>
+                              </select>
+                            </div>
+
+                            {formData.commissionOverride?.billingMode === 'DIRECT_FLAT' && (
+                              <div className="form-group">
+                                <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.flatAmountShort', '本单固定提成池 (RM)')}</label>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  style={{ height: '32px', fontSize: '12px' }}
+                                  min="0"
+                                  value={formData.commissionOverride?.flatCommissionAmount ?? 500}
+                                  onChange={(e) => setFormData(prev => ({
+                                    ...prev,
+                                    commissionOverride: { ...prev.commissionOverride, flatCommissionAmount: parseFloat(e.target.value) || 0 }
+                                  }))}
+                                />
+                              </div>
+                            )}
+
+                            {formData.commissionOverride?.billingMode === 'AGENCY_FLAT' && (
+                              <>
+                                <div className="form-group">
+                                  <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.agencyFeeShort', '客户固定服务费 (RM)')}</label>
+                                  <input
+                                    type="number"
+                                    className="form-input"
+                                    style={{ height: '32px', fontSize: '12px' }}
+                                    min="0"
+                                    value={formData.commissionOverride?.agencyFlatFee ?? 2000}
+                                    onChange={(e) => setFormData(prev => ({
+                                      ...prev,
+                                      commissionOverride: { ...prev.commissionOverride, agencyFlatFee: parseFloat(e.target.value) || 0 }
+                                    }))}
+                                  />
+                                </div>
+                                <div className="form-group">
+                                  <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.recruiterRateShort', '顾问提成比率 (%)')}</label>
+                                  <input
+                                    type="number"
+                                    className="form-input"
+                                    style={{ height: '32px', fontSize: '12px' }}
+                                    min="0"
+                                    max="100"
+                                    value={formData.commissionOverride?.agencyFlatRate ?? 20}
+                                    onChange={(e) => setFormData(prev => ({
+                                      ...prev,
+                                      commissionOverride: { ...prev.commissionOverride, agencyFlatRate: parseFloat(e.target.value) || 0 }
+                                    }))}
+                                  />
+                                </div>
+                              </>
+                            )}
+
+                            <div className="form-group">
+                              <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.guaranteeDaysShort', '保证期天数')}</label>
                               <input
                                 type="number"
                                 className="form-input"
                                 style={{ height: '32px', fontSize: '12px' }}
                                 min="0"
-                                value={formData.commissionOverride?.flatCommissionAmount ?? 500}
+                                value={formData.commissionOverride?.guaranteeDays ?? 90}
                                 onChange={(e) => setFormData(prev => ({
                                   ...prev,
-                                  commissionOverride: { ...prev.commissionOverride, flatCommissionAmount: parseFloat(e.target.value) || 0 }
+                                  commissionOverride: { ...prev.commissionOverride, guaranteeDays: parseInt(e.target.value, 10) || 0 }
                                 }))}
                               />
                             </div>
-                          )}
-
-                          {formData.commissionOverride?.billingMode === 'AGENCY_FLAT' && (
-                            <>
-                              <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.agencyFeeShort', '客户固定服务费 (RM)')}</label>
-                                <input
-                                  type="number"
-                                  className="form-input"
-                                  style={{ height: '32px', fontSize: '12px' }}
-                                  min="0"
-                                  value={formData.commissionOverride?.agencyFlatFee ?? 2000}
-                                  onChange={(e) => setFormData(prev => ({
-                                    ...prev,
-                                    commissionOverride: { ...prev.commissionOverride, agencyFlatFee: parseFloat(e.target.value) || 0 }
-                                  }))}
-                                />
-                              </div>
-                              <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.recruiterRateShort', '顾问提成比率 (%)')}</label>
-                                <input
-                                  type="number"
-                                  className="form-input"
-                                  style={{ height: '32px', fontSize: '12px' }}
-                                  min="0"
-                                  max="100"
-                                  value={formData.commissionOverride?.agencyFlatRate ?? 20}
-                                  onChange={(e) => setFormData(prev => ({
-                                    ...prev,
-                                    commissionOverride: { ...prev.commissionOverride, agencyFlatRate: parseFloat(e.target.value) || 0 }
-                                  }))}
-                                />
-                              </div>
-                            </>
-                          )}
-
-                          <div className="form-group">
-                            <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.guaranteeDaysShort', '保证期天数')}</label>
-                            <input
-                              type="number"
-                              className="form-input"
-                              style={{ height: '32px', fontSize: '12px' }}
-                              min="0"
-                              value={formData.commissionOverride?.guaranteeDays ?? 90}
-                              onChange={(e) => setFormData(prev => ({
-                                ...prev,
-                                commissionOverride: { ...prev.commissionOverride, guaranteeDays: parseInt(e.target.value, 10) || 0 }
-                              }))}
-                            />
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>

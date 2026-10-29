@@ -243,9 +243,8 @@ service cloud.firestore {
       }
 
       match /commission_records/{recordId} {
-        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
-        allow create: if isApprovedOnTeam(teamId);
-        allow update, delete: if isOwnerOrManagerOnTeam(teamId);
+        // 现阶段为 Owner 专属功能：仅系统 Owner 具备读写权限
+        allow read, write: if hasUserDoc() && userDoc().role == 'owner';
       }
     }
 
