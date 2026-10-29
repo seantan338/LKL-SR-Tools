@@ -955,10 +955,10 @@ function CvAutofillContent() {
 
   return (
     <div className="page-view active">
-      <div style={{ display: 'flex', gap: 'var(--space-6)', maxWidth: '1500px', margin: '0 auto', width: '100%', height: 'calc(100vh - 100px)' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-6)', maxWidth: '1500px', margin: '0 auto', width: '100%', height: 'calc(100dvh - 140px)', minHeight: '580px' }}>
         
         {/* Left Side: Upload & Parse */}
-        <div style={{ width: '38%', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', height: '100%' }}>
+        <div style={{ width: '38%', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', height: '100%', minHeight: 0, flexShrink: 0 }}>
           <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
             <div>
               <h1 className="page-title" style={{ color: 'var(--accent-purple)' }}>
@@ -968,8 +968,8 @@ function CvAutofillContent() {
             </div>
           </div>
 
-          <div className="bezel-shell" style={{ flex: 1 }}>
-            <div className="bezel-core" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div className="bezel-shell" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div className="bezel-core" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <div className="bento-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3>{t('cvAutofill.step1Title', '1. 提供简历内容')}</h3>
                 <button
@@ -1089,9 +1089,9 @@ function CvAutofillContent() {
         </div>
 
         {/* Right Side: Form Review & Submission - 1:1 Mirroring Sunrise CV Template */}
-        <div style={{ width: '62%', display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div className="bezel-shell" style={{ flex: 1 }}>
-            <div className="bezel-core" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: 'var(--space-5)' }}>
+        <div style={{ width: '62%', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+          <div className="bezel-shell" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="bezel-core" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: 'var(--space-5)' }}>
               
               <div className="bento-header" style={{ borderBottom: '1px solid var(--border-hairline)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -1662,8 +1662,21 @@ function CvAutofillContent() {
                 </div>
               )}
 
-              {/* 操作栏 */}
-              <div style={{ marginTop: 'auto', paddingTop: 'var(--space-4)', display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-hairline)' }}>
+              {/* 操作栏 - 底部吸附让体验更佳 */}
+              <div style={{
+                marginTop: 'auto',
+                paddingTop: 'var(--space-4)',
+                paddingBottom: '4px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                borderTop: '1px solid var(--border-hairline)',
+                position: 'sticky',
+                bottom: 0,
+                background: 'var(--bezel-core-bg, #0b0c13)',
+                zIndex: 10,
+                flexShrink: 0
+              }}>
                 <button 
                   className="btn btn-secondary" 
                   onClick={handleExportDocx} 
