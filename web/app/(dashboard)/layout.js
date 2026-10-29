@@ -76,14 +76,19 @@ export default function DashboardLayout({ children }) {
     );
   }
 
-  if (userProfile?.role === 'pending') {
+  if (userProfile?.role === 'pending' || userProfile?.role === 'revoked') {
+    const isRevoked = userProfile.role === 'revoked';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-void)' }}>
-        <div style={{ textAlign: 'center', maxWidth: '400px', padding: 'var(--space-6)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-xl)' }}>
-          <i className="ph-light ph-clock-countdown" style={{ fontSize: '3rem', color: 'var(--accent-amber)', marginBottom: 'var(--space-4)' }}></i>
-          <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 'var(--space-2)' }}>{t('authPages.pendingApprovalTitle', '账户审核中')}</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)', fontSize: 'var(--text-sm)', lineHeight: 1.5 }}>
-            {t('authPages.pendingApprovalDesc', { email: user?.email || '' }, `您的账号 ${user?.email || ''} 已成功注册，但需要管理员审核分配权限后方可进入工作台。请联系团队所有者。`)}
+        <div style={{ textAlign: 'center', maxWidth: '420px', padding: 'var(--space-6)', background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-xl)' }}>
+          <i className={isRevoked ? "ph-light ph-prohibit" : "ph-light ph-clock-countdown"} style={{ fontSize: '3rem', color: isRevoked ? 'var(--accent-rose)' : 'var(--accent-amber)', marginBottom: 'var(--space-4)' }}></i>
+          <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 'var(--space-2)' }}>
+            {isRevoked ? t('authPages.revokedTitle', '系统访问权限已终止') : t('authPages.pendingApprovalTitle', '账户审核中')}
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)', fontSize: 'var(--text-sm)', lineHeight: 1.6 }}>
+            {isRevoked
+              ? t('authPages.revokedDesc', { email: user?.email || '' }, `您的账号 ${user?.email || ''} 的访问权限已被管理员移除。如有疑问，请联系团队管理员。`)
+              : t('authPages.pendingApprovalDesc', { email: user?.email || '' }, `您的账号 ${user?.email || ''} 已成功注册，但需要管理员审核分配权限后方可进入工作台。请联系团队所有者。`)}
           </p>
           <button className="btn btn-secondary" onClick={signOut} style={{ width: '100%' }}>{t('authPages.signOutBtn', '退出登录')}</button>
         </div>

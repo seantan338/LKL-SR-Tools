@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
 
 const AuthContext = createContext(null);
@@ -46,6 +46,8 @@ export function AuthProvider({ children }) {
           const isAdmin = checkIsAdminEmail(firebaseUser.email);
           // Fetch or create user profile in Firestore
           const profileRef = doc(db, 'users', firebaseUser.uid);
+          const cleanEmail = (firebaseUser.email || '').trim().toLowerCase();
+          const inviteRef = cleanEmail ? doc(db, 'invites', cleanEmail) : null;
 
           // 只把真正写入 Firestore 成功的身份放进界面：Firestore rules 不允许自己升为 owner，
           // 若写入失败仍在内存里当 owner，界面会出现管理功能、实际操作却全部被拒绝
@@ -59,13 +61,30 @@ export function AuthProvider({ children }) {
             }
           };
 
-          const profileSnap = await withTimeout(getDoc(profileRef));
+          const [profileSnap, inviteSnap] = await Promise.all([
+            withTimeout(getDoc(profileRef)),
+            inviteRef ? withTimeout(getDoc(inviteRef)).catch(() => null) : Promise.resolve(null)
+          ]);
+
+          const inviteData = inviteSnap?.exists() ? inviteSnap.data() : null;
 
           if (profileSnap.exists()) {
             const data = profileSnap.data();
             // If the user is designated as admin via NEXT_PUBLIC_ADMIN_EMAIL, try to ensure owner role
             if (isAdmin && (data.role !== 'owner' || data.teamId !== 'default_team')) {
               await persistProfile({ ...data, teamId: 'default_team', role: 'owner' }, data);
+            } else if (inviteData && (data.role === 'pending' || !data.teamId)) {
+              // 管理员已提前在后台预设过该邮箱的入驻权限与团队，首次登录/刷新时自动激活直通
+              const preApprovedData = {
+                ...data,
+                role: inviteData.role || 'recruiter',
+                teamId: inviteData.teamId || 'default_team',
+                displayName: data.displayName || inviteData.displayName || firebaseUser.displayName || '',
+                allowWfhPunch: inviteData.allowWfhPunch !== undefined ? Boolean(inviteData.allowWfhPunch) : false,
+                assignedPic: inviteData.assignedPic || inviteData.displayName || data.assignedPic || '',
+              };
+              await persistProfile(preApprovedData, data);
+              try { await deleteDoc(inviteRef); } catch (e) {}
             } else if (!data.teamId || !data.role) {
               const patchedData = {
                 ...data,
@@ -76,17 +95,25 @@ export function AuthProvider({ children }) {
             }
           } else {
             // First-time login — create profile
+            const targetRole = isAdmin ? 'owner' : (inviteData?.role || 'pending');
+            const targetTeam = isAdmin ? 'default_team' : (inviteData?.teamId || null);
+
             const newProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
-              displayName: firebaseUser.displayName || '',
+              displayName: inviteData?.displayName || firebaseUser.displayName || '',
               photoURL: firebaseUser.photoURL || '',
-              teamId: isAdmin ? 'default_team' : null,
-              role: isAdmin ? 'owner' : 'pending',
+              teamId: targetTeam,
+              role: targetRole,
+              allowWfhPunch: inviteData?.allowWfhPunch !== undefined ? Boolean(inviteData.allowWfhPunch) : false,
+              assignedPic: inviteData?.assignedPic || inviteData?.displayName || '',
               createdAt: serverTimestamp(),
             };
             try {
               await withTimeout(setDoc(profileRef, newProfile), 3000);
+              if (inviteData && inviteRef) {
+                try { await deleteDoc(inviteRef); } catch (e) {}
+              }
             } catch (createErr) {
               console.warn('[auth] Direct create of profile blocked (likely firestore rules), attempting compliant fallback:', createErr);
               try {
@@ -97,10 +124,18 @@ export function AuthProvider({ children }) {
             }
           }
 
-          // 核心：对当前用户文档建立实时监听，任何 WFH 权限开关、角色或团队变更全站零刷新即刻响应
+          // 核心：对当前用户文档建立实时监听，任何权限撤销/剔除、WFH 权限开关、角色或团队变更全站零刷新即刻响应
           unsubProfile = onSnapshot(profileRef, (snap) => {
             if (snap.exists()) {
-              setUserProfile({ ...snap.data(), uid: snap.id });
+              const snapData = snap.data();
+              if (snapData.role === 'revoked') {
+                setUserProfile({ ...snapData, uid: snap.id, role: 'revoked' });
+              } else {
+                setUserProfile({ ...snapData, uid: snap.id });
+              }
+            } else {
+              // 用户文档已被管理员从团队剔除并物理删除，立即置为 revoked 阻断工作台并踢出
+              setUserProfile({ uid: firebaseUser.uid, email: firebaseUser.email, role: 'revoked' });
             }
             setLoading(false);
           }, (err) => {
