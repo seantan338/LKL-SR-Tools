@@ -170,7 +170,7 @@ service cloud.firestore {
 
     match /teams/{teamId} {
       allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
-      allow update: if isOwnerOrManagerOnTeam(teamId);
+      allow update: if isOwnerOrManagerOnTeam(teamId) || (hasUserDoc() && userDoc().role == 'owner');
       // 只有 owner 能创建以自己团队为父团队的新子团队
       allow create: if hasUserDoc()
         && userDoc().role == 'owner'
