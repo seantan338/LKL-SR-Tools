@@ -85,14 +85,35 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '', isEn = fa
   const allSkills = Array.isArray(raw.skills) ? raw.skills : (Array.isArray(parsedCv.skills) ? parsedCv.skills : []);
   const allLanguages = Array.isArray(parsedCv.languages) ? parsedCv.languages : [];
   const workHistory = Array.isArray(parsedCv.professional_history) ? parsedCv.professional_history : [];
+  const allEduList = Array.isArray(parsedCv.education) ? parsedCv.education : (Array.isArray(raw.education) ? raw.education : []);
+
+  // 提取年龄 (数字/文本)
+  const rawAge = (personal.age !== undefined && personal.age !== null)
+    ? String(personal.age).trim()
+    : ((raw.age !== undefined && raw.age !== null) ? String(raw.age).trim() : '');
+
+  // 提取学历年份 (如 2017 - 2021)
+  const rawGradYear = edu.year || raw.education?.[0]?.year || '';
+
+  // 性别规范归一化
+  let resolvedGender = personal.gender || 'Male';
+  if (resolvedGender === '女' || String(resolvedGender).toLowerCase() === 'female') {
+    resolvedGender = 'Female';
+  } else if (resolvedGender === '男' || String(resolvedGender).toLowerCase() === 'male') {
+    resolvedGender = 'Male';
+  }
 
   const skillsLabel = isEn ? '[Skills]: ' : '【技能专长】: ';
   const langsLabel = isEn ? '[Languages]: ' : '【熟练语言】: ';
   const salaryLabel = isEn ? '[Expected Salary]: ' : '【期望薪资】: ';
   const availLabel = isEn ? '[Availability]: ' : '【到岗时间】: ';
+  const ageLabel = isEn ? '[Age]: ' : '【年龄】: ';
+  const eduYearLabel = isEn ? '[Education Period]: ' : '【学历年份】: ';
 
   const notesParts = [
     raw.summary || '',
+    rawAge ? `${ageLabel}${rawAge}` : '',
+    rawGradYear ? `${eduYearLabel}${rawGradYear} (${edu.school || finalQual || ''})` : '',
     allSkills.length ? `${skillsLabel}${allSkills.join(', ')}` : '',
     allLanguages.length ? `${langsLabel}${allLanguages.join(', ')}` : '',
     personal.expected_salary ? `${salaryLabel}${personal.expected_salary}` : '',
@@ -119,6 +140,8 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '', isEn = fa
     degree: extractedDegree || '',
     major: extractedMajor || '',
     qualification: finalQual || '',
+    graduationYear: rawGradYear,
+    education: allEduList,
     experience: parsedCv.total_years_experience || raw.totalYearsExperience || '',
     tags: allSkills,
     skillsText: allSkills.join(', '),
@@ -126,8 +149,9 @@ function normalizeExtractedCv(raw, filename = '', defaultPicName = '', isEn = fa
     // Sunrise CV 专属全量画像
     nationality: personal.nationality || 'Malaysian',
     race: personal.race || '',
-    gender: personal.gender || 'Male',
+    gender: resolvedGender,
     maritalStatus: personal.marital_status || 'Single',
+    age: rawAge,
     lastDrawnSalary: personal.last_drawn_salary || '',
     expectedSalary: personal.expected_salary || '',
     salary: personal.expected_salary || personal.last_drawn_salary || '',
@@ -350,6 +374,9 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       school: item.school?.trim() || '',
       degree: item.degree?.trim() || '',
       major: item.major?.trim() || '',
+      qualification: item.qualification?.trim() || '',
+      graduationYear: item.graduationYear?.trim() || '',
+      age: item.age?.trim() || '',
       experience: item.experience?.trim() || '',
       tags: skillsArray,
       notes: item.notes?.trim() || '',
@@ -370,6 +397,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
       availability: item.availability || 'Immediate',
       languages: languagesArray,
       workExperience: item.workExperience || [],
+      education: item.education || [],
       rawResumeFilename: item.rawResumeFilename || '',
       
       interviewDate: '',
@@ -959,7 +987,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
 
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                   gap: '8px'
                 }}>
                   <div>
@@ -992,6 +1020,17 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.ageLabel', '年龄 (Age)')}</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder={t('cvImportModal.agePlaceholder', '如: 22')}
+                      value={activeCandidate?.age || ''}
+                      onChange={(e) => updateCandidateField(activeCandidate._id, 'age', e.target.value)}
+                    />
                   </div>
 
                   <div>
@@ -1090,7 +1129,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
               {/* 教育背景与技能 */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
+                gridTemplateColumns: '1.4fr 1fr 1.6fr',
                 gap: 'var(--space-3)'
               }}>
                 <div>
@@ -1100,8 +1139,24 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   <input
                     type="text"
                     className="form-input"
-                    value={`${activeCandidate?.school || ''} ${activeCandidate?.degree || ''} ${activeCandidate?.major || ''}`.trim()}
-                    onChange={(e) => updateCandidateField(activeCandidate._id, 'school', e.target.value)}
+                    value={activeCandidate?.qualification || `${activeCandidate?.school || ''} ${activeCandidate?.degree || ''} ${activeCandidate?.major || ''}`.trim()}
+                    onChange={(e) => {
+                      updateCandidateField(activeCandidate._id, 'school', e.target.value);
+                      updateCandidateField(activeCandidate._id, 'qualification', e.target.value);
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {t('cvImportModal.graduationYearLabel', '学历年份 (Year)')}
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={t('cvImportModal.graduationYearPlaceholder', '如: 2017 - 2021')}
+                    value={activeCandidate?.graduationYear || ''}
+                    onChange={(e) => updateCandidateField(activeCandidate._id, 'graduationYear', e.target.value)}
                   />
                 </div>
 

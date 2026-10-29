@@ -1910,11 +1910,11 @@ function onEdit(e) {
                     {t('settingsPage.themeModeLabel', '全局系统主题外观')}
                   </label>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                    {t('settingsPage.themeModeDesc', 'TALENT FLOW 支持 3 大精致主题：纯粹黑曜石深空、Google Gemini 宇宙星云与日间清爽高光，可在下方直观点击切换或随时通过右上角顶栏按钮循环切换。')}
+                    {t('settingsPage.themeModeDesc', 'TALENT FLOW 支持 4 大精致主题：纯粹黑曜石深空、Google Gemini 宇宙星云、战术指挥舱与日间清爽高光，可在下方直观点击切换或随时通过右上角顶栏按钮循环切换。')}
                   </p>
                 </div>
 
-                {/* 3 Interactive Visual Theme Cards */}
+                {/* 4 Interactive Visual Theme Cards */}
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -2066,7 +2066,83 @@ function onEdit(e) {
                     </p>
                   </div>
 
-                  {/* Card 3: Clean Daylight */}
+                  {/* Card 3: Tactical Command */}
+                  <div
+                    onClick={() => handleSelectTheme('tactical')}
+                    style={{
+                      cursor: 'pointer',
+                      borderRadius: '2px',
+                      border: currentTheme === 'tactical' ? '2px solid #10b981' : '1px solid rgba(16, 185, 129, 0.3)',
+                      background: '#0a140f',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      position: 'relative',
+                      clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px))',
+                      boxShadow: currentTheme === 'tactical' ? '0 0 20px rgba(16, 185, 129, 0.3)' : 'none',
+                      transition: 'all 0.2s cubic-bezier(0.32, 0.72, 0, 1)'
+                    }}
+                  >
+                    {/* Visual Preview Box */}
+                    <div style={{
+                      height: '70px',
+                      borderRadius: '0px',
+                      backgroundColor: '#060b08',
+                      backgroundImage: 'linear-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 185, 129, 0.08) 1px, transparent 1px)',
+                      backgroundSize: '16px 16px',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      padding: '10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <span style={{ width: '8px', height: '8px', background: '#10b981' }}></span>
+                          <span style={{ width: '8px', height: '8px', background: '#f59e0b' }}></span>
+                          <span style={{ width: '8px', height: '8px', background: '#4b6b58' }}></span>
+                        </div>
+                        <i className="ph-bold ph-crosshair" style={{ color: '#10b981', fontSize: '14px', filter: 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))' }}></i>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ height: '6px', width: '45%', background: '#10b981' }}></div>
+                        <div style={{ height: '6px', width: '25%', background: 'rgba(245, 158, 11, 0.7)' }}></div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="ph-bold ph-crosshair" style={{ color: '#10b981', fontSize: '1.1rem' }}></i>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#e6f4ed', fontFamily: 'var(--font-mono)' }}>
+                          {t('settingsPage.themeTacticalTitle', '战术指挥 (Tactical HUD)')}
+                        </span>
+                      </div>
+                      {currentTheme === 'tactical' && (
+                        <span style={{
+                          fontSize: '0.72rem',
+                          background: 'rgba(16, 185, 129, 0.18)',
+                          color: '#10b981',
+                          padding: '2px 8px',
+                          borderRadius: '2px',
+                          fontWeight: 600,
+                          border: '1px solid rgba(16, 185, 129, 0.45)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <i className="ph-fill ph-check-circle"></i> {t('settingsPage.themeCurrentActive', '当前生效')}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.76rem', color: '#8ab09a', lineHeight: 1.5 }}>
+                      {t('settingsPage.themeTacticalDesc', '暗墨绿雷达网格、CRT 扫描线、45° 军工切角装甲与荧光绿 L 型准星仪表盘')}
+                    </p>
+                  </div>
+
+                  {/* Card 4: Clean Daylight */}
                   <div
                     onClick={() => handleSelectTheme('light')}
                     style={{

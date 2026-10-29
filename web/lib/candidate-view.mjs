@@ -28,20 +28,26 @@ export const STAGE_ORDER = [
   'rejected'
 ];
 
-const INVALID_COMPANY = new Set(['未指定企业', '未定企业']);
-const INVALID_POSITION = new Set(['未指定岗位', '待定职位', '待定']);
+const INVALID_COMPANY = new Set([
+  '未指定企业', '未定企业', '未指定公司', '未定公司',
+  'unspecified company', 'unassigned company', 'tbd', 'n/a', 'na', 'none', 'null', '-'
+]);
+const INVALID_POSITION = new Set([
+  '未指定岗位', '待定职位', '待定', '未定岗位',
+  'unspecified position', 'unassigned position', 'tbd', 'n/a', 'na', 'none', 'null', '-'
+]);
 
 const clean = (value) => String(value ?? '').trim().replace(/\s+/g, ' ');
 const keyOf = (value) => clean(value).toLowerCase();
 
 export function cleanCompany(c) {
   const val = clean(c?.company);
-  return val && !INVALID_COMPANY.has(val) ? val : '';
+  return val && !INVALID_COMPANY.has(val.toLowerCase()) ? val : '';
 }
 
 export function cleanPosition(c) {
   const val = clean(c?.position);
-  return val && !INVALID_POSITION.has(val) ? val : '';
+  return val && !INVALID_POSITION.has(val.toLowerCase()) ? val : '';
 }
 
 export function effectiveStageKey(c) {

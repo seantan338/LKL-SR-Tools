@@ -48,8 +48,10 @@ const scrollToInterviewSection = (sectionRef, inputRef) => setTimeout(() => {
 
 
 const getInitialCandidateFormData = () => ({
-  name: '', phone: '', email: '', school: '', major: '', 
+  name: '', phone: '', email: '', school: '', major: '', degree: '', qualification: '',
+  age: '',
   graduationYear: new Date().getFullYear().toString(),
+  education: [],
   company: '', position: '', stage: 'screening',
   source: '', notes: '',
   nationality: '', race: '', gender: '', maritalStatus: '',
@@ -147,8 +149,12 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
       setCurrentCandidate(candidate);
       const personal = candidate.parsedCvData?.parsed_cv?.personal_information || {};
       const cv = candidate.parsedCvData?.parsed_cv || {};
+      const edu = cv.education?.[0] || {};
       setFormData({
         ...candidate,
+        age: candidate.age !== undefined && candidate.age !== null ? String(candidate.age) : (personal.age ? String(personal.age) : ''),
+        graduationYear: candidate.graduationYear || edu.year || '',
+        education: (candidate.education && candidate.education.length > 0) ? candidate.education : (cv.education || []),
         picName: candidate.picName || candidate.pic || '',
         assignedTo: candidate.assignedTo || candidate.userId || '',
         nationality: candidate.nationality ?? personal.nationality ?? '',
@@ -288,13 +294,30 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         }
       }
 
+      const rawAge = (personal.age !== undefined && personal.age !== null)
+        ? String(personal.age).trim()
+        : ((raw.age !== undefined && raw.age !== null) ? String(raw.age).trim() : '');
+      const rawGradYear = edu.year || raw.education?.[0]?.year || '';
+      const allEduList = Array.isArray(parsedCv.education) ? parsedCv.education : (Array.isArray(raw.education) ? raw.education : []);
+
+      let resolvedGender = personal.gender || '';
+      if (resolvedGender === '女' || String(resolvedGender).toLowerCase() === 'female') {
+        resolvedGender = 'Female';
+      } else if (resolvedGender === '男' || String(resolvedGender).toLowerCase() === 'male') {
+        resolvedGender = 'Male';
+      }
+
       const skillsLabel = isEn ? '[Skills]: ' : '【技能】: ';
       const langsLabel = isEn ? '[Languages]: ' : '【语言】: ';
       const salaryLabel = isEn ? '[Expected Salary]: ' : '【期望薪资】: ';
       const availLabel = isEn ? '[Availability]: ' : '【到岗时间】: ';
+      const ageLabel = isEn ? '[Age]: ' : '【年龄】: ';
+      const eduYearLabel = isEn ? '[Education Period]: ' : '【学历年份】: ';
 
       const notesParts = [
         raw.summary || '',
+        rawAge ? `${ageLabel}${rawAge}` : '',
+        rawGradYear ? `${eduYearLabel}${rawGradYear} (${edu.school || finalQual || ''})` : '',
         parsedCv.skills?.length ? `${skillsLabel}${parsedCv.skills.join(', ')}` : '',
         parsedCv.languages?.length ? `${langsLabel}${parsedCv.languages.join(', ')}` : '',
         personal.expected_salary ? `${salaryLabel}${personal.expected_salary}` : '',
@@ -308,16 +331,19 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         email: personal.email || raw.email || prev.email || '',
         location: personal.address || raw.location || prev.location || '',
         company: prev.company || '',
-        position: prof.position || parsedCv.position_applied || raw.currentPosition || raw.workExperience?.[0]?.position || prev.position || '',
+        position: parsedCv.position_applied || prof.position || raw.currentPosition || raw.workExperience?.[0]?.position || prev.position || '',
         school: edu.school || raw.education?.[0]?.school || prev.school || '',
         degree: extractedDegree || prev.degree || '',
         major: extractedMajor || prev.major || '',
         qualification: finalQual || prev.qualification || '',
+        graduationYear: rawGradYear || prev.graduationYear || '',
+        age: rawAge || prev.age || '',
         experience: parsedCv.total_years_experience || raw.totalYearsExperience || prev.experience || '',
+        education: allEduList.length ? allEduList : (prev.education || []),
         // Sunrise CV fields
         nationality: personal.nationality || prev.nationality || '',
         race: personal.race || prev.race || '',
-        gender: personal.gender || prev.gender || '',
+        gender: resolvedGender || prev.gender || '',
         maritalStatus: personal.marital_status || prev.maritalStatus || '',
         lastDrawnSalary: personal.last_drawn_salary || prev.lastDrawnSalary || '',
         expectedSalary: personal.expected_salary || prev.expectedSalary || '',
@@ -1253,6 +1279,10 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                   <div className="form-group">
                     <label className="form-label">{t('candidates.drawer.labelDegree')}</label>
                     <input type="text" className="form-input" name="degree" value={formData.degree || formData.school || ''} onChange={handleChange} readOnly={!isEditing} onClick={() => handleFieldClickHint()} placeholder={t('candidates.drawer.placeholderDegree')} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{t('candidates.drawer.labelGraduationYear', '学历/在读年份')}</label>
+                    <input type="text" className="form-input" name="graduationYear" value={formData.graduationYear || ''} onChange={handleChange} readOnly={!isEditing} onClick={() => handleFieldClickHint()} placeholder={t('candidates.drawer.placeholderGraduationYear', '如: 2017 - 2021')} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">{t('candidates.drawer.labelLocation')}</label>

@@ -142,7 +142,7 @@ export default function CalendarPage() {
   const targetPic = (selectedPic || userProfile?.assignedPic || '').toLowerCase().trim();
   const myName = (userProfile?.displayName || userProfile?.name || user?.displayName || '').toLowerCase().trim();
   const myEmailName = (user?.email || '').split('@')[0].toLowerCase().trim();
-  const myDisplayLabel = userProfile?.displayName || user?.displayName || (user?.email ? user.email.split('@')[0] : (isEn ? 'Me' : '本人'));
+  const myDisplayLabel = userProfile?.displayName || user?.displayName || (user?.email ? user.email.split('@')[0] : t('calendar.advisorMe', isEn ? 'Me' : '本人'));
 
   const modeFilteredCandidates = candidates.filter(c => {
     if (viewMode === 'personal') {
@@ -194,7 +194,7 @@ export default function CalendarPage() {
       const canonicalPic = resolveCanonicalPic(c.picName || c.pic, c.assignedTo, teamMembers);
       const advisorName = canonicalPic.displayName && canonicalPic.key !== 'unassigned'
         ? canonicalPic.displayName
-        : (c.picName?.trim() || (isEn ? 'Other Recruiter' : '其他顾问'));
+        : (c.picName?.trim() || t('calendar.advisorOther', isEn ? 'Other Recruiter' : '其他顾问'));
 
       const candidateWithParsed = {
         ...c,
@@ -657,12 +657,8 @@ export default function CalendarPage() {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, overflow: 'hidden' }}>
                       {cellDisplayTags.slice(0, 3).map(tagItem => {
                         if (tagItem.type === 'masked') {
-                          const maskedLabel = isEn
-                            ? `${tagItem.advisorName} (${tagItem.count})`
-                            : `${tagItem.advisorName} (${tagItem.count}人)`;
-                          const maskedTooltip = isEn
-                            ? `${tagItem.advisorName}: ${tagItem.count} candidate(s) scheduled (PDPA Protected)`
-                            : `顾问 ${tagItem.advisorName}: ${tagItem.count} 位候选人面试 (PDPA 隐私保护)`;
+                          const maskedLabel = `${tagItem.advisorName} (${tagItem.count}${t('calendar.unitPeople', isEn ? '' : '人')})`;
+                          const maskedTooltip = t('calendar.pdpaMaskedTagHover', { advisor: tagItem.advisorName, count: tagItem.count }, `顾问 ${tagItem.advisorName}: ${tagItem.count} 位候选人面试 (PDPA 隐私保护)`);
                           return (
                             <div
                               key={tagItem.id}
@@ -874,9 +870,9 @@ export default function CalendarPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
                             <i className="ph-fill ph-lock-key" style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}></i>
                             <span>
-                              {isEn
+                              {t('calendar.pdpaMaskedTitle', { advisor: item.advisorName, count: item.count }, isEn
                                 ? `${item.advisorName} · ${item.count} Candidate(s) to Interview`
-                                : `顾问 ${item.advisorName} · ${item.count} 位候选人安排面试`}
+                                : `顾问 ${item.advisorName} · ${item.count} 位候选人安排面试`)}
                             </span>
                           </div>
                           <span style={{
@@ -888,14 +884,14 @@ export default function CalendarPage() {
                             fontWeight: '600',
                             flexShrink: 0
                           }}>
-                            {isEn ? 'PDPA Protected' : 'PDPA 隐私保护'}
+                            {t('calendar.pdpaTag', isEn ? 'PDPA Protected' : 'PDPA 隐私保护')}
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                           <span>
-                            {isEn
+                            {t('calendar.pdpaMaskedNotice', isEn
                               ? 'Candidate names & contact details are hidden for other recruiters'
-                              : '其他顾问排期，已隐藏候选人姓名与详细资料'}
+                              : '其他顾问排期，已隐藏候选人姓名与详细资料')}
                           </span>
                           {agendaTab === 'all' && item.parsedDate && (
                             <span style={{ fontFamily: 'var(--font-mono)', flexShrink: 0 }}>{item.parsedDate}</span>

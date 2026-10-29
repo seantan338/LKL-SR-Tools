@@ -294,6 +294,8 @@ async def upsert_candidate_to_firestore(
     school = education_list[0].get("school", "") if education_list else ""
     major = education_list[0].get("major", "") if education_list else ""
     degree = education_list[0].get("degree", "") or (education_list[0].get("qualification", "") if education_list else "")
+    graduation_year = education_list[0].get("year", "") if education_list else ""
+    qualification = education_list[0].get("qualification", "") if education_list else ""
 
     # Primary Work
     experience = cv.get("total_years_experience") or ""
@@ -354,6 +356,9 @@ async def upsert_candidate_to_firestore(
             "school": school or existing_data.get("school", ""),
             "major": major or existing_data.get("major", ""),
             "degree": degree or existing_data.get("degree", ""),
+            "qualification": qualification or existing_data.get("qualification", ""),
+            "graduationYear": graduation_year or existing_data.get("graduationYear", ""),
+            "age": age or existing_data.get("age", ""),
             "experience": experience or existing_data.get("experience", ""),
             "skills": list(set((existing_data.get("skills") or []) + skills)),
             # Sunrise CV Fields
@@ -366,6 +371,7 @@ async def upsert_candidate_to_firestore(
             "availability": availability or existing_data.get("availability", ""),
             "languages": languages if languages else existing_data.get("languages", []),
             "workExperience": history_list if history_list else existing_data.get("workExperience", []),
+            "education": education_list if education_list else existing_data.get("education", []),
             "resumeUrl": resume_url or existing_data.get("resumeUrl", ""),
             "rawResumeFilename": original_filename,
             "parsedCvData": parsed_data,
@@ -413,6 +419,9 @@ async def upsert_candidate_to_firestore(
             "school": school,
             "major": major,
             "degree": degree,
+            "qualification": qualification,
+            "graduationYear": graduation_year,
+            "education": education_list,
             "experience": experience,
             "location": address,
             "age": age,

@@ -2151,4 +2151,90 @@ div[data-tracker-query*="oiia"][data-tracker-query*="cat"]::after {
     100% { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   Tactical Command Page Overrides (Kanban, Job Orders, Chips & Tables)
+   ========================================================================== */
+html[data-theme="tactical"] .kanban-card,
+html[data-theme="tactical"] .job-order-card,
+html[data-theme="tactical"] .agenda-card-item {
+  background:
+    linear-gradient(225deg, rgba(16, 185, 129, 0.45) 10px, transparent 10.5px),
+    linear-gradient(45deg, rgba(16, 185, 129, 0.45) 10px, rgba(10, 20, 15, 0.88) 10.5px);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 0;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+  position: relative;
+  transition: all 0.2s ease-in-out;
+}
+
+html[data-theme="tactical"] .kanban-card:hover,
+html[data-theme="tactical"] .job-order-card:hover,
+html[data-theme="tactical"] .agenda-card-item:hover {
+  border-color: rgba(16, 185, 129, 0.65);
+  box-shadow: none;
+  filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.15));
+}
+
+/* 左上与右下 L 型战术准星 */
+html[data-theme="tactical"] .job-order-card::before,
+html[data-theme="tactical"] .kanban-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #10b981;
+  border-left: 2px solid #10b981;
+  pointer-events: none;
+}
+
+html[data-theme="tactical"] .job-order-card::after,
+html[data-theme="tactical"] .kanban-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid #10b981;
+  border-right: 2px solid #10b981;
+  pointer-events: none;
+}
+
+/* 彻底消除页面内残留的蓝色按钮与标签 */
+html[data-theme="tactical"] .filter-chip.active,
+html[data-theme="tactical"] .job-copy-btn,
+html[data-theme="tactical"] .job-company-badge,
+html[data-theme="tactical"] .batch-bar {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #10b981;
+}
+
+html[data-theme="tactical"] .job-copy-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #e6f4ed;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+}
+
+html[data-theme="tactical"] .job-benefit-pill {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+html[data-theme="tactical"] .kanban-card-list.drag-over {
+  background: rgba(245, 158, 11, 0.06);
+  outline: 2px dashed rgba(245, 158, 11, 0.5);
+}
+
 
