@@ -192,7 +192,11 @@ export default function TeamPage() {
       setIsAddMemberModalOpen(false);
     } catch (err) {
       console.error(err);
-      showToast(t('team.approveError', '保存失败: ') + err.message, 'error');
+      const isPermDenied = err.code === 'permission-denied' || (err.message || '').includes('insufficient permissions');
+      const errorMsg = isPermDenied
+        ? (isEn ? 'Permission denied: Please ensure the latest firestore.rules is published in Firebase Console' : '权限不足：请先在 Firebase 控制台发布最新的 firestore.rules 规则')
+        : ((isEn ? 'Failed to save member: ' : '添加员工失败: ') + err.message);
+      showToast(errorMsg, 'error');
     } finally {
       setIsSubmittingAddMember(false);
     }
