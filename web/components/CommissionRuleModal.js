@@ -373,12 +373,13 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                     </label>
                     <select
                       className="form-control"
+                      style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
                       value={config.defaultBillingMonths ?? 12}
                       onChange={(e) => setConfig({ ...config, defaultBillingMonths: parseInt(e.target.value, 10) })}
                     >
-                      <option value="12">{t('commission.months12', '12 个月 (标准年薪)')}</option>
-                      <option value="1">{t('commission.months1', '1 个月 (首月月薪)')}</option>
-                      <option value="13">{t('commission.months13', '13 个月 (含AWS)')}</option>
+                      <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="12">{t('commission.months12', '12 个月 (标准年薪)')}</option>
+                      <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="1">{t('commission.months1', '1 个月 (首月月薪)')}</option>
+                      <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="13">{t('commission.months13', '13 个月 (含AWS)')}</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -423,13 +424,14 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
               </label>
               <select
                 className="form-control"
+                style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
                 value={config.defaultGuaranteeDays ?? 90}
                 onChange={(e) => setConfig({ ...config, defaultGuaranteeDays: parseInt(e.target.value, 10) })}
               >
-                <option value="90">{t('commission.days90', '90 天 (猎头行业 3 个月试用期标准)')}</option>
-                <option value="60">{t('commission.days60', '60 天 (2 个月)')}</option>
-                <option value="30">{t('commission.days30', '30 天 (1 个月)')}</option>
-                <option value="0">{t('commission.days0', '0 天 (入职秒解锁，无保证期)')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="90">{t('commission.days90', '90 天 (猎头行业 3 个月试用期标准)')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="60">{t('commission.days60', '60 天 (2 个月)')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="30">{t('commission.days30', '30 天 (1 个月)')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="0">{t('commission.days0', '0 天 (入职秒解锁，无保证期)')}</option>
               </select>
               <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('commission.guaranteeHint', '在保证期内佣金处于 🔒 待解锁 (Pending) 状态；满足天数后流转为 ✅ 可结算。')}
@@ -443,11 +445,12 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
               </label>
               <select
                 className="form-control"
+                style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
                 value={config.leaderboardVisibility || 'PRIVATE_AMOUNT'}
                 onChange={(e) => setConfig({ ...config, leaderboardVisibility: e.target.value })}
               >
-                <option value="PRIVATE_AMOUNT">{t('commission.privateAmount', '隐私保护：仅本人可见具体金额，公开仅显示排名')}</option>
-                <option value="PUBLIC_AMOUNT">{t('commission.publicAmount', '透明公开：排行榜向全团队公开展示顾问具体提成金额')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="PRIVATE_AMOUNT">{t('commission.privateAmount', '隐私保护：仅本人可见具体金额，公开仅显示排名')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="PUBLIC_AMOUNT">{t('commission.publicAmount', '透明公开：排行榜向全团队公开展示顾问具体提成金额')}</option>
               </select>
             </div>
           </div>

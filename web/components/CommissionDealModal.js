@@ -342,15 +342,16 @@ export default function CommissionDealModal({
               </label>
               <select
                 className="form-control"
+                style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
                 value={billingMode}
                 onChange={(e) => {
                   setBillingMode(e.target.value);
                   setIsOverrideMode(true);
                 }}
               >
-                <option value="DIRECT_FLAT">{t('commission.modeDirectFlat', '按单固定佣金')}</option>
-                <option value="AGENCY_FLAT">{t('commission.modeAgencyFlat', '固定服务费 + 提成')}</option>
-                <option value="PERCENTAGE">{t('commission.modePercentage', '薪资百分比模式')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="DIRECT_FLAT">{t('commission.modeDirectFlat', '按单固定佣金')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="AGENCY_FLAT">{t('commission.modeAgencyFlat', '固定服务费 + 提成')}</option>
+                <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="PERCENTAGE">{t('commission.modePercentage', '薪资百分比模式')}</option>
               </select>
             </div>
 
@@ -479,13 +480,13 @@ export default function CommissionDealModal({
                     <div>
                       <select
                         className="form-control"
-                        style={{ fontSize: '0.82rem' }}
+                        style={{ fontSize: '0.82rem', backgroundColor: '#0f172a', color: '#f8fafc' }}
                         value={split.uid || ''}
                         onChange={(e) => handleSplitMemberSelect(idx, e.target.value)}
                       >
-                        <option value="">{t('commission.selectRecruiter', '-- 指派顾问 --')}</option>
+                        <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} value="">{t('commission.selectRecruiter', '-- 指派顾问 --')}</option>
                         {teamMembers.map(m => (
-                          <option key={m.uid} value={m.uid}>
+                          <option style={{ backgroundColor: '#0f172a', color: '#f8fafc' }} key={m.uid} value={m.uid}>
                             {m.displayName || m.email} ({m.role || 'recruiter'})
                           </option>
                         ))}
