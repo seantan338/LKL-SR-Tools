@@ -942,6 +942,163 @@ export const FirestoreStore = {
     const q = query(readsRef, where('announcementId', '==', announcementId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  },
+
+  // --- Commission Engine & Deal Ledger (Phase 6) ---
+
+  subscribeToCommissionConfig(teamId, callback) {
+    if (!teamId) return () => {};
+    let localConfig = null;
+    try {
+      const saved = localStorage.getItem(`talent_flow_commission_cfg_${teamId}`);
+      if (saved) localConfig = JSON.parse(saved);
+    } catch (e) {}
+
+    const teamDocRef = doc(db, 'teams', teamId);
+    return onSnapshot(teamDocRef, (snap) => {
+      if (snap.exists() && snap.data()?.commissionConfig) {
+        const cfg = snap.data().commissionConfig;
+        try {
+          localStorage.setItem(`talent_flow_commission_cfg_${teamId}`, JSON.stringify(cfg));
+        } catch (e) {}
+        callback(cfg);
+      } else {
+        callback(localConfig || null);
+      }
+    }, (err) => {
+      console.warn("Notice: Subscribing to commissionConfig fallback to local:", err?.message || err);
+      callback(localConfig || null);
+    });
+  },
+
+  async saveCommissionConfig(teamId, userId, configData) {
+    if (!teamId) return;
+    const payload = sanitizeFirestoreData({
+      ...configData,
+      updatedAt: serverTimestamp(),
+      updatedBy: userId || 'system'
+    });
+
+    try {
+      localStorage.setItem(`talent_flow_commission_cfg_${teamId}`, JSON.stringify(payload));
+    } catch (e) {}
+
+    const teamDocRef = doc(db, 'teams', teamId);
+    await updateDoc(teamDocRef, {
+      commissionConfig: payload
+    });
+
+    return payload;
+  },
+
+  subscribeToCommissionRecords(teamId, callback) {
+    if (!teamId) return () => {};
+    const commRef = collection(db, 'teams', teamId, 'commission_records');
+    const q = query(commRef, orderBy('createdAt', 'desc'));
+
+    return onSnapshot(q, (snapshot) => {
+      const records = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      callback(records);
+    }, (error) => {
+      console.error("Error subscribing to commission_records:", error);
+      callback([]);
+    });
+  },
+
+  async upsertCommissionRecord(teamId, userId, recordData) {
+    if (!teamId) throw new Error("Missing teamId");
+    const recordId = recordData.id || `comm_${Date.now()}_${Utils.generateId().slice(0, 6)}`;
+    const docRef = doc(db, 'teams', teamId, 'commission_records', recordId);
+
+    const isNew = !recordData.id;
+    const payload = sanitizeFirestoreData({
+      ...recordData,
+      id: recordId,
+      teamId,
+      updatedAt: serverTimestamp(),
+      ...(isNew ? { createdAt: serverTimestamp(), createdBy: userId || 'system' } : {})
+    });
+
+    await setDoc(docRef, payload, { merge: true });
+
+    // Write immutable audit log if overridden or on deal creation
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: recordData.isOverridden ? 'COMMISSION_OVERRIDE' : 'COMMISSION_DEAL_RECORDED',
+        targetType: 'COMMISSION',
+        targetName: recordData.candidateName || recordId,
+        details: recordData.isOverridden
+          ? `主管特批改派佣金: ${recordData.overrideReason || '未填原因'} (总佣金池: RM ${recordData.billingSnapshot?.totalCommissionPool || recordData.totalCommissionPool || 0})`
+          : `成单登记: 候选人 ${recordData.candidateName || ''} 入职 ${recordData.companyName || ''} (总佣金池: RM ${recordData.billingSnapshot?.totalCommissionPool || recordData.totalCommissionPool || 0})`,
+        user: {
+          uid: userId || '',
+          displayName: recordData.overrideBy || (userId ? `User ${userId.slice(0, 6)}` : '系统')
+        },
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (logErr) {
+      console.warn("Audit log write failed for commission record:", logErr);
+    }
+
+    return { ...payload, id: recordId };
+  },
+
+  async updateCommissionStatus(teamId, userId, recordId, status, extraData = {}) {
+    if (!teamId || !recordId) return;
+    const docRef = doc(db, 'teams', teamId, 'commission_records', recordId);
+    const updatePayload = sanitizeFirestoreData({
+      status,
+      updatedAt: serverTimestamp(),
+      ...extraData
+    });
+
+    await updateDoc(docRef, updatePayload);
+
+    // Audit log
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: `COMMISSION_${status}`,
+        targetType: 'COMMISSION',
+        targetName: extraData.candidateName || recordId,
+        details: `佣金状态变更为 ${status}。说明: ${extraData.cancellation?.reason || extraData.note || '状态流转更新'}`,
+        user: {
+          uid: userId || '',
+          displayName: userId || '主管'
+        },
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (logErr) {
+      console.warn("Audit log write failed:", logErr);
+    }
+  },
+
+  async cancelPendingCommissionForCandidate(teamId, userId, candidateId, reason) {
+    if (!teamId || !candidateId) return 0;
+    try {
+      const commRef = collection(db, 'teams', teamId, 'commission_records');
+      const q = query(commRef, where('candidateId', '==', candidateId), where('status', '==', 'PENDING'));
+      const snap = await getDocs(q);
+      let count = 0;
+      for (const d of snap.docs) {
+        await this.updateCommissionStatus(teamId, userId, d.id, 'CANCELLED', {
+          candidateName: d.data()?.candidateName || '',
+          cancellation: {
+            cancelledAt: new Date().toISOString(),
+            cancelledBy: userId || 'supervisor',
+            reason: reason || '候选人离职/退工冲销'
+          }
+        });
+        count++;
+      }
+      return count;
+    } catch (err) {
+      console.warn("Could not cancel pending commission records for candidate:", err);
+      return 0;
+    }
   }
 
 };

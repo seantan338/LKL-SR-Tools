@@ -241,6 +241,12 @@ service cloud.firestore {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
         allow write: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
       }
+
+      match /commission_records/{recordId} {
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        allow create: if isApprovedOnTeam(teamId);
+        allow update, delete: if isOwnerOrManagerOnTeam(teamId);
+      }
     }
 
     match /announcements/{announcementId} {

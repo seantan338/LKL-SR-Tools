@@ -10,7 +10,8 @@
     "test:identity": "node --test lib/identity.test.mjs",
     "test:reminder": "node --test lib/interview-reminder.test.mjs",
     "test:job-order-sheet": "node --test lib/job-order-sheet.test.mjs",
-    "test:order-view": "node --test lib/order-view.test.mjs"
+    "test:order-view": "node --test lib/order-view.test.mjs",
+    "test:commission": "node --test lib/commission-engine.test.mjs"
   },
   "engines": {
     "node": ">=20.0.0",
