@@ -148,7 +148,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
       <div
         className="bezel-shell modal-bezel"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '780px', width: '100%', animation: 'modalEnter 0.25s ease-out' }}
+        style={{ maxWidth: '820px', width: '100%', animation: 'modalEnter 0.25s ease-out' }}
       >
         <div
           className="bezel-core modal-core"
@@ -502,17 +502,17 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                       }}
                     />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '120px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '120px', flexShrink: 0 }}>
                     <input
                       type="number"
                       className="form-control"
-                      style={{ fontSize: '0.84rem', textAlign: 'right' }}
+                      style={{ fontSize: '0.84rem', textAlign: 'right', width: '100%' }}
                       min="0"
                       max="100"
                       value={split.ratio}
                       onChange={(e) => handleSplitChange(idx, 'ratio', parseFloat(e.target.value) || 0)}
                     />
-                    <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)' }}>%</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', flexShrink: 0 }}>%</span>
                   </div>
                   <button
                     type="button"
@@ -562,41 +562,59 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
               <div style={{ background: 'var(--bg-subtle, rgba(255,255,255,0.02))', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)', marginTop: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
                   {config.tiers.map((tier, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <input
-                        type="text"
-                        className="form-control"
-                        style={{ flex: 1, fontSize: '0.82rem' }}
-                        placeholder="档位名称"
-                        value={tier.label}
-                        onChange={(e) => handleTierChange(idx, 'label', e.target.value)}
-                      />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '140px' }}>
-                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>达标(RM):</span>
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        padding: '6px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-subtle)'
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: '150px' }}>
+                        <input
+                          type="text"
+                          className="form-control"
+                          style={{ width: '100%', fontSize: '0.82rem' }}
+                          placeholder="档位名称"
+                          value={tier.label}
+                          onChange={(e) => handleTierChange(idx, 'label', e.target.value)}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', userSelect: 'none' }}>
+                          达标 (RM):
+                        </span>
                         <input
                           type="number"
                           className="form-control"
-                          style={{ fontSize: '0.82rem', textAlign: 'right' }}
+                          style={{ width: '105px', fontSize: '0.82rem', textAlign: 'right' }}
                           value={tier.threshold}
                           onChange={(e) => handleTierChange(idx, 'threshold', parseFloat(e.target.value) || 0)}
                         />
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100px' }}>
-                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>提成:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', userSelect: 'none' }}>
+                          提成:
+                        </span>
                         <input
                           type="number"
                           className="form-control"
-                          style={{ fontSize: '0.82rem', textAlign: 'right' }}
+                          style={{ width: '70px', fontSize: '0.82rem', textAlign: 'right' }}
                           value={tier.rate}
                           onChange={(e) => handleTierChange(idx, 'rate', parseFloat(e.target.value) || 0)}
                         />
-                        <span style={{ fontSize: '0.78rem' }}>%</span>
+                        <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>%</span>
                       </div>
                       <button
                         type="button"
                         className="btn-icon"
                         onClick={() => handleRemoveTier(idx)}
-                        style={{ color: '#EF4444' }}
+                        title={t('common.delete', '删除')}
+                        style={{ color: '#EF4444', flexShrink: 0 }}
                       >
                         <i className="ph-bold ph-trash"></i>
                       </button>

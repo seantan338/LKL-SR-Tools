@@ -493,26 +493,26 @@ export default function CommissionDealModal({
                     </div>
 
                     {/* Ratio Input */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                       <input
                         type="number"
                         className="form-control"
-                        style={{ fontSize: '0.82rem', textAlign: 'right' }}
+                        style={{ width: '65px', fontSize: '0.82rem', textAlign: 'right' }}
                         min="0"
                         max="100"
                         value={split.ratio}
                         onChange={(e) => handleSplitRatioChange(idx, e.target.value)}
                       />
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>%</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>%</span>
                     </div>
 
                     {/* Actual Calculated / Overridden Amount */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>RM</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>RM</span>
                       <input
                         type="number"
                         className="form-control"
-                        style={{ fontSize: '0.82rem', textAlign: 'right', fontWeight: '600' }}
+                        style={{ width: '105px', fontSize: '0.82rem', textAlign: 'right', fontWeight: '600' }}
                         value={split.amount !== undefined ? split.amount : calculatedAmount}
                         onChange={(e) => handleSplitAmountChange(idx, e.target.value)}
                       />
