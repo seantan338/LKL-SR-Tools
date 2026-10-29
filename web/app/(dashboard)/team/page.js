@@ -24,6 +24,7 @@ export default function TeamPage() {
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
   const [users, setUsers] = useState([]);
+  const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -44,9 +45,31 @@ export default function TeamPage() {
   const [editForm, setEditForm] = useState({ displayName: '', role: 'recruiter', teamId: 'default_team', allowWfhPunch: false });
   const [isSavingMember, setIsSavingMember] = useState(false);
 
+  // Modal for adding / pre-configuring new member by email
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [editingInviteId, setEditingInviteId] = useState(null);
+  const [addMemberForm, setAddMemberForm] = useState({
+    email: '',
+    displayName: '',
+    role: 'recruiter',
+    teamId: 'default_team',
+    allowWfhPunch: false
+  });
+  const [isSubmittingAddMember, setIsSubmittingAddMember] = useState(false);
+
+  // Modal for configuring & approving a pending applicant
+  const [approvingUser, setApprovingUser] = useState(null);
+  const [approveForm, setApproveForm] = useState({
+    displayName: '',
+    role: 'recruiter',
+    teamId: 'default_team',
+    allowWfhPunch: false
+  });
+  const [isSubmittingApprove, setIsSubmittingApprove] = useState(false);
+
   // Lock background scrolling when any modal is open
   useEffect(() => {
-    const isAnyModalOpen = Boolean(editingMember || isCreatePartnerModalOpen);
+    const isAnyModalOpen = Boolean(editingMember || isCreatePartnerModalOpen || isAddMemberModalOpen || approvingUser);
     if (isAnyModalOpen) {
       const originalBodyOverflow = document.body.style.overflow;
       const originalHtmlOverflow = document.documentElement.style.overflow;
@@ -57,13 +80,13 @@ export default function TeamPage() {
         document.documentElement.style.overflow = originalHtmlOverflow;
       };
     }
-  }, [editingMember, isCreatePartnerModalOpen]);
+  }, [editingMember, isCreatePartnerModalOpen, isAddMemberModalOpen, approvingUser]);
 
   useEffect(() => {
     setMounted(true);
     setLoading(true);
     const usersRef = collection(db, 'users');
-    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
+    const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
       const allUsers = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
       setUsers(allUsers);
       setLoading(false);
@@ -72,37 +95,201 @@ export default function TeamPage() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const invitesRef = collection(db, 'invites');
+    const unsubscribeInvites = onSnapshot(invitesRef, (snapshot) => {
+      const allInvites = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      setInvites(allInvites);
+    }, (error) => {
+      console.warn("Error fetching invites:", error);
+    });
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeInvites();
+    };
   }, []);
 
-  const handleApprove = async (userId) => {
-    // 只有本部 owner 可以选择分配团队；分部 owner / manager 只能批准进自己的团队
+  const openAddMemberModal = () => {
+    setEditingInviteId(null);
+    setAddMemberForm({
+      email: '',
+      displayName: '',
+      role: 'recruiter',
+      teamId: (isOwner && myTeamId === 'default_team') ? 'default_team' : (myTeamId || 'default_team'),
+      allowWfhPunch: false
+    });
+    setIsAddMemberModalOpen(true);
+  };
+
+  const openEditInviteModal = (invite) => {
+    setEditingInviteId(invite.id);
+    setAddMemberForm({
+      email: invite.email || invite.id,
+      displayName: invite.displayName || '',
+      role: invite.role || 'recruiter',
+      teamId: invite.teamId || 'default_team',
+      allowWfhPunch: Boolean(invite.allowWfhPunch)
+    });
+    setIsAddMemberModalOpen(true);
+  };
+
+  const handleSaveAddMember = async (e) => {
+    e.preventDefault();
+    const cleanEmail = (addMemberForm.email || '').trim().toLowerCase();
+    const cleanName = (addMemberForm.displayName || '').trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      showToast(isEn ? 'Please enter a valid email address' : '请输入有效的邮箱地址', 'error');
+      return;
+    }
+    if (!cleanName) {
+      showToast(isEn ? 'Please enter member name' : '请输入员工姓名', 'error');
+      return;
+    }
+
+    setIsSubmittingAddMember(true);
+    try {
+      // 1. Check if user already exists as active member
+      const existingApproved = users.find(u => (u.email || '').trim().toLowerCase() === cleanEmail && u.role !== 'pending');
+      if (existingApproved && (!editingInviteId || existingApproved.id !== editingInviteId)) {
+        showToast(t('team.alreadyMemberError', '该员工已在团队成员列表中，您可以直接在下方列表中点击「编辑」调整其权限。'), 'error');
+        setIsSubmittingAddMember(false);
+        return;
+      }
+
+      // 2. Check if user is currently waiting in pending approvals
+      const existingPending = users.find(u => (u.email || '').trim().toLowerCase() === cleanEmail && u.role === 'pending');
+      if (existingPending) {
+        // Direct activate
+        await updateDoc(doc(db, 'users', existingPending.id), {
+          displayName: cleanName,
+          role: addMemberForm.role,
+          teamId: addMemberForm.teamId,
+          allowWfhPunch: Boolean(addMemberForm.allowWfhPunch),
+          assignedPic: cleanName
+        });
+        // Remove invite if existed
+        try { await deleteDoc(doc(db, 'invites', cleanEmail)); } catch (e) {}
+        showToast(t('team.addMemberDirectApproveSuccess', '已直接为此待审核员工开通权限并放行入驻！'), 'success');
+        setIsAddMemberModalOpen(false);
+        return;
+      }
+
+      // 3. Otherwise save/update in invites collection for pre-provisioning
+      await setDoc(doc(db, 'invites', cleanEmail), {
+        email: cleanEmail,
+        displayName: cleanName,
+        role: addMemberForm.role,
+        teamId: addMemberForm.teamId,
+        allowWfhPunch: Boolean(addMemberForm.allowWfhPunch),
+        assignedPic: cleanName,
+        status: 'pending_signup',
+        createdAt: serverTimestamp(),
+        createdBy: userProfile?.uid || 'admin',
+        createdByName: userProfile?.displayName || userProfile?.email || 'Admin',
+      });
+
+      showToast(t('team.addMemberSuccess', '员工预设权限已成功保存'), 'success');
+      setIsAddMemberModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      const isPermDenied = err.code === 'permission-denied' || (err.message || '').includes('insufficient permissions');
+      const errorMsg = isPermDenied
+        ? (isEn ? 'Permission denied: Please ensure the latest firestore.rules is published in Firebase Console' : '权限不足：请先在 Firebase 控制台发布最新的 firestore.rules 规则')
+        : ((isEn ? 'Failed to save member: ' : '添加员工失败: ') + err.message);
+      showToast(errorMsg, 'error');
+    } finally {
+      setIsSubmittingAddMember(false);
+    }
+  };
+
+  const handleRevokeInvite = async (invite) => {
+    const inviteName = invite.displayName || invite.email || invite.id;
+    const ok = await confirm(
+      t('team.confirmRevokeInvite', { name: inviteName, email: invite.email || invite.id }, `确定要撤回为 ${inviteName} (${invite.email || invite.id}) 预设的入驻权限吗？`),
+      {
+        title: t('team.revokeInviteTitle', '撤回预设权限确认'),
+        danger: true,
+        confirmLabel: t('team.revokeInviteBtn', '确认撤回')
+      }
+    );
+    if (!ok) return;
+
+    try {
+      await deleteDoc(doc(db, 'invites', invite.id));
+      showToast(t('team.revokeInviteSuccess', '已成功撤回该员工的预设权限'), 'info');
+    } catch (err) {
+      console.error(err);
+      showToast(t('team.rejectError', '撤回失败: ') + err.message, 'error');
+    }
+  };
+
+  const openApproveModal = (applicant) => {
+    setApprovingUser(applicant);
     const targetTeam = (isOwner && myTeamId === 'default_team')
-      ? (pendingTargetTeams[userId] || 'default_team')
+      ? (pendingTargetTeams[applicant.id] || 'default_team')
       : (myTeamId || 'default_team');
+    setApproveForm({
+      displayName: applicant.displayName || applicant.email?.split('@')[0] || '',
+      role: 'recruiter',
+      teamId: targetTeam,
+      allowWfhPunch: false
+    });
+  };
 
-    const targetTeamName = targetTeam === 'default_team' 
-      ? t('team.hqTeamOption', '公司本部 (默认)')
-      : (linkedChildTeams.find(l => l.childTeamId === targetTeam)?.childTeamName || targetTeam);
+  const handleConfirmApprove = async (e) => {
+    e.preventDefault();
+    if (!approvingUser) return;
+    setIsSubmittingApprove(true);
+    try {
+      const cleanName = approveForm.displayName.trim() || approvingUser.displayName || approvingUser.email;
+      await updateDoc(doc(db, 'users', approvingUser.id), {
+        displayName: cleanName,
+        role: approveForm.role,
+        teamId: approveForm.teamId,
+        allowWfhPunch: Boolean(approveForm.allowWfhPunch),
+        assignedPic: cleanName
+      });
+      // Clean up invite if any
+      if (approvingUser.email) {
+        try { await deleteDoc(doc(db, 'invites', approvingUser.email.toLowerCase().trim())); } catch (e) {}
+      }
+      showToast(t('team.approveSuccess', '已成功批准加入团队'), 'success');
+      setApprovingUser(null);
+    } catch (err) {
+      console.error(err);
+      showToast(t('team.approveError', '批准失败: ') + err.message, 'error');
+    } finally {
+      setIsSubmittingApprove(false);
+    }
+  };
 
-    const confirmMsg = isOwner 
-      ? `${t('team.confirmApprove', '确认批准该用户加入团队？')} \n(${t('team.assignTeamLabel', '分配至团队')}: ${targetTeamName})`
-      : t('team.confirmApprove', '确认批准该用户加入团队？');
-
+  const handleRemoveMember = async (member) => {
+    const memberName = member.displayName || member.email || 'Member';
+    const confirmMsg = t(
+      'team.removeMemberConfirmDetailed',
+      { name: memberName, email: member.email || '' },
+      `确定要将 ${memberName} (${member.email || ''}) 剔除出系统吗？\n\n• 该员工将立即失去所有团队与候选人数据访问权限\n• 若对方当前正在线，将在 1 秒内被强制踢出工作台并登出\n• 历史经办数据（如由其录入的候选人）仍将安全保留在系统中`
+    );
     const ok = await confirm(confirmMsg, {
-      title: t('team.approveTitle', '批准加入团队'),
-      confirmLabel: t('team.approveBtn', '确认批准')
+      title: t('team.removeMember', '移出团队 / 剔除'),
+      danger: true,
+      confirmLabel: t('common.confirm', '确认剔除')
     });
     if (!ok) return;
+
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        role: 'recruiter',
-        teamId: targetTeam
-      });
-      showToast(t('team.approveSuccess', '已成功批准加入团队'), 'success');
-    } catch (e) {
-      showToast(t('team.approveError', '批准失败: ') + e.message, 'error');
-      console.error(e);
+      // 1. Delete user profile doc (triggers onSnapshot revocation on client side immediately)
+      await deleteDoc(doc(db, 'users', member.id));
+      // 2. Also clean up any lingering invite doc for this email
+      if (member.email) {
+        try {
+          await deleteDoc(doc(db, 'invites', member.email.toLowerCase().trim()));
+        } catch (e) {}
+      }
+      showToast(t('team.removeMemberSuccess', '已成功剔除该成员并收回全部系统权限'), 'info');
+    } catch (err) {
+      console.error(err);
+      showToast(t('team.rejectError', '剔除失败: ') + err.message, 'error');
     }
   };
 
@@ -244,6 +431,10 @@ export default function TeamPage() {
     return u.teamId === teamFilter;
   });
 
+  const visibleInvites = isOwner
+    ? invites
+    : invites.filter(i => (i.teamId || 'default_team') === (userProfile?.teamId || 'default_team'));
+
   return (
     <div className="page-view active">
       <div className="bezel-shell" style={{ maxWidth: '880px', margin: '0 auto' }}>
@@ -265,17 +456,166 @@ export default function TeamPage() {
               </p>
             </div>
 
-            {isOwner && (
-              <button 
-                className="btn btn-sm btn-primary"
-                onClick={() => setIsCreatePartnerModalOpen(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <i className="ph-bold ph-handshake"></i>
-                <span>{t('team.addPartnerBtn', '创建并关联合作人团队')}</span>
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {(isOwner || isManager) && (
+                <button 
+                  className="btn btn-sm btn-primary"
+                  onClick={openAddMemberModal}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <i className="ph-bold ph-user-plus"></i>
+                  <span>{t('team.addMemberBtn', '添加新员工')}</span>
+                </button>
+              )}
+
+              {isOwner && (
+                <button 
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setIsCreatePartnerModalOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <i className="ph-bold ph-handshake"></i>
+                  <span>{t('team.addPartnerBtn', '创建并关联合作人团队')}</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Pre-Invited Members (Pending First Login) */}
+          {(isOwner || isManager) && visibleInvites.length > 0 && (
+            <div style={{ marginBottom: 'var(--space-6)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '8px' }}>
+                <h4 style={{ color: 'var(--accent-blue)', fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-envelope-simple"></i> {t('team.preInvitedTitle', '待首次登录员工 / 预设权限')} ({visibleInvites.length})
+                </h4>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  {t('team.preInvitedDesc', '已预设好权限的员工名单。对方首次使用 Google 登录系统后将自动激活。')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {visibleInvites.map(invite => {
+                  const isHq = !invite.teamId || invite.teamId === 'default_team';
+                  const partnerInfo = linkedChildTeams.find(l => l.childTeamId === invite.teamId);
+
+                  return (
+                    <div key={invite.id} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 'var(--space-4)',
+                      background: 'rgba(59, 130, 246, 0.05)',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      boxShadow: 'var(--shadow-card)',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                        <div style={{
+                          width: '40px', height: '40px',
+                          borderRadius: '50%',
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          color: 'var(--accent-blue)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '700',
+                          border: '1px solid rgba(59, 130, 246, 0.3)'
+                        }}>
+                          {(invite.displayName || invite.email || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
+                              {invite.displayName || t('team.unnamedUser', '未命名用户')}
+                            </span>
+                            <span className="badge" style={{
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              color: 'var(--accent-amber)',
+                              borderColor: 'rgba(245, 158, 11, 0.3)',
+                              fontSize: '11px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <i className="ph-light ph-clock-countdown"></i>
+                              <span>{t('team.pendingLoginBadge', '待首次登录')}</span>
+                            </span>
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginTop: '2px' }}>
+                            {invite.email}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        {/* Team Badge */}
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: isHq ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          color: isHq ? 'var(--accent-blue)' : 'var(--accent-amber)',
+                          border: `1px solid ${isHq ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <i className={isHq ? "ph-bold ph-buildings" : "ph-bold ph-handshake"}></i>
+                          <span>{isHq ? (isEn ? 'HQ' : '公司本部') : (partnerInfo?.childTeamName || invite.teamId)}</span>
+                        </span>
+
+                        {/* Role Badge */}
+                        <span className="badge" style={{
+                          color: invite.role === 'owner' ? 'var(--accent-rose)' : invite.role === 'manager' ? 'var(--accent-amber)' : 'var(--accent-blue)',
+                          background: invite.role === 'owner' ? 'rgba(244,63,94,0.1)' : invite.role === 'manager' ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)',
+                          borderColor: 'transparent',
+                          fontWeight: '600'
+                        }}>
+                          {invite.role === 'owner' ? 'Owner' : invite.role === 'manager' ? 'Manager' : 'Recruiter'}
+                        </span>
+
+                        {/* WFH Badge */}
+                        {Boolean(invite.allowWfhPunch) && (
+                          <span className="badge" style={{
+                            color: '#8b5cf6',
+                            background: 'rgba(139, 92, 246, 0.12)',
+                            borderColor: 'rgba(139, 92, 246, 0.25)',
+                            fontWeight: '600',
+                            fontSize: '11px'
+                          }}>
+                            WFH
+                          </span>
+                        )}
+
+                        {/* Edit Button */}
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                          title={t('team.editInviteTitle', '编辑预设权限')}
+                          onClick={() => openEditInviteModal(invite)}
+                        >
+                          <i className="ph-light ph-note-pencil" style={{ fontSize: '13px' }}></i>
+                          <span>{t('team.editMemberBtn', '编辑')}</span>
+                        </button>
+
+                        {/* Revoke Button */}
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          style={{ color: 'var(--accent-rose)', padding: '4px 8px' }}
+                          title={t('team.revokeInviteBtn', '撤回预设')}
+                          onClick={() => handleRevokeInvite(invite)}
+                        >
+                          <i className="ph-light ph-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Pending Approvals */}
           {(isOwner || isManager) && pendingUsers.length > 0 && (
@@ -356,8 +696,13 @@ export default function TeamPage() {
                         </select>
                       )}
 
-                      <button className="btn btn-sm" style={{ background: 'var(--accent-blue)', color: '#fff', border: 'none' }} onClick={() => handleApprove(u.id)}>
-                        {t('team.approveAction', '批准')}
+                      <button
+                        className="btn btn-sm btn-primary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                        onClick={() => openApproveModal(u)}
+                      >
+                        <i className="ph-bold ph-user-gear"></i>
+                        <span>{t('team.configureAndApproveBtn', '配置并批准')}</span>
                       </button>
                       <button className="btn btn-sm btn-secondary" style={{ color: 'var(--accent-rose)' }} onClick={() => handleReject(u.id)}>
                         {t('team.rejectAction', '拒绝')}
@@ -667,12 +1012,12 @@ export default function TeamPage() {
                           </button>
                         )}
 
-                        {isOwner && member.id !== userProfile?.uid && (
+                        {((isOwner && member.id !== userProfile?.uid) || (isManager && member.role === 'recruiter')) && (
                           <button 
                             className="btn btn-sm btn-secondary" 
                             style={{ color: 'var(--accent-rose)', padding: '4px 8px' }}
                             title={t('team.removeMember', '移出团队')}
-                            onClick={() => handleReject(member.id)}
+                            onClick={() => handleRemoveMember(member)}
                           >
                             <i className="ph-light ph-trash"></i>
                           </button>
@@ -1123,6 +1468,553 @@ export default function TeamPage() {
                 >
                   {isSavingMember && <i className="ph-bold ph-spinner ph-spin"></i>}
                   <span>{t('common.save', '保存更改')}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal: Add / Pre-configure Member by Email (Mounted via Portal) */}
+      {mounted && isAddMemberModalOpen && createPortal(
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddMemberModalOpen(false);
+          }}
+          onWheel={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+            overscrollBehavior: 'contain',
+            touchAction: 'none'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-interactive)',
+              borderRadius: 'var(--radius-xl)',
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              boxShadow: 'var(--shadow-2xl)'
+            }}
+          >
+            <form onSubmit={handleSaveAddMember}>
+              <div style={{ padding: 'var(--space-6)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    color: 'var(--accent-blue)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.2rem'
+                  }}>
+                    <i className={editingInviteId ? "ph-bold ph-user-gear" : "ph-bold ph-user-plus"}></i>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                      {editingInviteId ? t('team.editInviteTitle', '编辑预设权限') : t('team.addMemberTitle', '通过邮箱添加员工与预设权限')}
+                    </h3>
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {t('team.addMemberDesc', '在员工首次登录前预设其团队归属、职位角色与打卡权限；对方使用该 Google 邮箱登录后将免审直通进入系统。')}
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={() => setIsAddMemberModalOpen(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}
+                >
+                  <i className="ph-bold ph-x"></i>
+                </button>
+              </div>
+
+              <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                {/* Email */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberEmailLabel', '登录账号 / 邮箱')} (Google Account) *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    disabled={Boolean(editingInviteId)}
+                    value={addMemberForm.email}
+                    onChange={(e) => setAddMemberForm(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="colleague@gmail.com"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none',
+                      cursor: editingInviteId ? 'not-allowed' : 'text'
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    {isEn ? 'The Google email address the employee will use to sign in.' : '员工后续用于登录系统的 Google 账号邮箱。'}
+                  </span>
+                </div>
+
+                {/* Display Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberNameLabel', '显示姓名')} / {isEn ? 'Consultant (PIC) Name' : '顾问标识 (PIC)'} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addMemberForm.displayName}
+                    onChange={(e) => setAddMemberForm(prev => ({ ...prev, displayName: e.target.value }))}
+                    placeholder={isEn ? "Alex Lee" : "张顾问 / Alex Lee"}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none'
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    {isEn ? 'Used for candidate ownership alignment (PIC) and sheets auto-matching.' : '用于候选人经办人归属 (PIC) 自动对齐及表格同构映射。'}
+                  </span>
+                </div>
+
+                {/* Team Selection */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberTeamLabel', '归属团队')} *
+                  </label>
+                  <select
+                    value={addMemberForm.teamId}
+                    disabled={!isOwner}
+                    onChange={(e) => setAddMemberForm(prev => ({ ...prev, teamId: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: !isOwner ? 'var(--text-muted)' : 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none',
+                      cursor: !isOwner ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="default_team">{isEn ? "HQ Team" : "公司本部 (HQ)"}</option>
+                    {linkedChildTeams.map(l => (
+                      <option key={l.id} value={l.childTeamId}>
+                        {l.childTeamName} {isEn ? "(Partner)" : "(合作人)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Role Selection */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberRoleLabel', '角色权限')} *
+                  </label>
+                  <select
+                    value={addMemberForm.role}
+                    disabled={!isOwner}
+                    onChange={(e) => setAddMemberForm(prev => ({ ...prev, role: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: !isOwner ? 'var(--text-muted)' : 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none',
+                      cursor: !isOwner ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="recruiter">{t('team.recruiterOpt', 'Recruiter (招聘员)')}</option>
+                    <option value="manager">{t('team.managerOpt', 'Manager (管理员)')}</option>
+                    {isOwner && myTeamId === 'default_team' && (
+                      <option value="owner">{t('team.ownerOpt', 'Owner (所有者)')}</option>
+                    )}
+                  </select>
+
+                  {/* Role Permissions Card */}
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    lineHeight: '1.6'
+                  }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      {addMemberForm.role === 'owner' ? 'Owner' : addMemberForm.role === 'manager' ? 'Manager' : 'Recruiter'}:
+                    </strong>{' '}
+                    {addMemberForm.role === 'owner'
+                      ? t('team.roleOwnerDesc', '全系统最高管理权限、跨团队单向穿透拓扑管理、审批与团队全量配置。')
+                      : addMemberForm.role === 'manager'
+                        ? t('team.roleManagerDesc', '可查看与调配本团队全部顾问的候选人与需求、访问数据洞察看板、发布团队公告与管理下属招聘员。')
+                        : t('team.roleRecruiterDesc', '仅可查看和跟进自己名下的候选人（PDPA 隔离），使用招聘看板、候选人列表与 AI 工具，不可查看财务与数据洞察。')}
+                  </div>
+                </div>
+
+                {/* WFH Check-in Permission Toggle */}
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'rgba(139, 92, 246, 0.06)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ph-bold ph-house-line" style={{ color: '#8b5cf6', fontSize: '18px' }}></i>
+                    <div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                        {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
+                      </div>
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '22px', flexShrink: 0, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(addMemberForm.allowWfhPunch)}
+                      onChange={(e) => setAddMemberForm(prev => ({ ...prev, allowWfhPunch: e.target.checked }))}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: addMemberForm.allowWfhPunch ? '#8b5cf6' : 'var(--border-subtle)',
+                      transition: '.3s',
+                      borderRadius: '22px'
+                    }}>
+                      <span style={{
+                        position: 'absolute', content: '""', height: '16px', width: '16px', left: addMemberForm.allowWfhPunch ? '19px' : '3px', bottom: '3px',
+                        backgroundColor: 'white',
+                        transition: '.3s',
+                        borderRadius: '50%'
+                      }} />
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ padding: 'var(--space-4) var(--space-6)', background: 'var(--bg-void)', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsAddMemberModalOpen(false)}
+                  disabled={isSubmittingAddMember}
+                >
+                  {t('common.cancel', '取消')}
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isSubmittingAddMember}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {isSubmittingAddMember && <i className="ph-bold ph-spinner ph-spin"></i>}
+                  <span>{editingInviteId ? t('common.save', '保存更改') : t('common.confirm', '确认保存预设')}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal: Configure Permissions & Approve Pending Applicant (Mounted via Portal) */}
+      {mounted && approvingUser && createPortal(
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setApprovingUser(null);
+          }}
+          onWheel={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+            overscrollBehavior: 'contain',
+            touchAction: 'none'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-interactive)',
+              borderRadius: 'var(--radius-xl)',
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              boxShadow: 'var(--shadow-2xl)'
+            }}
+          >
+            <form onSubmit={handleConfirmApprove}>
+              <div style={{ padding: 'var(--space-6)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    color: 'var(--accent-blue)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.2rem'
+                  }}>
+                    <i className="ph-bold ph-user-check"></i>
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                      {t('team.configureAndApproveTitle', '配置权限并批准入驻')}
+                    </h3>
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {t('team.configureAndApproveDesc', '为该申请员工设定团队归属、职位角色与考勤权限，确认后立即开通系统访问。')}
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={() => setApprovingUser(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}
+                >
+                  <i className="ph-bold ph-x"></i>
+                </button>
+              </div>
+
+              <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                {/* Applicant Summary */}
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'rgba(59, 130, 246, 0.05)',
+                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    color: 'var(--accent-blue)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: '700'
+                  }}>
+                    {(approvingUser.displayName || approvingUser.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: 'var(--text-sm)' }}>
+                      {approvingUser.displayName || t('team.unnamedUser', '未命名用户')}
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
+                      {approvingUser.email}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Display Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberNameLabel', '显示姓名')} / {isEn ? 'Consultant (PIC) Name' : '顾问标识 (PIC)'} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={approveForm.displayName}
+                    onChange={(e) => setApproveForm(prev => ({ ...prev, displayName: e.target.value }))}
+                    placeholder={isEn ? "Alex Lee" : "张顾问 / Alex Lee"}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* Team Selection */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberTeamLabel', '归属团队')} *
+                  </label>
+                  <select
+                    value={approveForm.teamId}
+                    disabled={!isOwner}
+                    onChange={(e) => setApproveForm(prev => ({ ...prev, teamId: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: !isOwner ? 'var(--text-muted)' : 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none',
+                      cursor: !isOwner ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="default_team">{isEn ? "HQ Team" : "公司本部 (HQ)"}</option>
+                    {linkedChildTeams.map(l => (
+                      <option key={l.id} value={l.childTeamId}>
+                        {l.childTeamName} {isEn ? "(Partner)" : "(合作人)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Role Selection */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                    {t('team.memberRoleLabel', '角色权限')} *
+                  </label>
+                  <select
+                    value={approveForm.role}
+                    disabled={!isOwner}
+                    onChange={(e) => setApproveForm(prev => ({ ...prev, role: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border-interactive)',
+                      borderRadius: 'var(--radius-md)',
+                      color: !isOwner ? 'var(--text-muted)' : 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      outline: 'none',
+                      cursor: !isOwner ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="recruiter">{t('team.recruiterOpt', 'Recruiter (招聘员)')}</option>
+                    <option value="manager">{t('team.managerOpt', 'Manager (管理员)')}</option>
+                    {isOwner && myTeamId === 'default_team' && (
+                      <option value="owner">{t('team.ownerOpt', 'Owner (所有者)')}</option>
+                    )}
+                  </select>
+
+                  {/* Role Permissions Card */}
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    lineHeight: '1.6'
+                  }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      {approveForm.role === 'owner' ? 'Owner' : approveForm.role === 'manager' ? 'Manager' : 'Recruiter'}:
+                    </strong>{' '}
+                    {approveForm.role === 'owner'
+                      ? t('team.roleOwnerDesc', '全系统最高管理权限、跨团队单向穿透拓扑管理、审批与团队全量配置。')
+                      : approveForm.role === 'manager'
+                        ? t('team.roleManagerDesc', '可查看与调配本团队全部顾问的候选人与需求、访问数据洞察看板、发布团队公告与管理下属招聘员。')
+                        : t('team.roleRecruiterDesc', '仅可查看和跟进自己名下的候选人（PDPA 隔离），使用招聘看板、候选人列表与 AI 工具，不可查看财务与数据洞察。')}
+                  </div>
+                </div>
+
+                {/* WFH Check-in Permission Toggle */}
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'rgba(139, 92, 246, 0.06)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ph-bold ph-house-line" style={{ color: '#8b5cf6', fontSize: '18px' }}></i>
+                    <div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                        {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
+                      </div>
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '22px', flexShrink: 0, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(approveForm.allowWfhPunch)}
+                      onChange={(e) => setApproveForm(prev => ({ ...prev, allowWfhPunch: e.target.checked }))}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: approveForm.allowWfhPunch ? '#8b5cf6' : 'var(--border-subtle)',
+                      transition: '.3s',
+                      borderRadius: '22px'
+                    }}>
+                      <span style={{
+                        position: 'absolute', content: '""', height: '16px', width: '16px', left: approveForm.allowWfhPunch ? '19px' : '3px', bottom: '3px',
+                        backgroundColor: 'white',
+                        transition: '.3s',
+                        borderRadius: '50%'
+                      }} />
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ padding: 'var(--space-4) var(--space-6)', background: 'var(--bg-void)', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setApprovingUser(null)}
+                  disabled={isSubmittingApprove}
+                >
+                  {t('common.cancel', '取消')}
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isSubmittingApprove}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {isSubmittingApprove && <i className="ph-bold ph-spinner ph-spin"></i>}
+                  <span>{t('team.configureAndApproveBtn', '确认配置并批准')}</span>
                 </button>
               </div>
             </form>

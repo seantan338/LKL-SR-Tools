@@ -82,14 +82,67 @@ service cloud.firestore {
         && resource.data.get('role', 'pending') != 'owner';
     }
 
+    // 邀请与预设权限助手函数
+    function hasValidInvite(email) {
+      let invitePath = /databases/$(database)/documents/invites/$(email);
+      return exists(invitePath);
+    }
+
+    function getInvite(email) {
+      return get(/databases/$(database)/documents/invites/$(email)).data;
+    }
+
+    function isSameTeamInvite() {
+      return isTeamAdmin()
+        && request.resource.data.teamId == userDoc().teamId
+        && request.resource.data.role in ['recruiter', 'manager'];
+    }
+
+    function isSameTeamInviteDelete() {
+      return isTeamAdmin()
+        && resource.data.teamId == userDoc().teamId;
+    }
+
+    // 用户认领属于自己已验证邮箱的管理员预授权
+    function isClaimingInvite(userId) {
+      let userEmail = request.auth.token.email.lower();
+      let invitePath = /databases/$(database)/documents/invites/$(userEmail);
+      return isAuthenticated() && request.auth.uid == userId
+        && request.auth.token.email != null
+        && exists(invitePath)
+        && request.resource.data.email.lower() == userEmail
+        && request.resource.data.role == getInvite(userEmail).role
+        && request.resource.data.teamId == getInvite(userEmail).teamId
+        && request.resource.data.role in ['recruiter', 'manager', 'owner'];
+    }
+
+    match /invites/{email} {
+      allow read: if isAuthenticated();
+      allow create, update: if isHqAdmin() || isSameTeamInvite();
+      allow delete: if isHqAdmin()
+        || isSameTeamInviteDelete()
+        || (isAuthenticated() && request.auth.token.email != null && request.auth.token.email.lower() == email);
+    }
+
     match /users/{userId} {
-      // 新用户只能以待审批身份建档；初始管理员由人工在 Console 设置
+      // 新用户建档：
+      // 1. 无邀请时：只能以待审批身份建档 (pending + null)
+      // 2. 有邀请时：允许直接以管理员预设的角色与团队建档直通进入系统
       allow create: if isAuthenticated() && request.auth.uid == userId
-        && request.resource.data.get('role', 'pending') == 'pending'
-        && request.resource.data.get('teamId', null) == null;
+        && (
+          (request.resource.data.get('role', 'pending') == 'pending' && request.resource.data.get('teamId', null) == null)
+          || (
+            request.auth.token.email != null
+            && hasValidInvite(request.auth.token.email.lower())
+            && request.resource.data.email.lower() == request.auth.token.email.lower()
+            && request.resource.data.role == getInvite(request.auth.token.email.lower()).role
+            && request.resource.data.teamId == getInvite(request.auth.token.email.lower()).teamId
+            && request.resource.data.role in ['recruiter', 'manager', 'owner']
+          )
+        );
       // Team-wide profile read: PIC names, mutual reminders, approval queue.
       allow read: if isAuthenticated();
-      allow update: if isSelfProfileUpdate(userId) || isHqAdmin() || isSameTeamAdminUpdate();
+      allow update: if isSelfProfileUpdate(userId) || isClaimingInvite(userId) || isHqAdmin() || isSameTeamAdminUpdate();
       allow delete: if isHqAdmin() || isSameTeamAdminDelete();
     }
 
