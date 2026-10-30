@@ -2578,15 +2578,15 @@ export const zh = {
     clawbackReasonRequired: '请填写退工离职原因以便审计留痕',
     dealCancelledToast: '已冲销该笔保证期佣金',
     dealCancelFailed: '冲销失败',
-    pendingColumn: '🔒 保证期待解',
-    unlockedColumn: '✅ 可结算佣金',
+    pendingColumn: '保证期待解',
+    unlockedColumn: '可结算佣金',
     privacyTooltip: '金额隐私保护，仅展示个人真实金额',
     ledgerTitle: '保证期双态风控与成单佣金台账',
     ledgerSubtitle: '猎头试用期 90 天保证期风控跟踪、客户回款确认解锁与离职退工冲销',
     dealsCount: '单记录',
-    filterPending: '🔒 保证期内',
-    filterUnlocked: '✅ 已解锁/待发',
-    filterCancelled: '🛑 退工冲销',
+    filterPending: '保证期内',
+    filterUnlocked: '已解锁/待发',
+    filterCancelled: '退工冲销',
     colCandidate: '候选人 / 入职岗位',
     colCompany: '客户单位',
     colOnboardDate: '入职日期',
@@ -2622,7 +2622,13 @@ export const zh = {
     tierLabelPlaceholder: '档位名称',
     tierThresholdPrefix: '达标 (RM):',
     tierRatePrefix: '提成:',
-    recruiterRequiredForSplit: '请为所有分配了业绩比例的分成角色指派具体顾问'
+    recruiterRequiredForSplit: '请为所有分配了业绩比例的分成角色指派具体顾问',
+    repairAttributionAction: '修正归属',
+    repairAttributionTitle: '按顾问姓名自动校准该单的真实归属账号',
+    attributionRepairedToast: '已按顾问姓名校准该笔佣金的归属账号',
+    attributionRepairFailed: '校准归属失败: ',
+    defaultClawbackReason: '退工或测试单据冲销',
+    clawbackReasonPlaceholder: '例如：候选人试用期离职或测试单据冲销'
   }
 
 };
@@ -5213,15 +5219,15 @@ export const en = {
     clawbackReasonRequired: 'Please enter departure reason for audit compliance',
     dealCancelledToast: 'Guarantee commission clawed back successfully',
     dealCancelFailed: 'Failed to claw back commission',
-    pendingColumn: '🔒 In Guarantee',
-    unlockedColumn: '✅ Ready for Payout',
+    pendingColumn: 'In Guarantee',
+    unlockedColumn: 'Ready for Payout',
     privacyTooltip: 'Privacy protection active: shows only personal exact amounts',
     ledgerTitle: 'Guarantee Period Dual-State Risk & Deal Commission Ledger',
     ledgerSubtitle: 'Track 90-day headhunting probation risk, supervisor payment confirmation, and clawbacks',
     dealsCount: 'deal(s)',
-    filterPending: '🔒 In Guarantee',
-    filterUnlocked: '✅ Unlocked / Ready',
-    filterCancelled: '🛑 Clawed Back',
+    filterPending: 'In Guarantee',
+    filterUnlocked: 'Unlocked / Ready',
+    filterCancelled: 'Clawed Back',
     colCandidate: 'Candidate / Position',
     colCompany: 'Client Company',
     colOnboardDate: 'Onboard Date',
@@ -5257,7 +5263,13 @@ export const en = {
     tierLabelPlaceholder: 'Tier name',
     tierThresholdPrefix: 'Target (RM):',
     tierRatePrefix: 'Rate:',
-    recruiterRequiredForSplit: 'Please assign a consultant for all roles with split allocations'
+    recruiterRequiredForSplit: 'Please assign a consultant for all roles with split allocations',
+    repairAttributionAction: 'Fix Attribution',
+    repairAttributionTitle: 'Auto-recalibrate split account UID based on consultant name',
+    attributionRepairedToast: 'Commission attribution recalibrated to the consultant account',
+    attributionRepairFailed: 'Failed to recalibrate attribution: ',
+    defaultClawbackReason: 'Probation dropout or test deal cancellation',
+    clawbackReasonPlaceholder: 'e.g. Candidate resigned during probation or test deal cancellation'
   }
 
 };

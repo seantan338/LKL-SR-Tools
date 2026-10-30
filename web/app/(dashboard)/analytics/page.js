@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
 import { useNotifications } from '../../../lib/notification-context';
@@ -295,7 +296,7 @@ export default function AnalyticsPage() {
         unlockedAt: new Date().toISOString(),
         unlockedBy: user?.displayName || user?.email || 'owner'
       });
-      showToast(t('commission.dealUnlockedToast', `已确认回款并解锁 ${record.candidateName} 的佣金！`));
+      showToast(t('commission.dealUnlockedToast', `已确认回款并解锁 ${record.candidateName} 的佣金`));
     } catch (err) {
       console.error('Failed to unlock deal:', err);
       showToast(t('commission.dealUnlockFailed', '解锁失败: ') + (err.message || err));
@@ -304,12 +305,48 @@ export default function AnalyticsPage() {
     }
   };
 
+  const handleRepairDealAttribution = async (record) => {
+    if (!isOwner || !record) return;
+    try {
+      setIsProcessingCommission(true);
+      const matchedCandidate = candidates.find(c => c.id === record.candidateId) || null;
+      const candidatePicName = matchedCandidate?.picName || matchedCandidate?.pic || '';
+      const candidatePicUid = matchedCandidate?.assignedTo || '';
+
+      const updatedSplits = (record.splits || []).map((s, idx) => {
+        const targetName = (idx === 0 && candidatePicName && (!s.displayName || s.uid === user?.uid))
+          ? candidatePicName
+          : (s.displayName || '');
+        const resolved = resolveCanonicalPic(targetName, idx === 0 ? candidatePicUid : '', teamMembers);
+        return {
+          ...s,
+          uid: resolved.uid || (resolved.displayName && resolved.displayName !== 'Unassigned' ? `ext_${resolved.key}` : s.uid),
+          displayName: (resolved.displayName && resolved.displayName !== 'Unassigned') ? resolved.displayName : (s.displayName || targetName)
+        };
+      });
+
+      await FirestoreStore.updateCommissionStatus(teamId, user?.displayName || user?.email || 'owner', record.id, record.status || 'PENDING', {
+        candidateName: record.candidateName,
+        splits: updatedSplits,
+        note: '校准顾问归属UID'
+      });
+      showToast(t('commission.attributionRepairedToast', '已按顾问姓名校准该笔佣金的归属账号'));
+    } catch (err) {
+      console.error('Failed to repair deal attribution:', err);
+      showToast(t('commission.attributionRepairFailed', '校准归属失败: ') + (err.message || err));
+    } finally {
+      setIsProcessingCommission(false);
+    }
+  };
+
+  const handleOpenClawbackModal = (record) => {
+    setClawbackModalDeal(record);
+    setClawbackReason((prev) => prev && prev.trim() ? prev : t('commission.defaultClawbackReason', '退工或测试单据冲销'));
+  };
+
   const handleConfirmClawback = async () => {
     if (!clawbackModalDeal || !isOwner) return;
-    if (!clawbackReason.trim()) {
-      showToast(t('commission.clawbackReasonRequired', '请填写退工离职原因以便审计留痕'));
-      return;
-    }
+    const finalReason = clawbackReason.trim() || t('commission.defaultClawbackReason', '退工或测试单据冲销');
     try {
       setIsProcessingCommission(true);
       await FirestoreStore.updateCommissionStatus(teamId, user?.displayName || user?.email || 'owner', clawbackModalDeal.id, 'CANCELLED', {
@@ -317,7 +354,7 @@ export default function AnalyticsPage() {
         cancellation: {
           cancelledAt: new Date().toISOString(),
           cancelledBy: user?.displayName || user?.email || 'owner',
-          reason: clawbackReason.trim()
+          reason: finalReason
         }
       });
       showToast(t('commission.dealCancelledToast', `已冲销 ${clawbackModalDeal.candidateName} 的保证期佣金`));
@@ -3355,9 +3392,9 @@ export default function AnalyticsPage() {
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {[
                     { key: 'ALL', label: t('common.all', '全部') },
-                    { key: 'PENDING', label: t('commission.filterPending', '🔒 保证期内') },
-                    { key: 'UNLOCKED', label: t('commission.filterUnlocked', '✅ 已解锁/待发') },
-                    { key: 'CANCELLED', label: t('commission.filterCancelled', '🛑 退工冲销') }
+                    { key: 'PENDING', label: t('commission.filterPending', '保证期内') },
+                    { key: 'UNLOCKED', label: t('commission.filterUnlocked', '已解锁/待发') },
+                    { key: 'CANCELLED', label: t('commission.filterCancelled', '退工冲销') }
                   ].map(f => (
                     <button
                       key={f.key}
@@ -3372,7 +3409,10 @@ export default function AnalyticsPage() {
                         border: `1px solid ${dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
                         background: dealStatusFilter === f.key ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-subtle, transparent)',
                         color: dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--text-muted)',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        position: 'relative',
+                        zIndex: 50,
+                        pointerEvents: 'auto'
                       }}
                     >
                       {f.label}
@@ -3439,19 +3479,19 @@ export default function AnalyticsPage() {
 
                             <td style={{ padding: '12px' }}>
                               {rec.status === 'CANCELLED' ? (
-                                <span style={{ fontSize: '0.74rem', color: '#EF4444' }}>🛑 {t('commission.clawedBackLabel', '已退工冲销')}</span>
+                                <span style={{ fontSize: '0.74rem', color: '#EF4444' }}>{t('commission.clawedBackLabel', '已退工冲销')}</span>
                               ) : rec.status === 'UNLOCKED' || rec.status === 'SETTLED' ? (
                                 <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: '10px' }}>
-                                  ✅ {t('commission.unlockedReady', '保证期已达标')}
+                                  {t('commission.unlockedReady', '保证期已达标')}
                                 </span>
                               ) : isReadyToUnlock ? (
                                 <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)', fontSize: '10px' }}>
-                                  ⏳ {t('commission.readyToUnlockBadge', '已到期待解锁')}
+                                  {t('commission.readyToUnlockBadge', '已到期待解锁')}
                                 </span>
                               ) : (
                                 <div>
                                   <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.3)', fontSize: '10px' }}>
-                                    🔒 {remainingDays} {t('common.days', '天到期')}
+                                    {remainingDays} {t('common.days', '天到期')}
                                   </span>
                                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                                     {rec.unlockDate}
@@ -3484,7 +3524,7 @@ export default function AnalyticsPage() {
                               </div>
                               {rec.isOverridden && (
                                 <div style={{ fontSize: '10px', color: 'var(--accent-amber)', marginTop: '3px', fontStyle: 'italic' }}>
-                                  ⚠️ {rec.overrideReason || t('commission.overriddenNote', '特批改派')}
+                                  {rec.overrideReason || t('commission.overriddenNote', '特批改派')}
                                 </div>
                               )}
                             </td>
@@ -3503,28 +3543,77 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
 
-                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                            <td style={{ padding: '12px', textAlign: 'right', position: 'relative', zIndex: 55 }}>
                               {rec.status === 'PENDING' && (
-                                <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end', position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
                                   <button
                                     type="button"
-                                    className="btn-secondary"
+                                    className="btn btn-sm btn-secondary"
                                     disabled={isProcessingCommission}
-                                    onClick={() => handleUnlockDeal(rec)}
-                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.4)' }}
-                                    title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRepairDealAttribution(rec);
+                                    }}
+                                    style={{
+                                      fontSize: '11px',
+                                      padding: '4px 10px',
+                                      color: 'var(--accent-blue)',
+                                      borderColor: 'rgba(59, 130, 246, 0.45)',
+                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      cursor: isProcessingCommission ? 'wait' : 'pointer',
+                                      pointerEvents: isProcessingCommission ? 'none' : 'auto',
+                                      position: 'relative',
+                                      zIndex: 61
+                                    }}
+                                    title={t('commission.repairAttributionTitle', '按顾问姓名自动校准该单的真实归属账号')}
                                   >
-                                    <i className="ph-bold ph-lock-key-open"></i> {t('commission.unlockAction', '解锁')}
+                                    <span style={{ pointerEvents: 'none' }}>{t('commission.repairAttributionAction', '修正归属')}</span>
                                   </button>
                                   <button
                                     type="button"
-                                    className="btn-secondary"
+                                    className="btn btn-sm btn-secondary"
                                     disabled={isProcessingCommission}
-                                    onClick={() => setClawbackModalDeal(rec)}
-                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnlockDeal(rec);
+                                    }}
+                                    style={{
+                                      fontSize: '11px',
+                                      padding: '4px 10px',
+                                      color: '#10B981',
+                                      borderColor: 'rgba(16, 185, 129, 0.45)',
+                                      background: 'rgba(16, 185, 129, 0.1)',
+                                      cursor: isProcessingCommission ? 'wait' : 'pointer',
+                                      pointerEvents: isProcessingCommission ? 'none' : 'auto',
+                                      position: 'relative',
+                                      zIndex: 61
+                                    }}
+                                    title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
+                                  >
+                                    <span style={{ pointerEvents: 'none' }}>{t('commission.unlockAction', '解锁')}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary"
+                                    disabled={isProcessingCommission}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenClawbackModal(rec);
+                                    }}
+                                    style={{
+                                      fontSize: '11px',
+                                      padding: '4px 10px',
+                                      color: '#EF4444',
+                                      borderColor: 'rgba(239, 68, 68, 0.45)',
+                                      background: 'rgba(239, 68, 68, 0.1)',
+                                      cursor: isProcessingCommission ? 'wait' : 'pointer',
+                                      pointerEvents: isProcessingCommission ? 'none' : 'auto',
+                                      position: 'relative',
+                                      zIndex: 61
+                                    }}
                                     title={t('commission.clawbackActionTitle', '候选人试用期离职，标记退工冲销')}
                                   >
-                                    <i className="ph-bold ph-prohibit"></i> {t('commission.clawbackAction', '退工')}
+                                    <span style={{ pointerEvents: 'none' }}>{t('commission.clawbackAction', '退工')}</span>
                                   </button>
                                 </div>
                               )}
@@ -4464,7 +4553,7 @@ export default function AnalyticsPage() {
       )}
 
       {/* Clawback / Deal Cancellation Modal (Owner Only) */}
-      {clawbackModalDeal && isOwner && (
+      {clawbackModalDeal && isOwner && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
@@ -4472,12 +4561,12 @@ export default function AnalyticsPage() {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(5px)',
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 10000,
+            zIndex: 99999,
             padding: '16px'
           }}
           onClick={() => setClawbackModalDeal(null)}
@@ -4522,30 +4611,27 @@ export default function AnalyticsPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: 'var(--space-2)' }}>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn btn-sm btn-secondary"
                   disabled={isProcessingCommission}
                   onClick={() => setClawbackModalDeal(null)}
+                  style={{ cursor: 'pointer', position: 'relative', zIndex: 10 }}
                 >
                   {t('common.cancel', '取消')}
                 </button>
                 <button
                   type="button"
-                  className="btn-primary"
-                  disabled={isProcessingCommission || !clawbackReason.trim()}
+                  className="btn btn-sm btn-primary"
+                  disabled={isProcessingCommission}
                   onClick={handleConfirmClawback}
-                  style={{ background: '#EF4444', borderColor: '#DC2626' }}
+                  style={{ background: '#EF4444', borderColor: '#DC2626', color: '#fff', cursor: 'pointer', position: 'relative', zIndex: 10 }}
                 >
-                  {isProcessingCommission ? (
-                    <i className="ph-bold ph-spinner ph-spin"></i>
-                  ) : (
-                    <i className="ph-bold ph-trash"></i>
-                  )}
                   <span>{t('commission.confirmClawbackBtn', '确认冲销佣金')}</span>
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Attendance Appeal Modal (员工考勤异常申诉) */}
