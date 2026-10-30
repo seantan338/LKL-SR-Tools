@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.28';
+export const APP_VERSION = 'v1.7.29';
 export const BUILD_DATE = '2026-10-30';
-export const RELEASE_CODENAME = 'Global Quick FAB Pass-through & Dual Attribution Controller';
+export const RELEASE_CODENAME = 'Header Stacking & Wallet Popover Unclip Defense';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

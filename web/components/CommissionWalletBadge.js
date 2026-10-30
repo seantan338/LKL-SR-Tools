@@ -156,8 +156,8 @@ export default function CommissionWalletBadge() {
         <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)', fontSize: '14px' }}></i>
 
         {/* Pending Badge */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-          <span style={{ opacity: 0.7 }}>🔒</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+          <i className="ph-bold ph-lock-simple" style={{ color: 'var(--accent-amber)', fontSize: '12px' }}></i>
           <strong style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
             {formatCommissionCurrency(animatedPending, 'MYR')}
           </strong>
@@ -166,8 +166,8 @@ export default function CommissionWalletBadge() {
         <span style={{ width: '1px', height: '12px', background: 'var(--border-subtle)' }} />
 
         {/* Unlocked Badge */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--accent-emerald, #10B981)' }}>
-          <span>✅</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--accent-emerald, #10B981)' }}>
+          <i className="ph-bold ph-check-circle" style={{ color: 'var(--accent-emerald, #10B981)', fontSize: '12px' }}></i>
           <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
             {formatCommissionCurrency(animatedUnlocked, 'MYR')}
           </strong>
@@ -210,8 +210,9 @@ export default function CommissionWalletBadge() {
           {/* Dual Status Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
             <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--accent-amber)', fontWeight: '600' }}>
-                🔒 {t('commission.pendingInGuarantee', '保证期内 (待解锁)')}
+              <div style={{ fontSize: '0.7rem', color: 'var(--accent-amber)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <i className="ph-bold ph-lock-simple"></i>
+                <span>{t('commission.pendingInGuarantee', '保证期内 (待解锁)')}</span>
               </div>
               <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', marginTop: '2px' }}>
                 {formatCommissionCurrency(walletSummary.pending, 'MYR')}
@@ -219,8 +220,9 @@ export default function CommissionWalletBadge() {
             </div>
 
             <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: '0.7rem', color: '#10B981', fontWeight: '600' }}>
-                ✅ {t('commission.readyForPayout', '已到期 (可结算)')}
+              <div style={{ fontSize: '0.7rem', color: '#10B981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <i className="ph-bold ph-check-circle"></i>
+                <span>{t('commission.readyForPayout', '已到期 (可结算)')}</span>
               </div>
               <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-primary)', marginTop: '2px' }}>
                 {formatCommissionCurrency(walletSummary.unlocked, 'MYR')}
