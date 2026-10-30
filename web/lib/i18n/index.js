@@ -2621,7 +2621,8 @@ export const zh = {
     splitRolePlaceholder: '角色名称 (如 交付顾问 / BD)',
     tierLabelPlaceholder: '档位名称',
     tierThresholdPrefix: '达标 (RM):',
-    tierRatePrefix: '提成:'
+    tierRatePrefix: '提成:',
+    recruiterRequiredForSplit: '请为所有分配了业绩比例的分成角色指派具体顾问'
   }
 
 };
@@ -5255,7 +5256,8 @@ export const en = {
     splitRolePlaceholder: 'Role name (e.g. Delivery Recruiter / BD Lead)',
     tierLabelPlaceholder: 'Tier name',
     tierThresholdPrefix: 'Target (RM):',
-    tierRatePrefix: 'Rate:'
+    tierRatePrefix: 'Rate:',
+    recruiterRequiredForSplit: 'Please assign a consultant for all roles with split allocations'
   }
 
 };

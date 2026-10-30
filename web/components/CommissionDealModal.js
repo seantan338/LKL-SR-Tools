@@ -12,6 +12,7 @@ import {
   parseSalaryNumber, 
   formatCommissionCurrency 
 } from '../lib/commission-engine';
+import { resolveCanonicalPic } from '../lib/identity.mjs';
 
 export default function CommissionDealModal({
   isOpen,
@@ -103,9 +104,21 @@ export default function CommissionDealModal({
     setGuaranteeDays(effectiveRule.guaranteeDays ?? 90);
 
     // Build initial splits
-    // Match primary recruiter from candidate.assignedTo or picName
-    let primaryUid = candidate.assignedTo || currentUser?.uid || '';
-    let primaryName = candidate.picName || currentUser?.displayName || 'Delivery Recruiter';
+    // Match primary recruiter accurately from candidate.picName / assignedTo using canonical resolver
+    const canonical = resolveCanonicalPic(candidate.picName || candidate.pic, candidate.assignedTo, teamMembers);
+    let primaryUid = canonical.uid || '';
+    let primaryName = canonical.displayName && canonical.displayName !== '未分配顾问' && canonical.displayName !== '未分配'
+      ? canonical.displayName
+      : (candidate.picName || '');
+
+    // Fallback: If canonical didn't match a member UID but candidate.assignedTo points to a registered team member
+    if (!primaryUid && candidate.assignedTo) {
+      const assignedMember = teamMembers.find(m => m.uid === candidate.assignedTo || m.id === candidate.assignedTo);
+      if (assignedMember) {
+        primaryUid = assignedMember.uid || assignedMember.id;
+        primaryName = assignedMember.displayName || assignedMember.name || (assignedMember.email ? assignedMember.email.split('@')[0] : primaryName);
+      }
+    }
 
     const defaultRoles = effectiveRule.splits || DEFAULT_COMMISSION_CONFIG.defaultSplits;
     const initialSplits = defaultRoles.map((roleDef, idx) => {
@@ -131,7 +144,7 @@ export default function CommissionDealModal({
     setManualPoolAmount(null);
     setOverrideReason('');
     setIsOverrideMode(false);
-  }, [isOpen, candidate, effectiveRule, currentUser, isEn]);
+  }, [isOpen, candidate, effectiveRule, currentUser, isEn, teamMembers]);
 
   if (!mounted || !isOpen || !candidate) return null;
 
@@ -199,6 +212,12 @@ export default function CommissionDealModal({
   const handleSubmit = async () => {
     if (!isRatioValid) {
       showToast(t('commission.splitRatioMustBe100', `分成角色比例总和必须为 100% (当前为 ${totalSplitRatio}%)`), 'error');
+      return;
+    }
+
+    const hasUnassignedRecruiter = userSplits.some(s => (Number(s.ratio) > 0 || Number(s.amount) > 0) && !s.uid);
+    if (hasUnassignedRecruiter) {
+      showToast(t('commission.recruiterRequiredForSplit', '请为所有分配了业绩比例的分成角色指派具体顾问'), 'error');
       return;
     }
 
