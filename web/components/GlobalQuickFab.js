@@ -8,10 +8,12 @@ import { useFeedback } from '../lib/feedback-context';
 import { useI18n } from '../lib/i18n-context';
 import { FirestoreStore } from '../lib/firestore-store';
 import { SystemLogger } from '../lib/logger';
+import ExpenseClaimModal from './ExpenseClaimModal';
 
 export default function GlobalQuickFab() {
   const [isOpen, setIsOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState({
     category: 'feature',
@@ -64,6 +66,11 @@ export default function GlobalQuickFab() {
   const handleOpenAttendance = () => {
     setIsOpen(false);
     window.dispatchEvent(new CustomEvent('omni_open_attendance_modal'));
+  };
+
+  const handleOpenClaim = () => {
+    setIsOpen(false);
+    setIsClaimModalOpen(true);
   };
 
   const handleOpenFeedback = () => {
@@ -292,6 +299,55 @@ export default function GlobalQuickFab() {
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
                 {t('fab.attendanceSub', '日常签到 / 签退')}
+              </div>
+            </div>
+          </button>
+          )}
+
+          {/* Action 3.5: Expense Claim (HQ only) */}
+          {isHqTeam && (
+          <button
+            onClick={handleOpenClaim}
+            className="fab-action-item"
+            title={t('claims.newClaimBtn', '发起报销申请')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '8px 18px 8px 10px',
+              borderRadius: '999px',
+              background: 'rgba(18, 22, 34, 0.92)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.45), 0 0 15px rgba(16, 185, 129, 0.2)',
+              backdropFilter: 'blur(16px)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              outline: 'none'
+            }}
+          >
+            <div 
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+                boxShadow: '0 2px 10px rgba(16, 185, 129, 0.4)'
+              }}
+            >
+              <i className="ph-bold ph-receipt"></i>
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: 1.2 }}>
+                {t('claims.newClaimBtn', '发起报销申请')}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+                {t('claims.catMileage', '小票 / 里程补贴')}
               </div>
             </div>
           </button>
@@ -624,6 +680,14 @@ export default function GlobalQuickFab() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Expense Claim Modal (HQ Only) */}
+      {isHqTeam && (
+        <ExpenseClaimModal
+          isOpen={isClaimModalOpen}
+          onClose={() => setIsClaimModalOpen(false)}
+        />
       )}
     </>
   );

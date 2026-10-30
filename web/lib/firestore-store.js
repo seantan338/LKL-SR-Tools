@@ -1750,6 +1750,244 @@ export const FirestoreStore = {
     } catch (_) {}
 
     return count;
+  },
+
+  // --- 报销与费用 (Expense Claims & Mileage Reimbursement) ---
+
+  /**
+   * 订阅报销单列表 (支持 HQ 本部员工/主管/Owner 双轨视角)
+   */
+  subscribeExpenseClaims(teamId, userRole, userId, callback) {
+    if (!teamId) return () => {};
+    const claimsRef = collection(db, 'teams', teamId, 'expense_claims');
+    let q;
+
+    if (userRole === 'owner' || userRole === 'manager') {
+      // 管理员/财务视窗：读取团队全量报销单
+      q = query(claimsRef, orderBy('createdAt', 'desc'));
+    } else {
+      // 员工个人视窗：受 firestore.rules 约束，仅读取本人单据
+      q = query(claimsRef, where('userId', '==', userId || ''));
+    }
+
+    return onSnapshot(q, (snap) => {
+      const claims = [];
+      snap.forEach((d) => {
+        claims.push({ id: d.id, ...d.data() });
+      });
+      // 保证按时间倒序
+      claims.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+      callback(claims);
+    }, (err) => {
+      console.warn('[FirestoreStore] subscribeExpenseClaims error:', err);
+      callback([]);
+    });
+  },
+
+  /**
+   * 创建新的报销单 (支持单据包裹制与多行明细)
+   */
+  async createExpenseClaim(teamId, user, claimData) {
+    if (!teamId || !user) throw new Error('Missing teamId or user');
+    const claimsRef = collection(db, 'teams', teamId, 'expense_claims');
+    const claimDoc = doc(claimsRef);
+
+    const safeItems = (claimData.items || []).map((item, idx) => ({
+      itemId: item.itemId || `item_${Date.now()}_${idx}`,
+      category: item.category || 'OTHER',
+      receiptDate: item.receiptDate || new Date().toISOString().slice(0, 10),
+      merchantName: item.merchantName || '',
+      invoiceNo: item.invoiceNo || '',
+      originalCurrency: item.originalCurrency || 'MYR',
+      originalAmount: Number(item.originalAmount) || Number(item.amount) || 0,
+      exchangeRate: Number(item.exchangeRate) || 1.0,
+      amount: Number(item.amount) || 0,
+      taxAmount: Number(item.taxAmount) || 0,
+      mileageMeta: item.mileageMeta ? {
+        vehicleType: item.mileageMeta.vehicleType || 'CAR',
+        origin: item.mileageMeta.origin || '',
+        destination: item.mileageMeta.destination || '',
+        distanceKm: Number(item.mileageMeta.distanceKm) || 0,
+        appliedRate: Number(item.mileageMeta.appliedRate) || 0.8,
+        tollAmount: Number(item.mileageMeta.tollAmount) || 0,
+        parkingAmount: Number(item.mileageMeta.parkingAmount) || 0
+      } : null,
+      receiptUrl: item.receiptUrl || '',
+      ocrExtracted: Boolean(item.ocrExtracted),
+      fingerprint: item.fingerprint || '',
+      warnings: Array.isArray(item.warnings) ? item.warnings : [],
+      notes: item.notes || ''
+    }));
+
+    const totalAmount = safeItems.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const roundedTotal = Math.round((totalAmount + Number.EPSILON) * 100) / 100;
+
+    const record = sanitizeFirestoreData({
+      id: claimDoc.id,
+      teamId,
+      userId: user.uid,
+      userName: user.displayName || user.email || 'Employee',
+      userEmail: user.email || '',
+      picName: user.assignedPic || user.displayName || 'PIC',
+      title: claimData.title || `报销申请 - ${new Date().toISOString().slice(0, 7)}`,
+      claimMonth: claimData.claimMonth || new Date().toISOString().slice(0, 7),
+      currency: claimData.currency || 'MYR',
+      totalAmount: roundedTotal,
+      items: safeItems,
+      status: 'SUBMITTED',
+      payoutChannel: claimData.payoutChannel === 'BATCH_PAYOUT' ? 'BATCH_PAYOUT' : 'PAYROLL',
+      payoutBatchId: null,
+      payrollPeriod: null,
+      managerReview: null,
+      financeReview: null,
+      rejection: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    await setDoc(claimDoc, record);
+
+    // 记录不可变审计日志
+    try {
+      const logsRef = collection(db, 'teams', teamId, 'logs');
+      await addDoc(logsRef, {
+        timestamp: new Date().toISOString(),
+        action: 'SUBMIT',
+        targetType: 'EXPENSE_CLAIM',
+        targetId: claimDoc.id,
+        targetName: record.title,
+        message: `${record.userName} 提交了报销单: ${record.title} (RM ${roundedTotal.toFixed(2)})`,
+        user: record.userName,
+        userEmail: record.userEmail,
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('[FirestoreStore] Expense claim audit log failed:', e);
+    }
+
+    return claimDoc.id;
+  },
+
+  /**
+   * 更新报销单状态 (初审 / 终审 / 驳回 / 员工撤回)
+   */
+  async updateExpenseClaimStatus(teamId, user, claimId, newStatus, meta = {}) {
+    if (!teamId || !claimId) throw new Error('Missing teamId or claimId');
+    const claimRef = doc(db, 'teams', teamId, 'expense_claims', claimId);
+
+    const updatePayload = {
+      status: newStatus,
+      updatedAt: serverTimestamp()
+    };
+
+    if (newStatus === 'MANAGER_APPROVED') {
+      updatePayload.managerReview = {
+        reviewedByUid: user?.uid || 'manager',
+        reviewedByName: user?.displayName || user?.email || 'Manager',
+        reviewedAt: new Date().toISOString(),
+        note: meta.note || '主管初审通过'
+      };
+    } else if (newStatus === 'APPROVED_PENDING_PAYOUT') {
+      updatePayload.financeReview = {
+        reviewedByUid: user?.uid || 'finance',
+        reviewedByName: user?.displayName || user?.email || 'Finance',
+        reviewedAt: new Date().toISOString(),
+        note: meta.note || '财务终审批准，进入待放款池'
+      };
+    } else if (newStatus === 'REJECTED') {
+      updatePayload.rejection = {
+        rejectedByUid: user?.uid || 'reviewer',
+        rejectedByName: user?.displayName || user?.email || 'Reviewer',
+        rejectedAt: new Date().toISOString(),
+        stage: meta.stage || 'MANAGER',
+        reason: meta.reason || '审核驳回'
+      };
+    }
+
+    await updateDoc(claimRef, sanitizeFirestoreData(updatePayload));
+
+    // 记录审计日志
+    try {
+      const logsRef = collection(db, 'teams', teamId, 'logs');
+      await addDoc(logsRef, {
+        timestamp: new Date().toISOString(),
+        action: `CLAIM_${newStatus}`,
+        targetType: 'EXPENSE_CLAIM',
+        targetId: claimId,
+        targetName: meta.title || `报销单 ${claimId}`,
+        message: `${user?.displayName || 'Admin'} 更新报销单状态为 [${newStatus}]${meta.reason ? `: ${meta.reason}` : ''}`,
+        user: user?.displayName || 'Admin',
+        userEmail: user?.email || '',
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('[FirestoreStore] Expense claim status audit log failed:', e);
+    }
+  },
+
+  /**
+   * 批次放款或薪资一键锁定 (Create Payout Batch or Lock into Monthly Payroll)
+   */
+  async createClaimPayoutBatch(teamId, user, { batchTitle, claimIds = [], payoutChannel = 'BATCH_PAYOUT', payrollPeriod = null, notes = '' }) {
+    if (!teamId || !claimIds.length) throw new Error('No claim IDs provided');
+    const batch = writeBatch(db);
+    const batchRef = doc(collection(db, 'teams', teamId, 'claim_payout_batches'));
+    const batchId = batchRef.id;
+
+    let totalAmount = 0;
+    const targetStatus = payoutChannel === 'PAYROLL' ? 'LOCKED_IN_PAYROLL' : 'PAID';
+
+    for (const cid of claimIds) {
+      const cRef = doc(db, 'teams', teamId, 'expense_claims', cid);
+      batch.update(cRef, sanitizeFirestoreData({
+        status: targetStatus,
+        payoutBatchId: batchId,
+        payrollPeriod: payrollPeriod || null,
+        updatedAt: serverTimestamp()
+      }));
+    }
+
+    const batchDocData = sanitizeFirestoreData({
+      id: batchId,
+      teamId,
+      batchTitle: batchTitle || `放款批次 - ${new Date().toISOString().slice(0, 10)}`,
+      payoutChannel,
+      payrollPeriod: payrollPeriod || null,
+      claimIds,
+      claimCount: claimIds.length,
+      status: 'COMPLETED',
+      notes,
+      createdByUid: user?.uid || '',
+      createdByName: user?.displayName || user?.email || 'Finance',
+      createdAt: serverTimestamp()
+    });
+
+    batch.set(batchRef, batchDocData);
+    await batch.commit();
+
+    // 写入批次放款审计日志
+    try {
+      const logsRef = collection(db, 'teams', teamId, 'logs');
+      await addDoc(logsRef, {
+        timestamp: new Date().toISOString(),
+        action: payoutChannel === 'PAYROLL' ? 'LOCK_CLAIMS_TO_PAYROLL' : 'CREATE_PAYOUT_BATCH',
+        targetType: 'EXPENSE_CLAIM_BATCH',
+        targetId: batchId,
+        targetName: batchDocData.batchTitle,
+        message: `${user?.displayName || 'Finance'} 完成了 ${claimIds.length} 笔报销单的${payoutChannel === 'PAYROLL' ? '月度随薪锁定' : '批次放款'}`,
+        user: user?.displayName || 'Finance',
+        userEmail: user?.email || '',
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('[FirestoreStore] Claim payout batch audit log failed:', e);
+    }
+
+    return batchId;
   }
 
 };

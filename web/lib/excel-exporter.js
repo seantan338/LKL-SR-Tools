@@ -99,7 +99,41 @@ export const EXCEL_I18N = {
     colCancelReason: '退工离职冲销原因',
     statusCancelled: '已冲销',
     statusUnlocked: '可结算',
-    statusPending: '保证期内'
+    statusPending: '保证期内',
+    sheetClaimsSummary: (m) => `${m} 员工报销与随薪汇总`,
+    sheetClaimsLedger: '报销单与双轨审批总账',
+    sheetClaimsDetail: '票据与里程补贴明细',
+    colClaimsCount: '申报单数 (笔)',
+    colClaimsTotal: '申报总额 (MYR)',
+    colPayrollApproved: '已核准随薪发放 (MYR)',
+    colBatchPaid: '已批次结清 (MYR)',
+    colReviewingAmt: '审核中金额 (MYR)',
+    colWarningCount: '风控预警数 (次)',
+    colClaimId: '报销单号',
+    colClaimTitle: '单据标题',
+    colClaimMonth: '归属月份',
+    colApplicant: '申请人 (PIC)',
+    colItemsCount: '明细项数',
+    colPayoutChannel: '放款轨道',
+    colCurrentStatus: '审批状态',
+    colManagerReviewer: '主管初审人',
+    colManagerReviewTime: '初审时间',
+    colFinanceReviewer: '财务终审人',
+    colFinanceReviewTime: '终审时间',
+    colRejectReason: '驳回原因',
+    colCategory: '费用类别',
+    colExpenseDate: '发生日期',
+    colMerchantRoute: '商户名称 / 路线',
+    colInvoiceNo: '发票单号',
+    colVehicleType: '出行车型',
+    colDistanceKm: '里程 (KM)',
+    colTollAmt: '过路费 (MYR)',
+    colParkingAmt: '停车费 (MYR)',
+    colLineAmount: '报销金额 (MYR)',
+    colTaxAmt: '税额 (SST)',
+    colOcrFlag: 'AI识别',
+    colWarnings: '风控标签',
+    colLineNotes: '明细说明'
   },
   en: {
     sheetSummary: (m) => `${m} Attendance Summary`,
@@ -172,7 +206,41 @@ export const EXCEL_I18N = {
     colCancelReason: 'Clawback / Cancellation Reason',
     statusCancelled: 'Cancelled',
     statusUnlocked: 'Unlocked',
-    statusPending: 'In Guarantee'
+    statusPending: 'In Guarantee',
+    sheetClaimsSummary: (m) => `${m} Claims & Payroll Summary`,
+    sheetClaimsLedger: 'Claims & Approval Ledger',
+    sheetClaimsDetail: 'Line Items & Mileage Details',
+    colClaimsCount: 'Claims Count',
+    colClaimsTotal: 'Total Claimed (MYR)',
+    colPayrollApproved: 'Approved for Payroll (MYR)',
+    colBatchPaid: 'Paid via Batch (MYR)',
+    colReviewingAmt: 'In-Review Amount (MYR)',
+    colWarningCount: 'Policy Warnings',
+    colClaimId: 'Claim ID',
+    colClaimTitle: 'Claim Title',
+    colClaimMonth: 'Claim Month',
+    colApplicant: 'Applicant (PIC)',
+    colItemsCount: 'Items Count',
+    colPayoutChannel: 'Payout Channel',
+    colCurrentStatus: 'Status',
+    colManagerReviewer: 'Manager Reviewer',
+    colManagerReviewTime: 'Manager Review Time',
+    colFinanceReviewer: 'Finance Reviewer',
+    colFinanceReviewTime: 'Finance Review Time',
+    colRejectReason: 'Rejection Reason',
+    colCategory: 'Category',
+    colExpenseDate: 'Expense Date',
+    colMerchantRoute: 'Merchant / Route',
+    colInvoiceNo: 'Invoice No.',
+    colVehicleType: 'Vehicle',
+    colDistanceKm: 'Distance (KM)',
+    colTollAmt: 'Toll Fees (MYR)',
+    colParkingAmt: 'Parking (MYR)',
+    colLineAmount: 'Line Amount (MYR)',
+    colTaxAmt: 'Tax (SST)',
+    colOcrFlag: 'AI OCR',
+    colWarnings: 'Warning Tags',
+    colLineNotes: 'Item Notes'
   }
 };
 
@@ -1131,6 +1199,198 @@ export const ExcelExporter = {
 
     await this.exportWorkbook({
       filename: `TalentFlow_Commission_${formattedMonth}.xlsx`,
+      sheets,
+      locale
+    });
+  },
+
+  /**
+   * 导出企业报销对账单 (包含 3 个 Sheet: 员工随薪汇总 / 单据审批总账 / 票据流水明细)
+   */
+  async exportExpenseClaimsReport({
+    claims = [],
+    teamMembers = [],
+    monthStr = '',
+    locale = 'zh'
+  }) {
+    const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
+    const formattedMonth = monthStr || new Date().toISOString().slice(0, 7);
+
+    // 1. 过滤指定月份 (若传 monthStr)
+    const filteredClaims = claims.filter(c => {
+      if (!monthStr || monthStr === 'all') return true;
+      return c.claimMonth === monthStr || (c.createdAt?.toDate ? c.createdAt.toDate().toISOString().startsWith(monthStr) : String(c.createdAt || '').startsWith(monthStr));
+    });
+
+    // 2. Sheet 1: 员工报销与随薪汇总
+    const memberSummaryMap = {};
+    teamMembers.forEach(m => {
+      const canonical = resolveCanonicalPic(m.displayName || m.name || m.email, [m]);
+      const key = canonical.canonicalName || m.displayName || m.email;
+      memberSummaryMap[key] = {
+        name: key,
+        email: m.email || '',
+        claimsCount: 0,
+        totalClaimed: 0,
+        payrollApproved: 0,
+        batchPaid: 0,
+        reviewingAmt: 0,
+        warningCount: 0
+      };
+    });
+
+    filteredClaims.forEach(c => {
+      const canonical = resolveCanonicalPic(c.picName || c.userName || c.userEmail, teamMembers);
+      const key = canonical.canonicalName || c.picName || c.userName || 'Employee';
+      if (!memberSummaryMap[key]) {
+        memberSummaryMap[key] = {
+          name: key,
+          email: c.userEmail || '',
+          claimsCount: 0,
+          totalClaimed: 0,
+          payrollApproved: 0,
+          batchPaid: 0,
+          reviewingAmt: 0,
+          warningCount: 0
+        };
+      }
+      const entry = memberSummaryMap[key];
+      const amt = Number(c.totalAmount || 0);
+      entry.claimsCount += 1;
+      entry.totalClaimed += amt;
+
+      if (c.status === 'LOCKED_IN_PAYROLL' || (c.status === 'APPROVED_PENDING_PAYOUT' && c.payoutChannel === 'PAYROLL')) {
+        entry.payrollApproved += amt;
+      } else if (c.status === 'PAID') {
+        entry.batchPaid += amt;
+      } else if (c.status === 'SUBMITTED' || c.status === 'MANAGER_APPROVED') {
+        entry.reviewingAmt += amt;
+      }
+
+      (c.items || []).forEach(it => {
+        if (it.warnings && it.warnings.length > 0) {
+          entry.warningCount += 1;
+        }
+      });
+    });
+
+    const summaryHeaders = [
+      labels.colPicName,
+      labels.colEmail,
+      labels.colClaimsCount,
+      labels.colClaimsTotal,
+      labels.colPayrollApproved,
+      labels.colBatchPaid,
+      labels.colReviewingAmt,
+      labels.colWarningCount
+    ];
+
+    const summaryRows = Object.values(memberSummaryMap)
+      .filter(e => e.claimsCount > 0)
+      .map(e => [
+        e.name,
+        e.email,
+        e.claimsCount,
+        Math.round((e.totalClaimed + Number.EPSILON) * 100) / 100,
+        Math.round((e.payrollApproved + Number.EPSILON) * 100) / 100,
+        Math.round((e.batchPaid + Number.EPSILON) * 100) / 100,
+        Math.round((e.reviewingAmt + Number.EPSILON) * 100) / 100,
+        e.warningCount
+      ]);
+
+    // 3. Sheet 2: 报销单与双轨审批总账
+    const ledgerHeaders = [
+      labels.colClaimId,
+      labels.colClaimTitle,
+      labels.colClaimMonth,
+      labels.colApplicant,
+      labels.colItemsCount,
+      labels.colClaimsTotal,
+      labels.colPayoutChannel,
+      labels.colCurrentStatus,
+      labels.colManagerReviewer,
+      labels.colManagerReviewTime,
+      labels.colFinanceReviewer,
+      labels.colFinanceReviewTime,
+      labels.colRejectReason
+    ];
+
+    const ledgerRows = filteredClaims.map(c => [
+      c.id,
+      c.title,
+      c.claimMonth,
+      c.picName || c.userName,
+      (c.items || []).length,
+      Number(c.totalAmount || 0),
+      c.payoutChannel === 'PAYROLL' ? '随薪发放 (Payroll)' : '批次打款 (Batch Payout)',
+      c.status,
+      c.managerReview?.reviewedByName || '-',
+      c.managerReview?.reviewedAt?.slice(0, 16) || '-',
+      c.financeReview?.reviewedByName || '-',
+      c.financeReview?.reviewedAt?.slice(0, 16) || '-',
+      c.rejection?.reason || '-'
+    ]);
+
+    // 4. Sheet 3: 票据与里程明细流水
+    const detailHeaders = [
+      labels.colClaimId,
+      labels.colCategory,
+      labels.colExpenseDate,
+      labels.colMerchantRoute,
+      labels.colInvoiceNo,
+      labels.colVehicleType,
+      labels.colDistanceKm,
+      labels.colTollAmt,
+      labels.colParkingAmt,
+      labels.colLineAmount,
+      labels.colTaxAmt,
+      labels.colOcrFlag,
+      labels.colWarnings,
+      labels.colLineNotes
+    ];
+
+    const detailRows = [];
+    filteredClaims.forEach(c => {
+      (c.items || []).forEach(it => {
+        detailRows.push([
+          c.id,
+          it.category,
+          it.receiptDate || '-',
+          it.merchantName || '-',
+          it.invoiceNo || '-',
+          it.mileageMeta?.vehicleType || '-',
+          it.mileageMeta?.distanceKm || 0,
+          it.mileageMeta?.tollAmount || 0,
+          it.mileageMeta?.parkingAmount || 0,
+          Number(it.amount || 0),
+          Number(it.taxAmount || 0),
+          it.ocrExtracted ? '是 (YES)' : '否 (NO)',
+          (it.warnings || []).join('; ') || '-',
+          it.notes || '-'
+        ]);
+      });
+    });
+
+    const sheets = [
+      {
+        name: labels.sheetClaimsSummary(formattedMonth),
+        headers: summaryHeaders,
+        rows: summaryRows
+      },
+      {
+        name: labels.sheetClaimsLedger,
+        headers: ledgerHeaders,
+        rows: ledgerRows
+      },
+      {
+        name: labels.sheetClaimsDetail,
+        headers: detailHeaders,
+        rows: detailRows
+      }
+    ];
+
+    await this.exportWorkbook({
+      filename: `TalentFlow_Claims_${formattedMonth}.xlsx`,
       sheets,
       locale
     });

@@ -18,6 +18,7 @@ import {
 } from '../../../lib/commission-engine';
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
 import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
+import ExpenseClaimModal from '../../../components/ExpenseClaimModal';
 
 export default function LeaderboardPage() {
   const { teamId, isHqTeam, role, user, userProfile, isOwner, isManager } = useAuth();
@@ -96,6 +97,20 @@ export default function LeaderboardPage() {
     }, filterUid);
     return () => unsub();
   }, [isHqTeam, isOwner, isManager, user?.uid]);
+
+  // Subscribe to Expense Claims (HQ claims)
+  const [myExpenseClaims, setMyExpenseClaims] = useState([]);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [expandedClaimId, setExpandedClaimId] = useState(null);
+  const [isCancellingClaim, setIsCancellingClaim] = useState(false);
+
+  useEffect(() => {
+    if (!isHqTeam || !user?.uid) return;
+    const unsub = FirestoreStore.subscribeExpenseClaims('default_team', role, user.uid, (claims) => {
+      setMyExpenseClaims(claims || []);
+    });
+    return () => unsub();
+  }, [isHqTeam, role, user?.uid]);
 
   // Commission Engine States (Phase 6 - Owner Only)
   const [commissionRecords, setCommissionRecords] = useState([]);
@@ -871,6 +886,20 @@ export default function LeaderboardPage() {
     }
   };
 
+  const handleCancelClaim = async (claimId) => {
+    try {
+      setIsCancellingClaim(true);
+      await FirestoreStore.updateExpenseClaimStatus('default_team', user, claimId, 'CANCELLED', {
+        title: '员工撤回报销单'
+      });
+      showToast(t('claims.toastCancelSuccess', '报销单已成功撤回'));
+    } catch (err) {
+      showToast(`撤回失败: ${err.message}`);
+    } finally {
+      setIsCancellingClaim(false);
+    }
+  };
+
   // Current active list & Top 3
   const currentRankingList = activeTab === 'sales' ? salesLeaderboard : attendanceLeaderboard;
   const top1 = currentRankingList[0] || null;
@@ -1050,6 +1079,25 @@ export default function LeaderboardPage() {
             >
               <i className="ph-bold ph-paper-plane-tilt"></i>
               <span>{t('attendanceAppeal.btnQuickAppeal', '发起考勤申诉')}</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              style={{
+                height: '32px',
+                fontSize: '12px',
+                gap: '6px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: '700',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+              }}
+              onClick={() => setIsClaimModalOpen(true)}
+            >
+              <i className="ph-bold ph-receipt"></i>
+              <span>{t('claims.newClaimBtn', '发起报销申请')}</span>
             </button>
           </div>
         ) : (
@@ -2144,6 +2192,160 @@ export default function LeaderboardPage() {
           </div>
         )}
 
+        {/* My Expense Claims Records Stream */}
+        {myExpenseClaims.length > 0 && (
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ph-bold ph-receipt" style={{ color: 'var(--accent-emerald)', fontSize: '16px' }}></i>
+                  <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                    {t('claims.tabMyClaims', '我的报销单')}
+                  </h4>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                    {myExpenseClaims.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsClaimModalOpen(true)}
+                  className="btn btn-xs btn-primary"
+                  style={{ gap: '4px', fontSize: '11px', padding: '3px 10px' }}
+                >
+                  <i className="ph-bold ph-plus"></i>
+                  {t('claims.newClaimBtn', '发起报销申请')}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myExpenseClaims.map(claim => {
+                  const isExpanded = expandedClaimId === claim.id;
+                  const statusColors = {
+                    SUBMITTED: { bg: 'rgba(245, 158, 11, 0.15)', text: 'var(--accent-amber)', label: t('claims.statusSubmitted', '待主管初审') },
+                    MANAGER_APPROVED: { bg: 'rgba(59, 130, 246, 0.15)', text: 'var(--accent-blue)', label: t('claims.statusManagerApproved', '待财务终审') },
+                    APPROVED_PENDING_PAYOUT: { bg: 'rgba(16, 185, 129, 0.15)', text: 'var(--accent-emerald)', label: t('claims.statusApprovedPendingPayout', '已批准 · 待放款') },
+                    PAID: { bg: 'rgba(16, 185, 129, 0.25)', text: '#10b981', label: t('claims.statusPaid', '已放款结清') },
+                    LOCKED_IN_PAYROLL: { bg: 'rgba(139, 92, 246, 0.2)', text: '#a78bfa', label: t('claims.statusLockedInPayroll', '已并入薪资单锁定') },
+                    REJECTED: { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171', label: t('claims.statusRejected', '已驳回') },
+                    CANCELLED: { bg: 'rgba(107, 114, 128, 0.15)', text: '#9ca3af', label: t('claims.statusCancelled', '已撤回') }
+                  };
+                  const currentStatus = statusColors[claim.status] || statusColors.SUBMITTED;
+
+                  return (
+                    <div
+                      key={claim.id}
+                      style={{
+                        padding: '12px 14px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-hairline)',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
+                            {claim.title}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            {claim.claimMonth}
+                          </span>
+                          <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                            {claim.payoutChannel === 'PAYROLL' ? t('claims.channelPayroll', '随薪') : t('claims.channelBatch', '批次')}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                            MYR {Number(claim.totalAmount || 0).toFixed(2)}
+                          </span>
+
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: currentStatus.bg,
+                            color: currentStatus.text
+                          }}>
+                            {currentStatus.label}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => setExpandedClaimId(isExpanded ? null : claim.id)}
+                            className="btn btn-xs btn-ghost"
+                            style={{ border: 'none', color: 'var(--text-muted)' }}
+                            title="查看费用明细"
+                          >
+                            <i className={isExpanded ? "ph-bold ph-caret-up" : "ph-bold ph-caret-down"}></i>
+                          </button>
+
+                          {claim.status === 'SUBMITTED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleCancelClaim(claim.id)}
+                              disabled={isCancellingClaim}
+                              className="btn btn-xs btn-ghost"
+                              style={{ color: '#f87171', border: 'none', fontSize: '11px' }}
+                              title={t('claims.actionCancel', '撤回申请')}
+                            >
+                              <i className="ph-bold ph-x"></i>
+                              <span>{t('claims.actionCancel', '撤回')}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded Line Items Detail */}
+                      {isExpanded && (
+                        <div style={{
+                          marginTop: '8px',
+                          padding: '10px 12px',
+                          background: 'rgba(0, 0, 0, 0.25)',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px'
+                        }}>
+                          {(claim.items || []).map((it, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>#{i + 1}</span>
+                                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{it.merchantName}</span>
+                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                  {it.category}
+                                </span>
+                                {it.ocrExtracted && (
+                                  <span style={{ fontSize: '10px', color: 'var(--accent-emerald)' }}>✓ OCR</span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{it.receiptDate}</span>
+                                <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                                  MYR {Number(it.amount || 0).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                          {claim.rejection?.reason && (
+                            <div style={{ marginTop: '6px', fontSize: '11px', color: '#f87171' }}>
+                              <strong>{t('claims.statusRejected', '驳回原因')}:</strong> {claim.rejection.reason} ({claim.rejection.rejectedByName})
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* My Attendance Daily Records Table */}
         <div className="bezel-shell">
           <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
@@ -2491,6 +2693,15 @@ export default function LeaderboardPage() {
         hqMembers={hqMembers}
         isAdminMode={false}
         onSuccess={(msg) => showToast(msg)}
+      />
+    )}
+
+    {/* Expense Claim Modal (Employee Submit Mode) */}
+    {isClaimModalOpen && (
+      <ExpenseClaimModal
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+        existingClaims={myExpenseClaims}
       />
     )}
 

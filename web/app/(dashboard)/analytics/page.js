@@ -23,6 +23,7 @@ import {
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
 import ManualPunchModal from '../../../components/ManualPunchModal';
 import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
+import ExpenseClaimsAnalyticsTab from '../../../components/ExpenseClaimsAnalyticsTab';
 
 const getApiUrl = (path) => {
   return path;
@@ -141,7 +142,7 @@ export default function AnalyticsPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam && ['performance', 'attendance', 'commission'].includes(tabParam)) {
+      if (tabParam && ['performance', 'attendance', 'commission', 'claims'].includes(tabParam)) {
         setActiveTab(tabParam);
       }
       const viewParam = params.get('view');
@@ -182,6 +183,27 @@ export default function AnalyticsPage() {
     });
     return () => unsub();
   }, [teamId]);
+
+  // Subscribe to Expense Claims (HQ Only)
+  const [expenseClaims, setExpenseClaims] = useState([]);
+  const [claimsFilterMonth, setClaimsFilterMonth] = useState('all');
+  const [claimsStatusFilter, setClaimsStatusFilter] = useState('ALL');
+  const [claimsSearchText, setClaimsSearchText] = useState('');
+  const [selectedClaimIdsForBatch, setSelectedClaimIdsForBatch] = useState([]);
+  const [claimRejectModalOpen, setClaimRejectModalOpen] = useState(false);
+  const [claimToReject, setClaimToReject] = useState(null);
+  const [claimRejectReason, setClaimRejectReason] = useState('');
+  const [isExportingClaims, setIsExportingClaims] = useState(false);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [expandedAnalyticsClaimId, setExpandedAnalyticsClaimId] = useState(null);
+
+  useEffect(() => {
+    if (!isHqTeam || !teamId) return;
+    const unsub = FirestoreStore.subscribeExpenseClaims(teamId, role, user?.uid, (data) => {
+      setExpenseClaims(data || []);
+    });
+    return () => unsub();
+  }, [isHqTeam, teamId, role, user?.uid]);
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -409,6 +431,99 @@ export default function AnalyticsPage() {
       showToast(t('commission.exportFailed', '导出佣金报表失败: ') + (err.message || err));
     } finally {
       setIsExportingCommission(false);
+    }
+  };
+
+  // --- Claims & Reimbursement Actions ---
+  const handleManagerApproveClaim = async (claim) => {
+    try {
+      await FirestoreStore.updateExpenseClaimStatus(teamId, user, claim.id, 'MANAGER_APPROVED', {
+        title: claim.title,
+        note: '主管初审通过，流转至财务/Owner终审'
+      });
+      showToast(t('claims.toastManagerApproved', '初审通过，已流转至财务/Owner终审'));
+    } catch (err) {
+      showToast(`初审失败: ${err.message}`);
+    }
+  };
+
+  const handleFinanceApproveClaim = async (claim) => {
+    try {
+      await FirestoreStore.updateExpenseClaimStatus(teamId, user, claim.id, 'APPROVED_PENDING_PAYOUT', {
+        title: claim.title,
+        note: '财务终审批准，进入待放款资金池'
+      });
+      showToast(t('claims.toastFinanceApproved', '终审批准，已进入待放款资金池'));
+    } catch (err) {
+      showToast(`终审失败: ${err.message}`);
+    }
+  };
+
+  const handleRejectClaim = async () => {
+    if (!claimToReject) return;
+    if (!claimRejectReason.trim()) {
+      showToast('请输入明确的驳回原因 / Reason required');
+      return;
+    }
+    try {
+      const stage = claimToReject.status === 'SUBMITTED' ? 'MANAGER' : 'FINANCE';
+      await FirestoreStore.updateExpenseClaimStatus(teamId, user, claimToReject.id, 'REJECTED', {
+        title: claimToReject.title,
+        stage,
+        reason: claimRejectReason.trim()
+      });
+      showToast(t('claims.toastRejected', '报销单已驳回'));
+      setClaimRejectModalOpen(false);
+      setClaimToReject(null);
+      setClaimRejectReason('');
+    } catch (err) {
+      showToast(`驳回失败: ${err.message}`);
+    }
+  };
+
+  const handleExecuteBatch = async (type) => {
+    if (!selectedClaimIdsForBatch.length) return;
+    setIsBatchProcessing(true);
+    try {
+      const batchTitle = type === 'PAYROLL'
+        ? `${exportMonth || '当月'} 薪资随薪发放报销批次`
+        : `批次放款 - ${new Date().toISOString().slice(0, 10)}`;
+
+      await FirestoreStore.createClaimPayoutBatch(teamId, user, {
+        batchTitle,
+        claimIds: selectedClaimIdsForBatch,
+        payoutChannel: type,
+        payrollPeriod: type === 'PAYROLL' ? exportMonth : null
+      });
+
+      showToast(type === 'PAYROLL' ? t('claims.toastPayrollSuccess', '已成功并入薪资单锁定') : t('claims.toastBatchSuccess', '放款批次生成成功，已结清'));
+      setSelectedClaimIdsForBatch([]);
+    } catch (err) {
+      showToast(`放款批次操作失败: ${err.message}`);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleExportClaimsReport = async () => {
+    if (expenseClaims.length === 0) {
+      showToast('当前无可导出的报销数据 / No claims data');
+      return;
+    }
+    try {
+      setIsExportingClaims(true);
+      await ExcelExporter.exportExpenseClaimsReport({
+        claims: expenseClaims,
+        teamMembers,
+        monthStr: exportMonth || '',
+        locale: lang
+      });
+      showToast('🎉 报销财务对账表导出成功！');
+    } catch (err) {
+      console.error('Failed to export claims Excel:', err);
+      showToast('导出报销报表失败: ' + err.message);
+    } finally {
+      setIsExportingClaims(false);
     }
   };
 
@@ -1867,7 +1982,64 @@ export default function AnalyticsPage() {
               {t('commission.tabCommission', '成单佣金流水账')}
             </button>
             )}
+            {isHqTeam && (isOwner || isManager) && (
+            <button
+              className={`btn btn-sm ${activeTab === 'claims' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ border: 'none', gap: '6px' }}
+              onClick={() => setActiveTab('claims')}
+            >
+              <i className="ph-bold ph-receipt" style={{ color: 'var(--accent-emerald)' }}></i>
+              {t('claims.tabApproval', '报销审批与放款')}
+            </button>
+            )}
           </div>
+
+          {/* Top Quick Excel Export Button & Month Selector for Claims (HQ Owner / Manager) */}
+          {activeTab === 'claims' && isHqTeam && (isOwner || isManager) && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+              <select
+                value={exportMonth}
+                onChange={(e) => setExportMonth(e.target.value)}
+                style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  padding: '5px 8px',
+                  borderRadius: 'var(--radius-md)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  zIndex: 61
+                }}
+                title={t('claims.exportReportBtn', '选择导出报销对账表的月份')}
+              >
+                <option value="all">全部月份 (All Months)</option>
+                {exportMonthOptions.map(ym => (
+                  <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.25) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  color: 'var(--accent-emerald)',
+                  fontWeight: '700',
+                  gap: '6px',
+                  fontSize: '12px',
+                  position: 'relative',
+                  zIndex: 61
+                }}
+                onClick={handleExportClaimsReport}
+                disabled={isExportingClaims}
+              >
+                <i className={isExportingClaims ? "ph-bold ph-spinner ph-spin" : "ph-bold ph-file-arrow-down"}></i>
+                <span>{isExportingClaims ? '导出中...' : t('claims.exportReportBtn', '导出报销对账表')}</span>
+              </button>
+            </div>
+          )}
 
           {/* Top Quick Excel Export Button & Month Selector for Commission (Owner Only) */}
           {activeTab === 'commission' && isOwner && (
@@ -3934,6 +4106,26 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: 报销审批、双轨放款与薪资联动工作台 (Claims & Reimbursement)         */}
+      {/* ========================================================================= */}
+      {activeTab === 'claims' && isHqTeam && (isOwner || isManager) && (
+        <ExpenseClaimsAnalyticsTab
+          expenseClaims={expenseClaims}
+          teamMembers={teamMembers}
+          isOwner={isOwner}
+          isManager={isManager}
+          teamId={teamId}
+          user={user}
+          exportMonth={exportMonth}
+          exportMonthOptions={exportMonthOptions}
+          onApproveManager={handleManagerApproveClaim}
+          onApproveFinance={handleFinanceApproveClaim}
+          onExecuteBatch={handleExecuteBatch}
+          showToast={showToast}
+        />
       )}
 
       {/* Verification In-Progress Overlay */}
