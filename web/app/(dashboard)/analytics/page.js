@@ -22,6 +22,7 @@ import {
 } from '../../../lib/commission-engine';
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
 import ManualPunchModal from '../../../components/ManualPunchModal';
+import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
 
 const getApiUrl = (path) => {
   return path;
@@ -119,6 +120,12 @@ export default function AnalyticsPage() {
   // Attendance Sub-view & Appeals States
   const [attendanceViewMode, setAttendanceViewMode] = useState('team'); // 'my' | 'team'
   const [attendanceAppeals, setAttendanceAppeals] = useState([]);
+  const [attendanceLeaves, setAttendanceLeaves] = useState([]);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveRejectModalOpen, setLeaveRejectModalOpen] = useState(false);
+  const [leaveTargetToReject, setLeaveTargetToReject] = useState(null);
+  const [leaveRejectReason, setLeaveRejectReason] = useState('');
+  const [isProcessingLeave, setIsProcessingLeave] = useState(false);
   const [appealModalOpen, setAppealModalOpen] = useState(false);
   const [appealTargetRecord, setAppealTargetRecord] = useState(null);
   const [manualPunchModalOpen, setManualPunchModalOpen] = useState(false);
@@ -163,6 +170,15 @@ export default function AnalyticsPage() {
     if (!teamId) return;
     const unsub = FirestoreStore.subscribeToAttendanceAppeals(teamId, (data) => {
       setAttendanceAppeals(data || []);
+    });
+    return () => unsub();
+  }, [teamId]);
+
+  // Subscribe to Attendance Leaves
+  useEffect(() => {
+    if (!teamId) return;
+    const unsub = FirestoreStore.subscribeToAttendanceLeaves(teamId, (data) => {
+      setAttendanceLeaves(data || []);
     });
     return () => unsub();
   }, [teamId]);
@@ -696,10 +712,18 @@ export default function AnalyticsPage() {
       const overrideKeyEmail = r.userEmail ? `${r.date}__${r.userEmail}` : null;
       const overrideData = (attendanceRules?.shiftOverrides && (attendanceRules.shiftOverrides[overrideKey] || (overrideKeyEmail && attendanceRules.shiftOverrides[overrideKeyEmail]))) || null;
 
+      const leaveRecord = CascadeShiftEngine.findActiveLeaveForDate(
+        attendanceLeaves,
+        r.userId,
+        r.userEmail,
+        r.picName,
+        r.date
+      );
+
       const shiftAnalysis = CascadeShiftEngine.resolveDailyShift(
         dayEvents,
         attendanceRules.shiftConfig,
-        { locale: isEn ? 'en' : 'zh', overrideShift: overrideData, isToday }
+        { locale: isEn ? 'en' : 'zh', overrideShift: overrideData, isToday, leaveRecord }
       );
 
       // 工时跨度：在明确签退之前严格显示为空 (null)；明确签退后才计算有效工时
@@ -718,7 +742,11 @@ export default function AnalyticsPage() {
       let statusLabel = shiftAnalysis.complianceLabel || t('analytics.statusFullShift', '正常完成');
       let statusColor = shiftAnalysis.isViolation ? '#ef4444' : shiftAnalysis.isMissingPunch ? 'var(--accent-amber)' : 'var(--accent-emerald)';
 
-      if (isToday) {
+      if (shiftAnalysis.isOnLeave || shiftAnalysis.compliance === 'ON_LEAVE') {
+        status = 'on_leave';
+        statusLabel = shiftAnalysis.complianceLabel;
+        statusColor = 'var(--accent-emerald)';
+      } else if (isToday) {
         // 当天进行中（未到午夜 12 点）：未签退不算缺卡
         if (r.manualLunchOut && !r.manualLunchIn) {
           status = 'lunch';
@@ -761,7 +789,7 @@ export default function AnalyticsPage() {
 
     // Sort by date desc, then by first action time desc
     return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
-  }, [logs, manualCheckins, teamMembers, attendanceRules, lang, t]);
+  }, [logs, manualCheckins, teamMembers, attendanceRules, attendanceLeaves, lang, t]);
 
   // Filtered attendance list
   const filteredAttendance = useMemo(() => {
@@ -834,6 +862,55 @@ export default function AnalyticsPage() {
   const pendingAppeals = useMemo(() => {
     return attendanceAppeals.filter(a => a.status === 'PENDING');
   }, [attendanceAppeals]);
+
+  const pendingLeaves = useMemo(() => {
+    return attendanceLeaves.filter(l => l.status === 'PENDING');
+  }, [attendanceLeaves]);
+
+  const handleApproveLeave = async (leave) => {
+    try {
+      setIsProcessingLeave(true);
+      await FirestoreStore.reviewAttendanceLeave(teamId, leave.id, {
+        status: 'APPROVED',
+        reviewNote: '主管核准',
+        adminUser: user,
+        originalLeave: leave
+      });
+      showToast(t('attendanceLeave.toastApproveSuccess', '已批准员工休假申请'));
+    } catch (err) {
+      console.error('Failed to approve leave:', err);
+      showToast(err.message || '审批失败');
+    } finally {
+      setIsProcessingLeave(false);
+    }
+  };
+
+  const handleOpenRejectLeave = (leave) => {
+    setLeaveTargetToReject(leave);
+    setLeaveRejectReason('');
+    setLeaveRejectModalOpen(true);
+  };
+
+  const handleConfirmRejectLeave = async () => {
+    if (!leaveTargetToReject) return;
+    try {
+      setIsProcessingLeave(true);
+      await FirestoreStore.reviewAttendanceLeave(teamId, leaveTargetToReject.id, {
+        status: 'REJECTED',
+        reviewNote: leaveRejectReason.trim() || '主管驳回',
+        adminUser: user,
+        originalLeave: leaveTargetToReject
+      });
+      showToast(t('attendanceLeave.toastRejectSuccess', '已驳回员工请假申请'));
+      setLeaveRejectModalOpen(false);
+      setLeaveTargetToReject(null);
+    } catch (err) {
+      console.error('Failed to reject leave:', err);
+      showToast(err.message || '驳回失败');
+    } finally {
+      setIsProcessingLeave(false);
+    }
+  };
 
   const myAppealsByDate = useMemo(() => {
     const map = {};
@@ -1468,6 +1545,7 @@ export default function AnalyticsPage() {
         shiftOverrides: attendanceRules.shiftOverrides || {},
         excludedAccounts: attendanceRules.excludedAccounts || [],
         hideZeroAttendance: Boolean(attendanceRules.hideZeroAttendanceInReport),
+        attendanceLeaves: attendanceLeaves || [],
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -2198,7 +2276,7 @@ export default function AnalyticsPage() {
                 >
                   <i className="ph-bold ph-users-three"></i>
                   <span>{t('analytics.viewTeamAttendance', '团队考勤明细')}</span>
-                  {pendingAppeals.length > 0 && (
+                  {(pendingAppeals.length + pendingLeaves.length) > 0 && (
                     <span style={{
                       background: '#ef4444',
                       color: '#fff',
@@ -2208,13 +2286,34 @@ export default function AnalyticsPage() {
                       borderRadius: '10px',
                       marginLeft: '4px'
                     }}>
-                      {pendingAppeals.length}
+                      {pendingAppeals.length + pendingLeaves.length}
                     </span>
                   )}
                 </button>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: 'rgba(16, 185, 129, 0.4)',
+                    color: 'var(--accent-emerald)',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    borderRadius: 'var(--radius-md)'
+                  }}
+                  onClick={() => setLeaveModalOpen(true)}
+                >
+                  <i className="ph-bold ph-calendar-minus"></i>
+                  <span>{t('attendanceLeave.btnAdminQuickAdd', '登记/录入员工休假')}</span>
+                </button>
+
                 <button
                   type="button"
                   className="btn btn-sm btn-outline"
@@ -2803,6 +2902,129 @@ export default function AnalyticsPage() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Pending Leaves Banner (Shown to managers when there are pending staff leaves) */}
+              {pendingLeaves.length > 0 && (
+                <div className="bezel-shell" style={{ border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                  <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)', background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.2)', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <i className="ph-bold ph-calendar-minus" style={{ fontSize: '16px' }}></i>
+                        </div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--accent-emerald)' }}>
+                          {t('attendanceLeave.adminPendingTitle', { count: pendingLeaves.length }, `待审批员工请假申请 (${pendingLeaves.length} 条待办)`)}
+                        </h4>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {t('attendanceLeave.adminReviewTip', '批准后系统自动对该员工当天排班实施打卡豁免')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {pendingLeaves.map(leave => {
+                        const dateText = leave.startDate === leave.endDate ? leave.startDate : `${leave.startDate} ~ ${leave.endDate}`;
+                        const durationLabel = leave.durationType === 'FULL_DAY' ? t('attendanceLeave.fullDay', '全天')
+                          : leave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', '上午半天') : t('attendanceLeave.halfPm', '下午半天');
+
+                        return (
+                          <div
+                            key={leave.id}
+                            style={{
+                              background: 'rgba(0, 0, 0, 0.25)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: 'var(--radius-md)',
+                              padding: '10px 14px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: '12px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
+                                  {leave.picName || leave.userEmail}
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  ({leave.userEmail})
+                                </span>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontFamily: 'monospace',
+                                  fontWeight: '700',
+                                  color: 'var(--accent-emerald)',
+                                  background: 'rgba(16, 185, 129, 0.15)',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {dateText}
+                                </span>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: 'var(--accent-blue)',
+                                  background: 'rgba(59, 130, 246, 0.15)',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {leave.leaveType} · {durationLabel} ({leave.daysCount}天)
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                <strong style={{ color: 'var(--text-muted)' }}>{t('attendanceLeave.colReason', '事由')}: </strong>
+                                {leave.reason || '无'}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary"
+                                style={{
+                                  fontSize: '12px',
+                                  padding: '4px 12px',
+                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                  border: 'none',
+                                  color: '#fff',
+                                  fontWeight: '700',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                disabled={isProcessingLeave}
+                                onClick={() => handleApproveLeave(leave)}
+                              >
+                                <i className="ph-bold ph-check"></i>
+                                <span>{t('attendanceLeave.btnApprove', '批准休假')}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline"
+                                style={{
+                                  fontSize: '12px',
+                                  padding: '4px 12px',
+                                  color: '#f87171',
+                                  borderColor: 'rgba(239, 68, 68, 0.35)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                disabled={isProcessingLeave}
+                                onClick={() => handleOpenRejectLeave(leave)}
+                              >
+                                <i className="ph-bold ph-x"></i>
+                                <span>{t('attendanceLeave.btnReject', '驳回')}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -4737,6 +4959,102 @@ export default function AnalyticsPage() {
         prefillTarget={manualPunchPrefillTarget}
         onSuccess={(msg) => showToast(msg)}
       />
+
+      {/* Attendance Leave Modal (主管代录入 / 员工请假) */}
+      <AttendanceLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={() => setLeaveModalOpen(false)}
+        teamId={teamId}
+        user={user}
+        userProfile={userProfile}
+        hqMembers={teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending')}
+        isAdminMode={Boolean(canManageAttendance)}
+        onSuccess={(msg) => showToast(msg)}
+      />
+
+      {/* Leave Rejection Modal */}
+      {leaveRejectModalOpen && leaveTargetToReject && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10060,
+          background: 'rgba(0, 0, 0, 0.72)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--space-4)'
+        }}>
+          <div className="bezel-shell" style={{ maxWidth: '440px', width: '100%', animation: 'scaleUp 0.2s ease-out' }}>
+            <div className="bezel-core" style={{ padding: 'var(--space-5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: 'var(--space-3)' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#f87171',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px'
+                }}>
+                  <i className="ph-bold ph-x-circle"></i>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                    {t('attendanceLeave.rejectTitle', '驳回员工请假申请')}
+                  </h3>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    {leaveTargetToReject.picName} ({leaveTargetToReject.startDate})
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 'var(--space-4)' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                  {t('attendanceLeave.lblRejectReason', '驳回理由/说明 (Reject Reason)')} *
+                </label>
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  style={{ width: '100%', fontSize: '13px' }}
+                  placeholder={t('attendanceLeave.placeholderRejectReason', '例如：当日有重要客户面试安排，建议调整休假日期')}
+                  value={leaveRejectReason}
+                  onChange={(e) => setLeaveRejectReason(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={isProcessingLeave}
+                  onClick={() => {
+                    setLeaveRejectModalOpen(false);
+                    setLeaveTargetToReject(null);
+                  }}
+                  style={{ height: '34px', fontSize: '12px' }}
+                >
+                  {t('common.cancel', '取消')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ height: '34px', fontSize: '12px', background: '#ef4444', borderColor: '#ef4444' }}
+                  disabled={isProcessingLeave}
+                  onClick={handleConfirmRejectLeave}
+                >
+                  {isProcessingLeave ? t('common.submitting', '处理中...') : t('attendanceLeave.btnConfirmReject', '确认驳回')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -42,7 +42,18 @@ export const CASCADE_I18N = {
     compliantNote: '考勤阶梯工时达标',
     lateSuffix: ' (迟到)',
     overriddenTag: '[主管调整]',
-    overrideHint: '经主管人工调整'
+    overrideHint: '经主管人工调整',
+    onLeaveFull: '🏖️ 休假中',
+    onLeaveNote: (typeLabel, reason) => `已获批全天${typeLabel}${reason ? ' (' + reason + ')' : ''}`,
+    halfDayAmTag: '[上午请假]',
+    halfDayPmTag: '[下午请假]',
+    leaveTypes: {
+      ANNUAL: '年假(AL)',
+      SICK: '病假(MC)',
+      EMERGENCY: '紧急事假(EL)',
+      UNPAID: '无薪假(UL)',
+      OTHER: '其他假'
+    }
   },
   en: {
     notClocked: 'Not Clocked',
@@ -70,7 +81,18 @@ export const CASCADE_I18N = {
     compliantNote: 'Shift hours requirement fulfilled',
     lateSuffix: ' (Late)',
     overriddenTag: '[Adjusted]',
-    overrideHint: 'Manually adjusted by manager'
+    overrideHint: 'Manually adjusted by manager',
+    onLeaveFull: '🏖️ On Leave',
+    onLeaveNote: (typeLabel, reason) => `Approved Full-Day ${typeLabel}${reason ? ' (' + reason + ')' : ''}`,
+    halfDayAmTag: '[AM Leave]',
+    halfDayPmTag: '[PM Leave]',
+    leaveTypes: {
+      ANNUAL: 'Annual(AL)',
+      SICK: 'Sick(MC)',
+      EMERGENCY: 'Emergency(EL)',
+      UNPAID: 'Unpaid(UL)',
+      OTHER: 'Leave'
+    }
   }
 };
 
@@ -233,12 +255,44 @@ export class CascadeShiftEngine {
   }
 
   /**
+   * 在已批准请假列表中检索目标员工当天的有效请假记录
+   * @param {Array<object>} leaves - 请假单列表
+   * @param {string} userId - 用户 UID
+   * @param {string} userEmail - 用户邮箱
+   * @param {string} picName - 用户显示名/经办人
+   * @param {string} dateStr - 目标日期 'YYYY-MM-DD'
+   * @returns {object|null}
+   */
+  static findActiveLeaveForDate(leaves = [], userId = '', userEmail = '', picName = '', dateStr = '') {
+    if (!Array.isArray(leaves) || leaves.length === 0 || !dateStr) return null;
+    const normUid = String(userId || '').trim();
+    const normEmail = String(userEmail || '').trim().toLowerCase();
+    const normName = String(picName || '').trim().toLowerCase();
+
+    return leaves.find(l => {
+      if (!l || l.status !== 'APPROVED') return false;
+      const lUid = String(l.userId || '').trim();
+      const lEmail = String(l.userEmail || '').trim().toLowerCase();
+      const lName = String(l.picName || '').trim().toLowerCase();
+
+      const userMatched = (normUid && lUid === normUid) ||
+        (normEmail && lEmail && normEmail === lEmail) ||
+        (normName && lName && normName === lName);
+      if (!userMatched) return false;
+
+      const sDate = String(l.startDate || '').trim();
+      const eDate = String(l.endDate || sDate).trim();
+      return dateStr >= sDate && dateStr <= eDate;
+    }) || null;
+  }
+
+  /**
    * 核心单日考勤判定机理（输入单日事件流，输出合规画像）
    * @param {Array<object>} dayEvents - 当天由 Firestore logs / attendance 汇聚的打卡流水
    * @param {object} [customConfig] - 考勤 shiftConfig 配置
-   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en', overrideShift?: object | string, isToday?: boolean }
+   * @param {object} [options] - 可选配置，如 { locale: 'zh' | 'en', overrideShift?: object | string, isToday?: boolean, leaveRecord?: object }
    */
-  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh', overrideShift = null, isToday = false } = {}) {
+  static resolveDailyShift(dayEvents = [], customConfig, { locale = 'zh', overrideShift = null, isToday = false, leaveRecord = null } = {}) {
     const config = this.getEffectiveConfig(customConfig);
     const labels = CASCADE_I18N[locale] || CASCADE_I18N.zh;
 
@@ -283,6 +337,36 @@ export class CascadeShiftEngine {
       }
     }
 
+    // 获批全天休假场景且全天无打卡：豁免打卡，直接标记为合规休假
+    if (leaveRecord && leaveRecord.status === 'APPROVED' && leaveRecord.durationType === 'FULL_DAY' && (!Array.isArray(dayEvents) || dayEvents.length === 0)) {
+      const typeLabel = labels.leaveTypes?.[leaveRecord.leaveType] || leaveRecord.leaveType || '';
+      return {
+        hasAttendance: false,
+        isOnLeave: true,
+        leaveRecord,
+        leaveType: leaveRecord.leaveType,
+        leaveDurationType: 'FULL_DAY',
+        firstIn: null,
+        lastOut: null,
+        clockInStr: '-',
+        clockOutStr: '-',
+        shift: {
+          id: 'leave_full',
+          name: typeLabel ? `${labels.onLeaveFull} (${typeLabel})` : labels.onLeaveFull,
+          baseName: labels.onLeaveFull,
+          endStr: '-'
+        },
+        durationHours: null,
+        compliance: 'ON_LEAVE',
+        complianceLabel: `${labels.onLeaveFull} · ${typeLabel}`,
+        isCompliant: true,
+        isViolation: false,
+        isMissingPunch: false,
+        isLate: false,
+        note: typeof labels.onLeaveNote === 'function' ? labels.onLeaveNote(typeLabel, leaveRecord.reason) : `${labels.onLeaveFull} (${typeLabel})`
+      };
+    }
+
     if (!Array.isArray(dayEvents) || dayEvents.length === 0) {
       return {
         hasAttendance: false,
@@ -312,6 +396,35 @@ export class CascadeShiftEngine {
       .filter(e => e.dateObj !== null);
 
     if (normalized.length === 0) {
+      if (leaveRecord && leaveRecord.status === 'APPROVED' && leaveRecord.durationType === 'FULL_DAY') {
+        const typeLabel = labels.leaveTypes?.[leaveRecord.leaveType] || leaveRecord.leaveType || '';
+        return {
+          hasAttendance: false,
+          isOnLeave: true,
+          leaveRecord,
+          leaveType: leaveRecord.leaveType,
+          leaveDurationType: 'FULL_DAY',
+          firstIn: null,
+          lastOut: null,
+          clockInStr: '-',
+          clockOutStr: '-',
+          shift: {
+            id: 'leave_full',
+            name: typeLabel ? `${labels.onLeaveFull} (${typeLabel})` : labels.onLeaveFull,
+            baseName: labels.onLeaveFull,
+            endStr: '-'
+          },
+          durationHours: null,
+          compliance: 'ON_LEAVE',
+          complianceLabel: `${labels.onLeaveFull} · ${typeLabel}`,
+          isCompliant: true,
+          isViolation: false,
+          isMissingPunch: false,
+          isLate: false,
+          note: typeof labels.onLeaveNote === 'function' ? labels.onLeaveNote(typeLabel, leaveRecord.reason) : `${labels.onLeaveFull} (${typeLabel})`
+        };
+      }
+
       return {
         hasAttendance: false,
         firstIn: null,
@@ -329,6 +442,43 @@ export class CascadeShiftEngine {
         note: labels.invalidTs
       };
     }
+
+    // 半天假判定标识
+    const isHalfAm = Boolean(leaveRecord && leaveRecord.status === 'APPROVED' && leaveRecord.durationType === 'HALF_AM');
+    const isHalfPm = Boolean(leaveRecord && leaveRecord.status === 'APPROVED' && leaveRecord.durationType === 'HALF_PM');
+
+    const resolveCurrentShift = (firstInDate) => {
+      if (manualShift) return manualShift;
+      if (isHalfAm) {
+        const lastShift = (config.shifts && config.shifts.length > 0)
+          ? config.shifts[config.shifts.length - 1]
+          : { id: 'shift_d', name: 'Shift D (9:00am - 6:00pm)', startTime: '09:00', endTime: '18:00' };
+        const inSecs = firstInDate ? (firstInDate.getHours() * 3600 + firstInDate.getMinutes() * 60 + firstInDate.getSeconds()) : 0;
+        // 上午半天假：只要在 13:30:59 及之前打卡均合法准点，晚于 13:31:00 计迟到
+        const isLate = inSecs > (13 * 3600 + 30 * 60 + 59);
+        return {
+          id: 'shift_half_am',
+          name: `${lastShift.name} ${labels.halfDayAmTag}${isLate ? labels.lateSuffix : ''}`,
+          baseName: `${lastShift.name} ${labels.halfDayAmTag}`,
+          startTime: '13:30',
+          endTime: lastShift.endTime,
+          endMinutes: this.parseTimeToMinutes(lastShift.endTime),
+          endStr: `${lastShift.endTime}:00`,
+          isLateArrival: isLate,
+          isHalfAm: true
+        };
+      }
+      const matched = this.matchShift(firstInDate, config, { locale });
+      if (isHalfPm) {
+        return {
+          ...matched,
+          name: `${matched.name} ${labels.halfDayPmTag}`,
+          baseName: `${matched.baseName || matched.name} ${labels.halfDayPmTag}`,
+          isHalfPm: true
+        };
+      }
+      return matched;
+    };
 
     // 2. 提取打卡：区分上班签到 (CLOCK_IN) 与下班签退 (CLOCK_OUT)
     const inEvents = normalized.filter(e => e.type === 'CLOCK_IN' || e.type === 'CHECK_IN');
@@ -351,7 +501,7 @@ export class CascadeShiftEngine {
 
     // 3. 场景 A：只有签到，无签退（解决忘记打卡痛点，严禁签退伪造成签到时间）
     if (firstIn && !lastOut) {
-      const shift = manualShift || this.matchShift(firstIn, config, { locale });
+      const shift = resolveCurrentShift(firstIn);
       if (isToday) {
         return {
           hasAttendance: true,
@@ -414,7 +564,7 @@ export class CascadeShiftEngine {
     // 5. 场景 C：签到与签退时间相同，或间隔 < 30 分钟（疑似连击误触防呆）
     const durationMs = lastOut.getTime() - firstIn.getTime();
     const durationMinutes = durationMs / (1000 * 60);
-    const shift = manualShift || this.matchShift(firstIn, config, { locale });
+    const shift = resolveCurrentShift(firstIn);
 
     if (durationMinutes < 30) {
       return {
@@ -438,7 +588,11 @@ export class CascadeShiftEngine {
 
     // 6. 场景 D：正常上下班时长核对 & 提前签退绝杀判定
     const actualOutMinutes = this.getDateMinutesOfDay(lastOut);
-    const requiredEndMinutes = shift.endMinutes;
+    let requiredEndMinutes = shift.endMinutes;
+    if (isHalfPm) {
+      // 下午半天假：允许于 12:30 以后提前签退，不触发早退绝杀
+      requiredEndMinutes = Math.min(requiredEndMinutes, 12 * 60 + 30);
+    }
     const durationHours = Number((durationMinutes / 60).toFixed(1));
 
     // 提前签退（哪怕只提前 1 秒）
@@ -466,7 +620,7 @@ export class CascadeShiftEngine {
       };
     }
 
-    // 上班迟到（超9点档）但下班时间达标（若主管人工特批改派，则不计迟到）
+    // 上班迟到（超9点档 / 下午假超13:30）但下班时间达标（若主管人工特批改派，则不计迟到）
     if (shift.isLateArrival && !shift.isOverridden) {
       return {
         hasAttendance: true,

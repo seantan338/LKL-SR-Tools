@@ -39,6 +39,7 @@ export const EXCEL_I18N = {
     colPresentDays: '实际出勤天数 (天)',
     colOfficeDays: '办公室打卡 (天)',
     colWfhDays: '🏠 WFH居家 (天)',
+    colLeaveDays: '请假天数 (天)',
     colCompliantDays: '阶梯班次达标 (天)',
     colViolations: '迟到/早退违规 (次)',
     colMissedAnomalies: '未签退/异常 (次)',
@@ -62,6 +63,8 @@ export const EXCEL_I18N = {
     methodWifi: '公司 Wi-Fi',
     methodGps: 'GPS 地理围栏',
     methodAdminManual: '管理员补录',
+    methodLeave: '获批休假',
+    leaveMatrixShort: { ANNUAL: '休(AL)', SICK: '病(MC)', EMERGENCY: '事(EL)', UNPAID: '无薪(UL)', OTHER: '假' },
     manualAuditNoteText: (name, reason) => `[管理员补录: 由 ${name || '管理员'} 补录${reason ? ' - ' + reason : ''}]`,
     methodRegular: '日常打卡',
     weekendRest: '休',
@@ -109,6 +112,7 @@ export const EXCEL_I18N = {
     colPresentDays: 'Days Present',
     colOfficeDays: 'Office Days',
     colWfhDays: '🏠 WFH Days',
+    colLeaveDays: 'Leave Days',
     colCompliantDays: 'Compliant Shifts',
     colViolations: 'Violations / Late',
     colMissedAnomalies: 'Missed / Anomalies',
@@ -132,6 +136,8 @@ export const EXCEL_I18N = {
     methodWifi: 'Office Wi-Fi',
     methodGps: 'GPS Geofence',
     methodAdminManual: 'Admin Manual Entry',
+    methodLeave: 'On Leave',
+    leaveMatrixShort: { ANNUAL: 'AL', SICK: 'MC', EMERGENCY: 'EL', UNPAID: 'UL', OTHER: 'Leave' },
     manualAuditNoteText: (name, reason) => `[Admin Manual Entry: Added by ${name || 'Admin'}${reason ? ' - ' + reason : ''}]`,
     methodRegular: 'Standard Check-in',
     weekendRest: 'OFF',
@@ -517,6 +523,7 @@ export const ExcelExporter = {
     shiftOverrides = {},
     excludedAccounts = [],
     hideZeroAttendance = false,
+    attendanceLeaves = [],
     locale = 'zh'
   }) {
     const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
@@ -584,7 +591,45 @@ export const ExcelExporter = {
       }
     });
 
-    // 3. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次）
+    // 2.1 注入经审批通过的请假记录（确保全天休假且无打卡的人员日期被建档）
+    const approvedLeaves = (attendanceLeaves || []).filter(l => l && l.status === 'APPROVED');
+    approvedLeaves.forEach(leave => {
+      const sDate = String(leave.startDate || '').trim();
+      const eDate = String(leave.endDate || sDate).trim();
+      if (!sDate) return;
+
+      const rawPic = leave.picName || leave.userName || (leave.userEmail ? leave.userEmail.split('@')[0] : labels.defaultPic);
+      const rawUid = leave.userId || '';
+      const canonical = resolveCanonicalPic(rawPic, rawUid, hqMembers);
+      const picName = canonical.displayName || rawPic;
+      const userId = canonical.uid || rawUid || canonical.key || picName;
+      const userEmail = leave.userEmail || '';
+
+      if (isAccountExcluded({ uid: userId, email: userEmail, name: picName }, excludedAccounts)) {
+        return;
+      }
+
+      meta.days.forEach(dayMeta => {
+        const dStr = dayMeta.dateStr;
+        if (dStr >= sDate && dStr <= eDate) {
+          const key = `${dStr}__${userId}`;
+          if (!dailyMap[key]) {
+            dailyMap[key] = {
+              dateStr: dStr,
+              dateObj: new Date(dayMeta.year, dayMeta.month - 1, dayMeta.day, 9, 0, 0),
+              userId,
+              picName,
+              userEmail,
+              events: [],
+              verifyMethod: 'LEAVE',
+              verifySnapshot: null
+            };
+          }
+        }
+      });
+    });
+
+    // 3. 针对每一条每日记录应用 CascadeShiftEngine 判定（支持主管人工改派班次与获批休假）
     const dailyLogs = Object.values(dailyMap).map(day => {
       // 对单日事件按时间正序排列并消除双写重复记录
       const cleanEvents = deduplicateDayEvents(day.events);
@@ -594,7 +639,22 @@ export const ExcelExporter = {
       const overrideKeyUid = `${day.dateStr}__${day.userId}`;
       const overrideShift = (shiftOverrides && (shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid])) || null;
       const isToday = day.dateStr === meta.todayStr;
-      const res = CascadeShiftEngine.resolveDailyShift(cleanEvents, shiftConfig, { locale, overrideShift, isToday });
+
+      // 匹配当天的获批请假记录
+      const leaveRecord = CascadeShiftEngine.findActiveLeaveForDate(
+        attendanceLeaves,
+        day.userId,
+        day.userEmail,
+        day.picName,
+        day.dateStr
+      );
+
+      const res = CascadeShiftEngine.resolveDailyShift(cleanEvents, shiftConfig, {
+        locale,
+        overrideShift,
+        isToday,
+        leaveRecord
+      });
 
       // 提取午休打卡流水
       const lunchOutEvt = cleanEvents.find(e => e.type === 'LUNCH_OUT');
@@ -604,6 +664,7 @@ export const ExcelExporter = {
 
       return {
         ...day,
+        leaveRecord,
         analysis: res,
         lunchOutStr,
         lunchInStr
@@ -634,6 +695,8 @@ export const ExcelExporter = {
         daysPresent: 0,
         officeDays: 0,
         wfhDays: 0,
+        leaveDays: 0,
+        fullLeaveDaysElapsed: 0,
         compliantDays: 0,
         violationCount: 0,
         missingPunchCount: 0
@@ -657,11 +720,23 @@ export const ExcelExporter = {
           daysPresent: 0,
           officeDays: 0,
           wfhDays: 0,
+          leaveDays: 0,
+          fullLeaveDaysElapsed: 0,
           compliantDays: 0,
           violationCount: 0,
           missingPunchCount: 0
         };
         memberSummaryMap[log.userId] = target;
+      }
+
+      // 累计请假天数
+      if (log.leaveRecord) {
+        const isFull = log.leaveRecord.durationType === 'FULL_DAY';
+        const addDays = isFull ? 1 : 0.5;
+        target.leaveDays = (target.leaveDays || 0) + addDays;
+        if (isFull && log.dateStr <= meta.todayStr) {
+          target.fullLeaveDaysElapsed = (target.fullLeaveDaysElapsed || 0) + 1;
+        }
       }
 
       if (log.analysis.hasAttendance) {
@@ -689,7 +764,7 @@ export const ExcelExporter = {
 
     // 成员列表按 表现最优（达标天数降序 -> 合规率降序 -> 实际出勤降序 -> 姓名升序）排序，并按需隐藏 0 出勤账号
     const sortedMembers = Object.values(memberSummaryMap)
-      .filter(m => !hideZeroAttendance || m.daysPresent > 0)
+      .filter(m => !hideZeroAttendance || m.daysPresent > 0 || (m.leaveDays && m.leaveDays > 0))
       .sort((a, b) => {
         if (b.compliantDays !== a.compliantDays) return b.compliantDays - a.compliantDays;
         const evalDaysA = a.evaluatedDays !== undefined ? a.evaluatedDays : a.daysPresent;
@@ -709,6 +784,7 @@ export const ExcelExporter = {
       labels.colPresentDays,
       labels.colOfficeDays,
       labels.colWfhDays,
+      labels.colLeaveDays,
       labels.colCompliantDays,
       labels.colViolations,
       labels.colMissedAnomalies,
@@ -717,8 +793,10 @@ export const ExcelExporter = {
     ];
 
     const summaryRows = sortedMembers.map(m => {
-      // 出勤率 = 实际出勤天数 / 截止目前应出勤工作日
-      const attendanceRate = meta.elapsedWorkingDays > 0 ? ((m.daysPresent / meta.elapsedWorkingDays) * 100).toFixed(1) + '%' : '0.0%';
+      // 出勤率 = 实际出勤天数 / (截止目前应出勤 - 获批全天休假天数)；有效分子分母均大于等于1，避免合法请假拉低出勤率
+      const fullLeaveDays = m.fullLeaveDaysElapsed || 0;
+      const effectiveExpectedDays = Math.max(1, meta.elapsedWorkingDays - fullLeaveDays);
+      const attendanceRate = meta.elapsedWorkingDays > 0 ? ((m.daysPresent / effectiveExpectedDays) * 100).toFixed(1) + '%' : '0.0%';
       // 班次合规率 = 达标天数 / 实际已结出勤天数（剔除今日尚未下班在岗中未决状态，避免白天未下班拉低合规率）
       const evalDays = m.evaluatedDays !== undefined ? m.evaluatedDays : m.daysPresent;
       const complianceRate = evalDays > 0 ? ((m.compliantDays / evalDays) * 100).toFixed(1) + '%' : '0.0%';
@@ -730,6 +808,7 @@ export const ExcelExporter = {
         m.daysPresent,
         m.officeDays,
         m.wfhDays,
+        m.leaveDays || 0,
         m.compliantDays,
         m.violationCount,
         m.missingPunchCount,
@@ -758,23 +837,42 @@ export const ExcelExporter = {
           return false;
         });
 
+        const directLeave = dayLog?.leaveRecord || CascadeShiftEngine.findActiveLeaveForDate(
+          attendanceLeaves,
+          m.uid,
+          m.email,
+          m.name,
+          d.dateStr
+        );
+
         if (dayLog && dayLog.analysis.hasAttendance) {
           const a = dayLog.analysis;
           const inStr = a.clockInStr && a.clockInStr !== '-' && a.clockInStr !== labels.notClocked ? a.clockInStr.slice(0, 5) : '';
           const outStr = a.clockOutStr && a.clockOutStr !== '-' && a.clockOutStr !== labels.notClocked ? a.clockOutStr.slice(0, 5) : '';
           const isWfh = dayLog.verifyMethod === 'WFH' || dayLog.verifySnapshot?.method === 'WFH';
 
+          let cellText = '';
           if (a.compliance === 'IN_PROGRESS' || a.isInProgress) {
-            row.push(a.isLate ? `⚠️ ${inStr} (${labels.lateShort})` : `💼 ${inStr} (${labels.inProgressShort})`);
+            cellText = a.isLate ? `⚠️ ${inStr} (${labels.lateShort})` : `💼 ${inStr} (${labels.inProgressShort})`;
           } else if (a.isMissingPunch) {
-            row.push(inStr ? `❗ ${inStr}-${labels.missedOutShort}` : (outStr ? `❗ ${labels.missedOutShort}-${outStr}` : `❗ ${labels.missedOutShort}`));
+            cellText = inStr ? `❗ ${inStr}-${labels.missedOutShort}` : (outStr ? `❗ ${labels.missedOutShort}-${outStr}` : `❗ ${labels.missedOutShort}`);
           } else if (isWfh) {
-            row.push(`🏠 WFH ${inStr}-${outStr}`);
+            cellText = `🏠 WFH ${inStr}-${outStr}`;
           } else if (a.isCompliant) {
-            row.push(`✅ ${inStr}-${outStr}`);
+            cellText = `✅ ${inStr}-${outStr}`;
           } else {
-            row.push(`❌ ${inStr}-${outStr}`);
+            cellText = `❌ ${inStr}-${outStr}`;
           }
+
+          if (directLeave) {
+            const shortLeave = labels.leaveMatrixShort?.[directLeave.leaveType] || directLeave.leaveType || 'Leave';
+            row.push(`🏖️ ${shortLeave}·${cellText}`);
+          } else {
+            row.push(cellText);
+          }
+        } else if (directLeave) {
+          const shortLeave = labels.leaveMatrixShort?.[directLeave.leaveType] || directLeave.leaveType || 'Leave';
+          row.push(`🏖️ ${shortLeave}`);
         } else {
           if (d.isWeekend) {
             row.push(labels.weekendRest);
@@ -815,21 +913,28 @@ export const ExcelExporter = {
 
     const dailyRows = dailyLogs.map(log => {
       const a = log.analysis;
-      const isManual = log.verifyMethod === 'ADMIN_MANUAL' || log.isManualEntry || (Array.isArray(log.events) && log.events.some(e => e.verifyMethod === 'ADMIN_MANUAL' || e.isManualEntry));
-      const methodLabel = isManual
-        ? labels.methodAdminManual
-        : log.verifyMethod === 'WFH'
-          ? labels.methodWfh
-          : log.verifyMethod === 'WIFI_IP'
-            ? labels.methodWifi
-            : log.verifyMethod === 'GPS_GEOFENCE'
-              ? (log.verifySnapshot?.allowedRadius ? `${log.verifySnapshot.allowedRadius}m ${isEn ? 'Geofence' : '地理围栏'}` : labels.methodGps)
-              : log.verifyMethod || labels.methodRegular;
+      const isLeave = Boolean(a.isOnLeave || log.verifyMethod === 'LEAVE');
+      const isManual = !isLeave && (log.verifyMethod === 'ADMIN_MANUAL' || log.isManualEntry || (Array.isArray(log.events) && log.events.some(e => e.verifyMethod === 'ADMIN_MANUAL' || e.isManualEntry)));
+      const methodLabel = isLeave
+        ? labels.methodLeave
+        : isManual
+          ? labels.methodAdminManual
+          : log.verifyMethod === 'WFH'
+            ? labels.methodWfh
+            : log.verifyMethod === 'WIFI_IP'
+              ? labels.methodWifi
+              : log.verifyMethod === 'GPS_GEOFENCE'
+                ? (log.verifySnapshot?.allowedRadius ? `${log.verifySnapshot.allowedRadius}m ${locale === 'en' ? 'Geofence' : '地理围栏'}` : labels.methodGps)
+                : log.verifyMethod || labels.methodRegular;
 
       const manualEntryData = log.manualEntry || (Array.isArray(log.events) && log.events.find(e => e.manualEntry)?.manualEntry);
       const manualAuditNote = manualEntryData
         ? (labels.manualAuditNoteText ? labels.manualAuditNoteText(manualEntryData.addedByName, manualEntryData.reason) : `[管理员补录: 由 ${manualEntryData.addedByName || '管理员'} 补录${manualEntryData.reason ? ' - ' + manualEntryData.reason : ''}]`)
         : (log.verifySnapshot?.method === 'ADMIN_MANUAL' ? `[${labels.methodAdminManual}: ${log.verifySnapshot.reason || log.verifySnapshot.adminName || ''}]` : null);
+
+      const leaveAuditNote = isLeave
+        ? (a.note || `[${labels.methodLeave}: ${log.leaveRecord?.leaveType || ''}${log.leaveRecord?.reason ? ' - ' + log.leaveRecord.reason : ''}]`)
+        : null;
 
       const punchFlow = Array.isArray(log.events) && log.events.length > 2
         ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}${e.verifyMethod === 'ADMIN_MANUAL' ? ' (补录)' : ''}`).join(' -> ')}]`
@@ -837,8 +942,9 @@ export const ExcelExporter = {
 
       const verifyDetails = [
         manualAuditNote,
+        leaveAuditNote,
         log.verifySnapshot?.ip ? `IP: ${log.verifySnapshot.ip}` : null,
-        a.note ? a.note.replace(/^\[\d+m\s*\/\s*(\d+m)\]/, `[${log.verifySnapshot?.allowedRadius || 100}m / $1]`) : null,
+        (!isLeave && a.note) ? a.note.replace(/^\[\d+m\s*\/\s*(\d+m)\]/, `[${log.verifySnapshot?.allowedRadius || 100}m / $1]`) : null,
         punchFlow
       ].filter(Boolean).join('; ') || '-';
 

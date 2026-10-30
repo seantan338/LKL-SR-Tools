@@ -8,6 +8,7 @@ import { SystemLogger } from '../lib/logger';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../lib/cascade-shift-engine';
+import AttendanceLeaveModal from './AttendanceLeaveModal';
 
 const getApiUrl = (path) => {
   return path;
@@ -50,6 +51,8 @@ export default function AttendanceModal() {
   const [toastMsg, setToastMsg] = useState('');
   const [appleHelpMsg, setAppleHelpMsg] = useState('');
   const [earlyClockOutWarning, setEarlyClockOutWarning] = useState(null);
+  const [myLeaves, setMyLeaves] = useState([]);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const autoPopupCheckedRef = useRef(false);
 
   const showToast = (msg) => {
@@ -62,6 +65,13 @@ export default function AttendanceModal() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // 1.1 Subscribe to current user's approved attendance leaves
+  useEffect(() => {
+    if (!teamId || !user?.uid) return;
+    const unsub = FirestoreStore.subscribeToAttendanceLeaves(teamId, setMyLeaves, user.uid);
+    return () => unsub();
+  }, [teamId, user?.uid]);
 
   // 2. Subscribe to Attendance Rules
   useEffect(() => {
@@ -134,6 +144,14 @@ export default function AttendanceModal() {
   const todayDateStr = useMemo(() => {
     return new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
   }, [currentTime]);
+
+  const todayLeave = useMemo(() => {
+    if (!myLeaves.length || !todayDateStr) return null;
+    return myLeaves.find(l => {
+      if (l.status !== 'APPROVED') return false;
+      return todayDateStr >= l.startDate && todayDateStr <= l.endDate;
+    }) || null;
+  }, [myLeaves, todayDateStr]);
 
   const todayClockIn = useMemo(() => {
     const list = userRecords.filter(r => {
@@ -731,6 +749,51 @@ export default function AttendanceModal() {
             </div>
           </div>
 
+          {/* Today Approved Leave Banner (if any) */}
+          {todayLeave && (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 14px',
+              marginBottom: 'var(--space-3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '12px'
+            }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                color: 'var(--accent-emerald)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                flexShrink: 0
+              }}>
+                <i className="ph-bold ph-calendar-minus"></i>
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontWeight: '700', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{t('attendanceModal.leaveActiveTitle', '今日处于获批休假状态')}</span>
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', fontWeight: '600' }}>
+                    {todayLeave.leaveType} · {todayLeave.durationType === 'FULL_DAY' ? t('attendanceLeave.fullDay', '全天') : (todayLeave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', '上午') : t('attendanceLeave.halfPm', '下午'))}
+                  </span>
+                </div>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '2px', fontSize: '11px', lineHeight: 1.3 }}>
+                  {todayLeave.durationType === 'FULL_DAY'
+                    ? t('attendanceModal.leaveFullDayDesc', '全天休假，系统自动豁免全天打卡与工时考核')
+                    : todayLeave.durationType === 'HALF_AM'
+                      ? t('attendanceModal.leaveHalfAmDesc', '上午休假，13:30 前签到即可正常达标')
+                      : t('attendanceModal.leaveHalfPmDesc', '下午休假，12:30 后签退即可正常达标')}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Real-time Dynamic Shift Preview Card */}
           <div style={{
             background: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival)
@@ -1167,8 +1230,28 @@ export default function AttendanceModal() {
             </button>
           </div>
 
-          {/* Quick link to personal attendance records & appeals */}
-          <div style={{ marginTop: 'var(--space-3)', textAlign: 'center' }}>
+          {/* Quick link to personal attendance records & appeals & leaves */}
+          <div style={{ marginTop: 'var(--space-3)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setIsLeaveModalOpen(true)}
+              style={{
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                color: '#10b981',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 10px',
+                borderRadius: '6px'
+              }}
+            >
+              <i className="ph-bold ph-calendar-minus"></i>
+              <span>{t('attendanceModal.btnApplyLeave', '申请请假')}</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1190,7 +1273,7 @@ export default function AttendanceModal() {
               }}
             >
               <i className="ph-bold ph-calendar-check"></i>
-              <span>{t('attendanceModal.linkMyAttendance', '查看我的考勤出席明细与异常申诉 →')}</span>
+              <span>{t('attendanceModal.linkMyAttendance', '我的考勤明细与申诉 →')}</span>
             </button>
           </div>
 
@@ -1202,6 +1285,15 @@ export default function AttendanceModal() {
 
         </div>
       </div>
+
+      <AttendanceLeaveModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => setIsLeaveModalOpen(false)}
+        user={user}
+        userProfile={userProfile}
+        teamId={teamId}
+        onSuccess={(msg) => showToast(msg)}
+      />
 
       <style jsx>{`
         @keyframes scaleUp {

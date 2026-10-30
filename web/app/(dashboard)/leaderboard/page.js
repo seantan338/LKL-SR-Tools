@@ -17,6 +17,7 @@ import {
   formatCommissionCurrency 
 } from '../../../lib/commission-engine';
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
+import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
 
 export default function LeaderboardPage() {
   const { teamId, isHqTeam, role, user, userProfile, isOwner, isManager } = useAuth();
@@ -41,11 +42,13 @@ export default function LeaderboardPage() {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [attendanceRules, setAttendanceRules] = useState(null);
   const [attendanceAppeals, setAttendanceAppeals] = useState([]);
+  const [attendanceLeaves, setAttendanceLeaves] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
   // My Attendance View States
   const [appealModalOpen, setAppealModalOpen] = useState(false);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [appealTargetDate, setAppealTargetDate] = useState('');
   const [appealTargetPunchType, setAppealTargetPunchType] = useState('CLOCK_OUT');
   const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
@@ -80,6 +83,16 @@ export default function LeaderboardPage() {
     const filterUid = (!isOwner && !isManager) ? user.uid : null;
     const unsub = FirestoreStore.subscribeToAttendanceAppeals('default_team', (appeals) => {
       setAttendanceAppeals(appeals || []);
+    }, filterUid);
+    return () => unsub();
+  }, [isHqTeam, isOwner, isManager, user?.uid]);
+
+  // Subscribe to Attendance Leaves (HQ leaves)
+  useEffect(() => {
+    if (!isHqTeam || !user?.uid) return;
+    const filterUid = (!isOwner && !isManager) ? user.uid : null;
+    const unsub = FirestoreStore.subscribeToAttendanceLeaves('default_team', (leaves) => {
+      setAttendanceLeaves(leaves || []);
     }, filterUid);
     return () => unsub();
   }, [isHqTeam, isOwner, isManager, user?.uid]);
@@ -513,10 +526,17 @@ export default function LeaderboardPage() {
         const isToday = dateStr === todayStr;
 
         const cleanEvents = deduplicateDayEvents(dayData.events);
+        const leaveRecord = CascadeShiftEngine.findActiveLeaveForDate(
+          attendanceLeaves,
+          member.uid,
+          member.email,
+          member.name,
+          dateStr
+        );
         const res = CascadeShiftEngine.resolveDailyShift(
           cleanEvents,
           shiftConfig,
-          { locale: isEn ? 'en' : 'zh', overrideShift, isToday }
+          { locale: isEn ? 'en' : 'zh', overrideShift, isToday, leaveRecord }
         );
 
         // 今日在岗进行中（已打上班卡但尚未打下班卡）：暂不计入已结考勤与准点率结算，避免白天未下班前将准点率拉低
@@ -585,7 +605,7 @@ export default function LeaderboardPage() {
       b.compliantDays - a.compliantDays ||
       b.daysPresent - a.daysPresent
     );
-  }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, isEn]);
+  }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, attendanceLeaves, isEn]);
 
   // -------------------------------------------------------------
   // Track 3: Personal Attendance & Anomaly Appeals (My Attendance)
@@ -659,16 +679,54 @@ export default function LeaderboardPage() {
       });
     });
 
+    // Also include dates for approved leaves falling into this month
+    attendanceLeaves.forEach(l => {
+      if (l.status !== 'APPROVED') return;
+      const matchUid = l.userId && l.userId === myUid;
+      const matchEmail = myEmail && l.userEmail && l.userEmail.toLowerCase() === myEmail;
+      const matchName = myName && l.picName && l.picName.toLowerCase() === myName;
+      if (!matchUid && !matchEmail && !matchName) return;
+
+      const sDate = String(l.startDate || '');
+      const eDate = String(l.endDate || sDate);
+      if (!sDate) return;
+
+      const cur = new Date(sDate + 'T00:00:00');
+      const end = new Date(eDate + 'T00:00:00');
+      while (cur <= end) {
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        if (!myAttendanceMonth || dStr.startsWith(myAttendanceMonth)) {
+          if (!dailyMap[dStr]) {
+            dailyMap[dStr] = {
+              date: dStr,
+              dateObj: new Date(cur),
+              events: [],
+              isToday: dStr === todayStr
+            };
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
     const list = Object.values(dailyMap).map(day => {
       const cleanEvents = deduplicateDayEvents(day.events);
       const overrideKey = `${day.date}__${currentPic?.displayName}`;
       const overrideKeyUid = `${day.date}__${myUid}`;
       const overrideShift = shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid] || null;
 
+      const leaveRecord = CascadeShiftEngine.findActiveLeaveForDate(
+        attendanceLeaves,
+        myUid,
+        myEmail,
+        currentPic?.displayName,
+        day.date
+      );
+
       const analysis = CascadeShiftEngine.resolveDailyShift(
         cleanEvents,
         shiftConfig,
-        { locale: isEn ? 'en' : 'zh', overrideShift, isToday: day.isToday }
+        { locale: isEn ? 'en' : 'zh', overrideShift, isToday: day.isToday, leaveRecord }
       );
 
       const clockInPunch = cleanEvents.find(e => e.type === 'CLOCK_IN' || e.type === 'CHECK_IN') || cleanEvents[0];
@@ -682,7 +740,10 @@ export default function LeaderboardPage() {
       let statusColor = 'var(--text-muted)';
       let statusLabel = analysis.complianceLabel || (isEn ? 'Normal' : '正常');
 
-      if (day.isToday && (analysis.isInProgress || analysis.compliance === 'IN_PROGRESS')) {
+      if (analysis.isOnLeave || analysis.compliance === 'ON_LEAVE') {
+        statusColor = 'var(--accent-emerald)';
+        statusLabel = analysis.complianceLabel || (isEn ? 'On Leave' : '获批休假');
+      } else if (day.isToday && (analysis.isInProgress || analysis.compliance === 'IN_PROGRESS')) {
         statusColor = 'var(--accent-blue)';
         statusLabel = isEn ? 'On Duty' : '在岗工作中';
       } else if (analysis.isMissingPunch) {
@@ -712,7 +773,7 @@ export default function LeaderboardPage() {
     });
 
     return list.sort((a, b) => b.date.localeCompare(a.date));
-  }, [user, currentPic, manualCheckins, logs, myAttendanceMonth, attendanceRules, isEn]);
+  }, [user, currentPic, manualCheckins, logs, myAttendanceMonth, attendanceRules, attendanceLeaves, isEn]);
 
   const myAppealsByDate = useMemo(() => {
     const map = {};
@@ -742,6 +803,18 @@ export default function LeaderboardPage() {
     }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [attendanceAppeals, user]);
 
+  const myLeavesList = useMemo(() => {
+    if (!user?.uid) return [];
+    const myUid = user.uid;
+    const myEmail = user.email?.toLowerCase();
+
+    return attendanceLeaves.filter(l => {
+      const matchUid = l.userId && l.userId === myUid;
+      const matchEmail = myEmail && l.userEmail && l.userEmail.toLowerCase() === myEmail;
+      return matchUid || matchEmail;
+    }).sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+  }, [attendanceLeaves, user]);
+
   const myStats = useMemo(() => {
     let daysPresent = 0;
     let fullShiftDays = 0;
@@ -749,8 +822,13 @@ export default function LeaderboardPage() {
     let missingPunchDays = 0;
     let wfhDays = 0;
     let manualAddedDays = 0;
+    let approvedLeaveDays = 0;
 
     myMonthlyAttendance.forEach(item => {
+      if (item.analysis?.isOnLeave || item.analysis?.compliance === 'ON_LEAVE') {
+        approvedLeaveDays += 1;
+        return;
+      }
       daysPresent += 1;
       if (item.isWfh) wfhDays += 1;
       if (item.isManual) manualAddedDays += 1;
@@ -760,6 +838,7 @@ export default function LeaderboardPage() {
     });
 
     const pendingCount = myAppealsList.filter(a => a.status === 'PENDING' && (!myAttendanceMonth || a.date?.startsWith(myAttendanceMonth))).length;
+    const pendingLeaveCount = myLeavesList.filter(l => l.status === 'PENDING').length;
 
     return {
       daysPresent,
@@ -768,14 +847,25 @@ export default function LeaderboardPage() {
       missingPunchDays,
       wfhDays,
       manualAddedDays,
-      pendingCount
+      approvedLeaveDays,
+      pendingCount,
+      pendingLeaveCount
     };
-  }, [myMonthlyAttendance, myAppealsList, myAttendanceMonth]);
+  }, [myMonthlyAttendance, myAppealsList, myLeavesList, myAttendanceMonth]);
 
   const handleCancelAppeal = async (appealId) => {
     try {
       await FirestoreStore.cancelAttendanceAppeal('default_team', appealId);
       showToast(t('attendanceAppeal.cancelSuccess', '已成功撤销申诉'));
+    } catch (err) {
+      showToast(err.message || '撤销失败');
+    }
+  };
+
+  const handleCancelLeave = async (leaveId) => {
+    try {
+      await FirestoreStore.cancelAttendanceLeave('default_team', leaveId);
+      showToast(t('attendanceLeave.cancelSuccess', '已成功撤销请假申请'));
     } catch (err) {
       showToast(err.message || '撤销失败');
     }
@@ -1624,6 +1714,25 @@ export default function LeaderboardPage() {
                     height: '34px',
                     fontSize: '12px',
                     gap: '6px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: '700',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  }}
+                  onClick={() => setLeaveModalOpen(true)}
+                >
+                  <i className="ph-bold ph-calendar-minus"></i>
+                  <span>{t('attendanceLeave.btnQuickApply', '申请请假')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{
+                    height: '34px',
+                    fontSize: '12px',
+                    gap: '6px',
                     background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                     border: 'none',
                     color: '#fff',
@@ -1745,7 +1854,161 @@ export default function LeaderboardPage() {
               </div>
             </div>
           </div>
+
+          {/* 7. Approved Leaves */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-calendar-minus" style={{ color: 'var(--accent-emerald)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statLeavesCount', '休假天数')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                {myStats.approvedLeaveDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                {myStats.pendingLeaveCount > 0
+                  ? t('analytics.statLeavesPendingCount', { count: myStats.pendingLeaveCount }, `${myStats.pendingLeaveCount} 件休假待审核`)
+                  : t('analytics.statLeavesApprovedDesc', '获批自动免打卡')}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* My Leaves Records Stream (If Any Exist) */}
+        {myLeavesList.length > 0 && (
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-3)' }}>
+                <i className="ph-bold ph-calendar-minus" style={{ color: 'var(--accent-emerald)', fontSize: '16px' }}></i>
+                <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                  {t('attendanceLeave.myLeavesTitle', '我的请假记录与状态')}
+                </h4>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                  {myLeavesList.length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {myLeavesList.slice(0, 5).map(leave => {
+                  const dateText = leave.startDate === leave.endDate ? leave.startDate : `${leave.startDate} ~ ${leave.endDate}`;
+                  const durationLabel = leave.durationType === 'FULL_DAY' ? t('attendanceLeave.fullDay', '全天')
+                    : leave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', '上午半天') : t('attendanceLeave.halfPm', '下午半天');
+
+                  return (
+                    <div
+                      key={leave.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-hairline)',
+                        borderRadius: 'var(--radius-md)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
+                          {dateText}
+                        </span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
+                          {leave.leaveType} · {durationLabel} ({leave.daysCount}天)
+                        </span>
+                        {leave.reason && (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            ({leave.reason})
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {leave.status === 'PENDING' ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: 'var(--accent-amber)',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <i className="ph-bold ph-hourglass-simple"></i>
+                              {t('attendanceLeave.statusPending', '待审核')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelLeave(leave.id)}
+                              title={t('attendanceLeave.btnCancel', '撤回申请')}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#f87171',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                fontSize: '11px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px'
+                              }}
+                            >
+                              <i className="ph-bold ph-x"></i>
+                              <span>{t('attendanceLeave.btnCancel', '撤回')}</span>
+                            </button>
+                          </div>
+                        ) : leave.status === 'APPROVED' ? (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: 'var(--accent-emerald)',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <i className="ph-bold ph-check-circle"></i>
+                            {t('attendanceLeave.statusApproved', '已批准 (免打卡)')}
+                          </span>
+                        ) : (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: '#f87171',
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }} title={leave.reviewNote || ''}>
+                              <i className="ph-bold ph-x-circle"></i>
+                              {t('attendanceLeave.statusRejected', '未批准')}
+                            </span>
+                            {leave.reviewNote && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                ({leave.reviewNote})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* My Appeals Records Stream (If Any Exist) */}
         {myAppealsList.length > 0 && (
@@ -2065,7 +2328,23 @@ export default function LeaderboardPage() {
 
                           {/* Appeal / Action */}
                           <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
-                            {appeal ? (
+                            {item.analysis?.isOnLeave ? (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: 'var(--accent-emerald)',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <i className="ph-bold ph-calendar-minus"></i>
+                                {t('attendanceLeave.badgeOnLeave', '休假免考勤')}
+                              </span>
+                            ) : appeal ? (
                               appeal.status === 'PENDING' ? (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                   <span style={{
@@ -2197,6 +2476,20 @@ export default function LeaderboardPage() {
         userProfile={userProfile}
         targetDate={appealTargetDate}
         defaultPunchType={appealTargetPunchType}
+        onSuccess={(msg) => showToast(msg)}
+      />
+    )}
+
+    {/* Attendance Leave Modal */}
+    {leaveModalOpen && (
+      <AttendanceLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={() => setLeaveModalOpen(false)}
+        teamId={teamId || 'default_team'}
+        user={user}
+        userProfile={userProfile}
+        hqMembers={hqMembers}
+        isAdminMode={false}
         onSuccess={(msg) => showToast(msg)}
       />
     )}

@@ -266,6 +266,29 @@ service cloud.firestore {
           && resource.data.status == 'PENDING';
       }
 
+      match /attendance_leaves/{leaveId} {
+        // 读取：本部团队已审批成员均可读取（用于考勤榜与排班协同展示）或本人/管理员读取
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        // 发起请假：
+        // 1. 普通员工本人提交：初始状态必须为 PENDING，且严禁伪造 reviewedBy
+        // 2. 本部 Owner / Manager：可直接代员工创建已批准 (APPROVED) 的请假记录
+        allow create: if isHqTeam(teamId) && (
+          (
+            (isApprovedOnTeam(teamId) || isTeamMember(teamId))
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.get('status', 'PENDING') == 'PENDING'
+            && request.resource.data.get('reviewedBy', null) == null
+          ) || isOwnerOrManagerOnTeam(teamId)
+        );
+        // 审批与修改：仅限本部 Owner / Manager
+        allow update: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
+        // 撤回/删除：本人仅可在 PENDING 状态下撤回；本部 Owner / Manager 可删除异常请假记录
+        allow delete: if isHqTeam(teamId) && (
+          (resource.data.userId == request.auth.uid && resource.data.status == 'PENDING')
+          || isOwnerOrManagerOnTeam(teamId)
+        );
+      }
+
       match /attendance_rules/{ruleId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
         allow write: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
