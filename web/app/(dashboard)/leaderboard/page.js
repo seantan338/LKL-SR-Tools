@@ -609,11 +609,7 @@ export default function LeaderboardPage() {
   };
 
   const toShortTimeStr = (d) => {
-    const safeD = CascadeShiftEngine.toSafeDate(d);
-    if (!safeD || isNaN(safeD.getTime())) return '-';
-    const hh = String(safeD.getHours()).padStart(2, '0');
-    const mm = String(safeD.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
+    return CascadeShiftEngine.toShortTime(d);
   };
 
   const myMonthlyAttendance = useMemo(() => {

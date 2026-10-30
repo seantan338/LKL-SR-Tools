@@ -817,6 +817,43 @@ export const FirestoreStore = {
       throw new Error('参数不完整：缺少 teamId, userId 或 date');
     }
 
+    // 格式防御校验
+    const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+    if (!DATE_REGEX.test(appealData.date)) {
+      throw new Error('无效的考勤日期格式，必须为 YYYY-MM-DD');
+    }
+
+    const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const requestedTime = appealData.requestedTime || (appealData.requestedPunchType === 'CLOCK_IN' ? '09:00' : '18:00');
+    if (!TIME_REGEX.test(requestedTime)) {
+      throw new Error('无效的主张打卡时间，必须为 HH:mm 格式');
+    }
+
+    const targetPunchType = appealData.requestedPunchType || 'CLOCK_OUT';
+
+    // 幂等性防抖与防重复提交：检查同用户在同一日期同一打卡类型是否已有 PENDING 申诉
+    try {
+      const q = query(
+        collection(db, 'teams', teamId, 'attendance_appeals'),
+        where('userId', '==', appealData.userId),
+        where('date', '==', appealData.date),
+        where('status', '==', 'PENDING')
+      );
+      const snap = await getDocs(q);
+      const duplicate = snap.docs.find(d => {
+        const item = d.data();
+        return (item.requestedPunchType || item.punchType || 'CLOCK_OUT') === targetPunchType;
+      });
+      if (duplicate) {
+        throw new Error('该打卡时段已存在正在审核中的申诉单，请勿重复提交');
+      }
+    } catch (checkErr) {
+      if (checkErr.message?.includes('该打卡时段已存在')) {
+        throw checkErr;
+      }
+      console.warn('Idempotency check query fallback notice:', checkErr?.message || checkErr);
+    }
+
     const appealId = Utils.generateId();
     const payload = sanitizeFirestoreData({
       id: appealId,
