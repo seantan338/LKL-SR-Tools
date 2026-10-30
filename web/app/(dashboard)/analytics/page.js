@@ -198,12 +198,13 @@ export default function AnalyticsPage() {
   const [expandedAnalyticsClaimId, setExpandedAnalyticsClaimId] = useState(null);
 
   useEffect(() => {
-    if (!isHqTeam || !teamId) return;
+    // 仅公司本部管理层 (Owner / Manager) 订阅报销审批与放款数据
+    if (!isHqTeam || !teamId || !(isOwner || isManager)) return;
     const unsub = FirestoreStore.subscribeExpenseClaims(teamId, role, user?.uid, (data) => {
       setExpenseClaims(data || []);
     });
     return () => unsub();
-  }, [isHqTeam, teamId, role, user?.uid]);
+  }, [isHqTeam, teamId, role, user?.uid, isOwner, isManager]);
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);

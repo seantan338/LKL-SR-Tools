@@ -105,12 +105,13 @@ export default function LeaderboardPage() {
   const [isCancellingClaim, setIsCancellingClaim] = useState(false);
 
   useEffect(() => {
-    if (!isHqTeam || !user?.uid) return;
+    // 测试期间仅管理员/主管 (Owner/Manager) 订阅并展示报销数据
+    if (!isHqTeam || !user?.uid || !(isOwner || isManager)) return;
     const unsub = FirestoreStore.subscribeExpenseClaims('default_team', role, user.uid, (claims) => {
       setMyExpenseClaims(claims || []);
     });
     return () => unsub();
-  }, [isHqTeam, role, user?.uid]);
+  }, [isHqTeam, isOwner, isManager, role, user?.uid]);
 
   // Commission Engine States (Phase 6 - Owner Only)
   const [commissionRecords, setCommissionRecords] = useState([]);
@@ -1081,24 +1082,26 @@ export default function LeaderboardPage() {
               <span>{t('attendanceAppeal.btnQuickAppeal', '发起考勤申诉')}</span>
             </button>
 
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              style={{
-                height: '32px',
-                fontSize: '12px',
-                gap: '6px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                border: 'none',
-                color: '#fff',
-                fontWeight: '700',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-              }}
-              onClick={() => setIsClaimModalOpen(true)}
-            >
-              <i className="ph-bold ph-receipt"></i>
-              <span>{t('claims.newClaimBtn', '发起报销申请')}</span>
-            </button>
+            {isHqTeam && (isOwner || isManager) && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                style={{
+                  height: '32px',
+                  fontSize: '12px',
+                  gap: '6px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: '700',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                }}
+                onClick={() => setIsClaimModalOpen(true)}
+              >
+                <i className="ph-bold ph-receipt"></i>
+                <span>{t('claims.newClaimBtn', '发起报销申请')}</span>
+              </button>
+            )}
           </div>
         ) : (
           <div style={{
@@ -2192,8 +2195,8 @@ export default function LeaderboardPage() {
           </div>
         )}
 
-        {/* My Expense Claims Records Stream */}
-        {myExpenseClaims.length > 0 && (
+        {/* My Expense Claims Records Stream (HQ Admins/Managers only during testing) */}
+        {isHqTeam && (isOwner || isManager) && myExpenseClaims.length > 0 && (
           <div className="bezel-shell">
             <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)', flexWrap: 'wrap', gap: '8px' }}>
@@ -2696,8 +2699,8 @@ export default function LeaderboardPage() {
       />
     )}
 
-    {/* Expense Claim Modal (Employee Submit Mode) */}
-    {isClaimModalOpen && (
+    {/* Expense Claim Modal (Employee Submit Mode - HQ Admins/Managers only during testing) */}
+    {isHqTeam && (isOwner || isManager) && isClaimModalOpen && (
       <ExpenseClaimModal
         isOpen={isClaimModalOpen}
         onClose={() => setIsClaimModalOpen(false)}

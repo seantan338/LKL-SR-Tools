@@ -25,10 +25,13 @@ export default function GlobalQuickFab() {
   const router = useRouter();
   const pathname = usePathname();
   const { openCandidateDrawer } = useNotifications();
-  const { teamId, user, isReadOnlyView, isHqTeam } = useAuth();
+  const { teamId, user, isReadOnlyView, isHqTeam, isOwner, isManager } = useAuth();
   const { showToast } = useFeedback();
   const { t } = useI18n();
   const fabRef = useRef(null);
+
+  // 测试期间报销功能仅对管理员/主管 (Owner/Manager) 开放
+  const canAccessClaims = isHqTeam && (isOwner || isManager);
 
   // Close menus on Escape key press
   useEffect(() => {
@@ -304,8 +307,8 @@ export default function GlobalQuickFab() {
           </button>
           )}
 
-          {/* Action 3.5: Expense Claim (HQ only) */}
-          {isHqTeam && (
+          {/* Action 3.5: Expense Claim (HQ Admins/Managers only during testing) */}
+          {canAccessClaims && (
           <button
             onClick={handleOpenClaim}
             className="fab-action-item"
@@ -682,8 +685,8 @@ export default function GlobalQuickFab() {
         </div>
       )}
 
-      {/* Expense Claim Modal (HQ Only) */}
-      {isHqTeam && (
+      {/* Expense Claim Modal (HQ Admins/Managers only during testing) */}
+      {canAccessClaims && (
         <ExpenseClaimModal
           isOpen={isClaimModalOpen}
           onClose={() => setIsClaimModalOpen(false)}
