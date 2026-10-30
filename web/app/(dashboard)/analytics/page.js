@@ -3543,14 +3543,27 @@ export default function AnalyticsPage() {
                               </span>
                             </td>
 
-                            <td style={{ padding: '12px', textAlign: 'right', position: 'relative', zIndex: 55 }}>
+                            <td style={{ padding: '12px', textAlign: 'right', position: 'relative', zIndex: 100 }}>
                               {rec.status === 'PENDING' && (
-                                <div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end', position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+                                <div
+                                  style={{
+                                    display: 'inline-flex',
+                                    gap: '8px',
+                                    flexWrap: 'wrap',
+                                    justifyContent: 'flex-end',
+                                    position: 'relative',
+                                    zIndex: 101,
+                                    pointerEvents: 'auto',
+                                    isolation: 'isolate'
+                                  }}
+                                >
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-secondary"
                                     disabled={isProcessingCommission}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       handleRepairDealAttribution(rec);
                                     }}
@@ -3559,11 +3572,10 @@ export default function AnalyticsPage() {
                                       padding: '4px 10px',
                                       color: 'var(--accent-blue)',
                                       borderColor: 'rgba(59, 130, 246, 0.45)',
-                                      background: 'rgba(59, 130, 246, 0.1)',
+                                      background: 'rgba(59, 130, 246, 0.12)',
                                       cursor: isProcessingCommission ? 'wait' : 'pointer',
-                                      pointerEvents: isProcessingCommission ? 'none' : 'auto',
                                       position: 'relative',
-                                      zIndex: 61
+                                      zIndex: 102
                                     }}
                                     title={t('commission.repairAttributionTitle', '按顾问姓名自动校准该单的真实归属账号')}
                                   >
@@ -3573,7 +3585,9 @@ export default function AnalyticsPage() {
                                     type="button"
                                     className="btn btn-sm btn-secondary"
                                     disabled={isProcessingCommission}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       handleUnlockDeal(rec);
                                     }}
@@ -3582,11 +3596,10 @@ export default function AnalyticsPage() {
                                       padding: '4px 10px',
                                       color: '#10B981',
                                       borderColor: 'rgba(16, 185, 129, 0.45)',
-                                      background: 'rgba(16, 185, 129, 0.1)',
+                                      background: 'rgba(16, 185, 129, 0.12)',
                                       cursor: isProcessingCommission ? 'wait' : 'pointer',
-                                      pointerEvents: isProcessingCommission ? 'none' : 'auto',
                                       position: 'relative',
-                                      zIndex: 61
+                                      zIndex: 102
                                     }}
                                     title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
                                   >
@@ -3596,7 +3609,9 @@ export default function AnalyticsPage() {
                                     type="button"
                                     className="btn btn-sm btn-secondary"
                                     disabled={isProcessingCommission}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       handleOpenClawbackModal(rec);
                                     }}
@@ -3605,11 +3620,10 @@ export default function AnalyticsPage() {
                                       padding: '4px 10px',
                                       color: '#EF4444',
                                       borderColor: 'rgba(239, 68, 68, 0.45)',
-                                      background: 'rgba(239, 68, 68, 0.1)',
+                                      background: 'rgba(239, 68, 68, 0.12)',
                                       cursor: isProcessingCommission ? 'wait' : 'pointer',
-                                      pointerEvents: isProcessingCommission ? 'none' : 'auto',
                                       position: 'relative',
-                                      zIndex: 61
+                                      zIndex: 102
                                     }}
                                     title={t('commission.clawbackActionTitle', '候选人试用期离职，标记退工冲销')}
                                   >
