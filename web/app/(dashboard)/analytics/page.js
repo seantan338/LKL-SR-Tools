@@ -3467,6 +3467,52 @@ export default function AnalyticsPage() {
                             <td style={{ padding: '12px' }}>
                               <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{rec.candidateName}</div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rec.position}</div>
+                              {rec.status === 'PENDING' && (
+                                <div style={{ display: 'inline-flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary"
+                                    disabled={isProcessingCommission}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleRepairDealAttribution(rec);
+                                    }}
+                                    style={{ fontSize: '10px', padding: '2px 8px', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.45)', background: 'rgba(59, 130, 246, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
+                                    title={t('commission.repairAttributionTitle', '按顾问姓名自动校准该单的真实归属账号')}
+                                  >
+                                    <span>{t('commission.repairAttributionAction', '修正归属')}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary"
+                                    disabled={isProcessingCommission}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleUnlockDeal(rec);
+                                    }}
+                                    style={{ fontSize: '10px', padding: '2px 8px', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.45)', background: 'rgba(16, 185, 129, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
+                                    title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
+                                  >
+                                    <span>{t('commission.unlockAction', '解锁')}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-secondary"
+                                    disabled={isProcessingCommission}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleOpenClawbackModal(rec);
+                                    }}
+                                    style={{ fontSize: '10px', padding: '2px 8px', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.45)', background: 'rgba(239, 68, 68, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
+                                    title={t('commission.clawbackActionTitle', '候选人试用期离职，标记退工冲销')}
+                                  >
+                                    <span>{t('commission.clawbackAction', '退工')}</span>
+                                  </button>
+                                </div>
+                              )}
                             </td>
 
                             <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>

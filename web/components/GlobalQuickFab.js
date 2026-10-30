@@ -135,7 +135,8 @@ export default function GlobalQuickFab() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
-          userSelect: 'none'
+          userSelect: 'none',
+          pointerEvents: 'none'
         }}
       >
         {/* Speed-dial Option Menu */}
@@ -353,6 +354,7 @@ export default function GlobalQuickFab() {
             width: '52px',
             height: '52px',
             borderRadius: '50%',
+            pointerEvents: 'auto',
             background: isOpen 
               ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' 
               : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
