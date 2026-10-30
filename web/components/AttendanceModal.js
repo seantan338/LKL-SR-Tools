@@ -1286,14 +1286,16 @@ export default function AttendanceModal() {
         </div>
       </div>
 
-      <AttendanceLeaveModal
-        isOpen={isLeaveModalOpen}
-        onClose={() => setIsLeaveModalOpen(false)}
-        user={user}
-        userProfile={userProfile}
-        teamId={teamId}
-        onSuccess={(msg) => showToast(msg)}
-      />
+      {isLeaveModalOpen && (
+        <AttendanceLeaveModal
+          isOpen={isLeaveModalOpen}
+          onClose={() => setIsLeaveModalOpen(false)}
+          user={user}
+          userProfile={userProfile}
+          teamId={teamId}
+          onSuccess={(msg) => showToast(msg)}
+        />
+      )}
 
       <style jsx>{`
         @keyframes scaleUp {

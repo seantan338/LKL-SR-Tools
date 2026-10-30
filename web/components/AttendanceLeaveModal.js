@@ -34,8 +34,10 @@ export default function AttendanceLeaveModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 初始化表单
+  // 初始化表单：仅在弹窗从关闭变为打开（isOpen 为 true）的一瞬间执行一次重置
   useEffect(() => {
+    if (!isOpen) return;
+
     const todayStr = new Date().toISOString().split('T')[0];
     const initialDate = targetDate || todayStr;
     setStartDate(initialDate);
@@ -45,12 +47,13 @@ export default function AttendanceLeaveModal({
     setReason('');
     setErrorMsg('');
 
-    if (isAdminMode && hqMembers.length > 0) {
+    if (isAdminMode && Array.isArray(hqMembers) && hqMembers.length > 0) {
       setSelectedUid(currentUser?.uid || hqMembers[0]?.uid || hqMembers[0]?.id || '');
     } else {
       setSelectedUid(currentUser?.uid || '');
     }
-  }, [isOpen, targetDate, isAdminMode, currentUser, hqMembers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // 当切换为半天假时，自动锁定结束日期等于开始日期
   useEffect(() => {
