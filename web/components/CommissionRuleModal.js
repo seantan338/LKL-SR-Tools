@@ -497,7 +497,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                       type="text"
                       className="form-control"
                       style={{ fontSize: '0.84rem' }}
-                      placeholder="角色名称 (如 交付顾问 / BD)"
+                      placeholder={t('commission.splitRolePlaceholder', '角色名称 (如 交付顾问 / BD)')}
                       value={isEn ? split.labelEn : split.labelZh}
                       onChange={(e) => {
                         handleSplitChange(idx, isEn ? 'labelEn' : 'labelZh', e.target.value);
@@ -582,14 +582,14 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                           type="text"
                           className="form-control"
                           style={{ width: '100%', fontSize: '0.82rem' }}
-                          placeholder="档位名称"
+                          placeholder={t('commission.tierLabelPlaceholder', '档位名称')}
                           value={tier.label}
                           onChange={(e) => handleTierChange(idx, 'label', e.target.value)}
                         />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', userSelect: 'none' }}>
-                          达标 (RM):
+                          {t('commission.tierThresholdPrefix', '达标 (RM):')}
                         </span>
                         <input
                           type="number"
@@ -601,7 +601,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', userSelect: 'none' }}>
-                          提成:
+                          {t('commission.tierRatePrefix', '提成:')}
                         </span>
                         <input
                           type="number"

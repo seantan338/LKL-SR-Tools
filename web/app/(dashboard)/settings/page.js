@@ -2330,10 +2330,16 @@ function onEdit(e) {
                       <span style={{ color: 'var(--text-muted)' }}>{t('commission.currentModeBadge', '计费模式')}:</span>
                       <strong style={{ color: 'var(--text-primary)' }}>
                         {commissionConfig?.defaultBillingMode === 'AGENCY_FLAT'
-                          ? `💼 固定服务费 (RM ${commissionConfig.defaultAgencyFlatFee || 2000} @ ${commissionConfig.defaultAgencyFlatRate || 20}%)`
+                          ? (isEn
+                              ? `💼 Agency Flat Fee (RM ${commissionConfig.defaultAgencyFlatFee || 2000} @ ${commissionConfig.defaultAgencyFlatRate || 20}%)`
+                              : `💼 固定服务费 (RM ${commissionConfig.defaultAgencyFlatFee || 2000} @ ${commissionConfig.defaultAgencyFlatRate || 20}%)`)
                           : (commissionConfig?.defaultBillingMode === 'PERCENTAGE'
-                              ? `📈 薪资比例 (${commissionConfig.defaultAgencyFeeRate || 15}% 客户费率 / ${commissionConfig.defaultRecruiterRate || 20}% 提成)`
-                              : `⭐ 按单固定佣金 (每单 RM ${commissionConfig?.defaultFlatCommissionAmount ?? 500})`)}
+                              ? (isEn
+                                  ? `📈 Salary Percentage (${commissionConfig.defaultAgencyFeeRate || 15}% Client / ${commissionConfig.defaultRecruiterRate || 20}% Recruiter)`
+                                  : `📈 薪资比例 (${commissionConfig.defaultAgencyFeeRate || 15}% 客户费率 / ${commissionConfig.defaultRecruiterRate || 20}% 提成)`)
+                              : (isEn
+                                  ? `⭐ Direct Flat (RM ${commissionConfig?.defaultFlatCommissionAmount ?? 500}/deal)`
+                                  : `⭐ 按单固定佣金 (每单 RM ${commissionConfig?.defaultFlatCommissionAmount ?? 500})`))}
                       </strong>
                     </div>
 

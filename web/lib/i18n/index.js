@@ -2496,7 +2496,14 @@ export const zh = {
     exportExcelTitle: '导出月度顾问佣金结算与成单风控双 Sheet Excel 报表',
     exportExcelBtn: '导出月度佣金报表 (Excel)',
     exportSuccess: '月度佣金结算报表导出成功！',
-    exportFailed: '导出佣金报表失败'
+    exportFailed: '导出佣金报表失败',
+    candidateSalaryPlaceholder: '如 RM 5,000',
+    manualPoolPlaceholder: '输入特批金额',
+    auditReasonPlaceholder: '例如：客户回款协商特批折扣 / 跨部门联合寻访特批拆单',
+    splitRolePlaceholder: '角色名称 (如 交付顾问 / BD)',
+    tierLabelPlaceholder: '档位名称',
+    tierThresholdPrefix: '达标 (RM):',
+    tierRatePrefix: '提成:'
   }
 
 };
@@ -5005,7 +5012,14 @@ export const en = {
     exportExcelTitle: 'Export Monthly Recruiter Commission & Deal Risk Dual-Sheet Excel',
     exportExcelBtn: 'Export Commission Report (Excel)',
     exportSuccess: 'Monthly commission report exported successfully!',
-    exportFailed: 'Failed to export commission report'
+    exportFailed: 'Failed to export commission report',
+    candidateSalaryPlaceholder: 'e.g. RM 5,000',
+    manualPoolPlaceholder: 'Enter override amount',
+    auditReasonPlaceholder: 'e.g. Client discount negotiated / cross-team collaborative split',
+    splitRolePlaceholder: 'Role name (e.g. Delivery Recruiter / BD Lead)',
+    tierLabelPlaceholder: 'Tier name',
+    tierThresholdPrefix: 'Target (RM):',
+    tierRatePrefix: 'Rate:'
   }
 
 };

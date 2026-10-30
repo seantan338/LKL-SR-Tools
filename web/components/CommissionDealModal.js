@@ -363,7 +363,7 @@ export default function CommissionDealModal({
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="如 RM 5,000"
+                  placeholder={t('commission.candidateSalaryPlaceholder', '如 RM 5,000')}
                   value={salaryInput}
                   onChange={(e) => setSalaryInput(e.target.value)}
                 />
@@ -410,7 +410,7 @@ export default function CommissionDealModal({
                   type="number"
                   className="form-control"
                   style={{ width: '130px', fontSize: '0.88rem', fontWeight: '700', textAlign: 'right' }}
-                  placeholder="输入特批金额"
+                  placeholder={t('commission.manualPoolPlaceholder', '输入特批金额')}
                   value={manualPoolAmount !== null ? manualPoolAmount : ''}
                   onChange={(e) => {
                     const val = e.target.value === '' ? null : parseFloat(e.target.value) || 0;
@@ -550,7 +550,7 @@ export default function CommissionDealModal({
               <input
                 type="text"
                 className="form-control"
-                placeholder="例如：客户回款协商特批折扣 / 跨部门联合寻访特批拆单"
+                placeholder={t('commission.auditReasonPlaceholder', '例如：客户回款协商特批折扣 / 跨部门联合寻访特批拆单')}
                 value={overrideReason}
                 onChange={(e) => setOverrideReason(e.target.value)}
                 style={{ fontSize: '0.84rem' }}
