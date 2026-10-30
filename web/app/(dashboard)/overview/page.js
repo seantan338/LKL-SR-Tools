@@ -42,7 +42,7 @@ export default function OverviewPage() {
   };
 
   const handleGoClaims = () => {
-    router.push('/analytics?tab=claims');
+    router.push('/claims');
   };
 
   const handleOpenNewClaim = (e) => {
@@ -282,7 +282,7 @@ export default function OverviewPage() {
                 transition: 'transform 0.18s ease, box-shadow 0.18s ease'
               }}
               onClick={handleGoClaims}
-              title={t('overview.quickClaimsSub', '智能票据识别 · 里程核算 · 审批与批次放款')}
+              title={t('overview.quickClaimsSub', '我的报销进度 · 智能票据识别 · 审批与批次放款')}
             >
               <div 
                 className="bezel-core" 
@@ -316,7 +316,7 @@ export default function OverviewPage() {
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                       <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                        {t('overview.quickClaimsTitle', '报销审批与费用')}
+                        {t('overview.quickClaimsTitle', '费用与报销')}
                       </span>
                       <span style={{ 
                         fontSize: '0.68rem', 
@@ -331,7 +331,7 @@ export default function OverviewPage() {
                       </span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t('overview.quickClaimsSub', '智能票据识别 · 里程核算 · 审批与批次放款')}
+                      {t('overview.quickClaimsSub', '我的报销进度 · 智能票据识别 · 审批与批次放款')}
                     </div>
                   </div>
                 </div>
@@ -374,7 +374,7 @@ export default function OverviewPage() {
                       handleGoClaims();
                     }}
                   >
-                    <span>{t('overview.quickClaimsBtn', '审批与放款台')}</span>
+                    <span>{t('overview.quickClaimsBtn', '进入报销中心')}</span>
                     <i className="ph-bold ph-arrow-up-right"></i>
                   </button>
                 </div>

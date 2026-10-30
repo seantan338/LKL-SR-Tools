@@ -99,6 +99,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     { path: '/calendar', labelKey: 'nav.calendar', fallback: '面试日程', icon: 'ph-calendar-blank' },
     { path: '/analytics', labelKey: 'nav.analytics', fallback: '数据洞察', icon: 'ph-chart-pie-slice', supervisorOnly: true },
     { path: '/leaderboard', labelKey: 'nav.leaderboard', fallback: 'Leaderboard', icon: 'ph-trophy', hqOnly: true },
+    // 测试期间：报销系统仅对公司本部管理层 (Owner / Manager) 开放
+    { path: '/claims', labelKey: 'nav.claims', fallback: '费用与报销', icon: 'ph-receipt', hqOnly: true, supervisorOnly: true },
     // { path: '/whatsapp', labelKey: 'nav.whatsapp', fallback: 'WhatsApp 触达', icon: 'ph-whatsapp-logo' },
     { path: '/team', labelKey: 'nav.team', fallback: '团队与权限', icon: 'ph-users-three' },
     { path: '/feedback', labelKey: 'nav.feedback', fallback: '意见反馈', icon: 'ph-chat-circle-dots' },

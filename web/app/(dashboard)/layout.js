@@ -22,9 +22,9 @@ export default function DashboardLayout({ children }) {
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-  // Guard /analytics route: strictly Owner & Manager only (Recruiters are redirected to /overview)
+  // Guard /analytics & /claims routes: strictly Owner & Manager only (Recruiters are redirected to /overview)
   useEffect(() => {
-    if (pathname === '/analytics' && userProfile && userProfile.role !== 'pending' && !isOwner && !isManager) {
+    if ((pathname === '/analytics' || pathname === '/claims') && userProfile && userProfile.role !== 'pending' && !isOwner && !isManager) {
       router.replace('/overview');
     }
   }, [pathname, userProfile, isOwner, isManager, router]);
@@ -105,7 +105,7 @@ export default function DashboardLayout({ children }) {
         <main className="app-main">
           <Header toggleSidebar={toggleSidebar} />
           <div className="app-content">
-            {(pathname === '/analytics' && userProfile && !isOwner && !isManager) ? null : children}
+            {((pathname === '/analytics' || pathname === '/claims') && userProfile && !isOwner && !isManager) ? null : children}
           </div>
         </main>
       </div>

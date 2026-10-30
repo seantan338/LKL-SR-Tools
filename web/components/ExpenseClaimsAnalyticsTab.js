@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { useI18n } from '../lib/i18n-context';
 import { FirestoreStore } from '../lib/firestore-store';
 
@@ -104,7 +104,7 @@ export default function ExpenseClaimsAnalyticsTab({
     setIsBatchProcessing(true);
     try {
       if (onExecuteBatch) {
-        await onExecuteBatch(type);
+        await onExecuteBatch(type, selectedClaimIdsForBatch);
       }
       setSelectedClaimIdsForBatch([]);
     } catch (err) {
@@ -325,7 +325,7 @@ export default function ExpenseClaimsAnalyticsTab({
                     const curStatus = statusColors[claim.status] || statusColors.SUBMITTED;
 
                     return (
-                      <tbody key={claim.id}>
+                      <Fragment key={claim.id}>
                         <tr
                           style={{
                             borderBottom: '1px solid var(--border-hairline)',
@@ -511,7 +511,7 @@ export default function ExpenseClaimsAnalyticsTab({
                                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>单号: {it.invoiceNo}</span>
                                       )}
                                       {it.ocrExtracted && (
-                                        <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', fontWeight: '600' }}>✓ AI OCR</span>
+                                        <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><i className="ph-bold ph-scan"></i>AI OCR</span>
                                       )}
                                       {it.notes && (
                                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({it.notes})</span>
@@ -520,8 +520,8 @@ export default function ExpenseClaimsAnalyticsTab({
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                       {it.warnings && it.warnings.length > 0 && (
-                                        <span style={{ fontSize: '11px', color: 'var(--accent-red)', fontWeight: '600' }}>
-                                          ⚠️ {it.warnings.join(', ')}
+                                        <span style={{ fontSize: '11px', color: 'var(--accent-red)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                          <i className="ph-bold ph-warning"></i>{it.warnings.join(', ')}
                                         </span>
                                       )}
                                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{it.receiptDate}</span>
@@ -541,7 +541,7 @@ export default function ExpenseClaimsAnalyticsTab({
                             </td>
                           </tr>
                         )}
-                      </tbody>
+                      </Fragment>
                     );
                   })}
                 </tbody>
