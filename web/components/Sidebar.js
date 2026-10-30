@@ -96,8 +96,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     { path: '/ai-parser', labelKey: 'nav.aiParser', fallback: 'AI 职位生成', icon: 'ph-magic-wand' },
     { path: '/cv-autofill', labelKey: 'nav.cvAutofill', fallback: 'CV 简历解析', icon: 'ph-file-text' },
     { path: '/candidates', labelKey: 'nav.candidates', fallback: '候选人管理', icon: 'ph-users' },
-    { path: '/talent-pool', labelKey: 'nav.talentPool', fallback: '储备人才库', icon: 'ph-archive-tray' },
-    { path: '/pipeline', labelKey: 'nav.pipeline', fallback: '招聘看板', icon: 'ph-kanban' },
     { path: '/calendar', labelKey: 'nav.calendar', fallback: '面试日程', icon: 'ph-calendar-blank' },
     { path: '/analytics', labelKey: 'nav.analytics', fallback: '数据洞察', icon: 'ph-chart-pie-slice', supervisorOnly: true },
     { path: '/leaderboard', labelKey: 'nav.leaderboard', fallback: 'Leaderboard', icon: 'ph-trophy', hqOnly: true },
