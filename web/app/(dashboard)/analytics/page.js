@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
   const [earlyClockOutModal, setEarlyClockOutModal] = useState(null);
 
   // Attendance Sub-view & Appeals States
-  const [attendanceViewMode, setAttendanceViewMode] = useState('my'); // 'my' | 'team'
+  const [attendanceViewMode, setAttendanceViewMode] = useState('team'); // 'my' | 'team'
   const [attendanceAppeals, setAttendanceAppeals] = useState([]);
   const [appealModalOpen, setAppealModalOpen] = useState(false);
   const [appealTargetRecord, setAppealTargetRecord] = useState(null);

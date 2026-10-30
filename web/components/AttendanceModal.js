@@ -1169,7 +1169,7 @@ export default function AttendanceModal() {
               type="button"
               onClick={() => {
                 setIsOpen(false);
-                window.location.href = '/analytics?tab=attendance&view=my';
+                window.location.href = '/leaderboard?tab=my_attendance';
               }}
               style={{
                 background: 'transparent',
