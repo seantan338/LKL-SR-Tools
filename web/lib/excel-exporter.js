@@ -133,7 +133,12 @@ export const EXCEL_I18N = {
     colTaxAmt: '税额 (SST)',
     colOcrFlag: 'AI识别',
     colWarnings: '风控标签',
-    colLineNotes: '明细说明'
+    colLineNotes: '明细说明',
+    defaultOverrideReason: '主管特批',
+    channelPayrollText: '随薪发放 (Payroll)',
+    channelBatchText: '批次打款 (Batch Payout)',
+    yesText: '是 (YES)',
+    noText: '否 (NO)'
   },
   en: {
     sheetSummary: (m) => `${m} Attendance Summary`,
@@ -240,7 +245,12 @@ export const EXCEL_I18N = {
     colTaxAmt: 'Tax (SST)',
     colOcrFlag: 'AI OCR',
     colWarnings: 'Warning Tags',
-    colLineNotes: 'Item Notes'
+    colLineNotes: 'Item Notes',
+    defaultOverrideReason: 'Supervisor Override',
+    channelPayrollText: 'Payroll',
+    channelBatchText: 'Batch Payout',
+    yesText: 'YES',
+    noText: 'NO'
   }
 };
 
@@ -1179,7 +1189,7 @@ export const ExcelExporter = {
         rec.billingSnapshot?.totalCommissionPool || rec.totalCommissionPool || 0,
         splitsText,
         statusText,
-        rec.isOverridden ? (rec.overrideReason || '主管特批') : '-',
+        rec.isOverridden ? (rec.overrideReason || labels.defaultOverrideReason || '主管特批') : '-',
         rec.cancellation?.reason || '-'
       ];
     });
@@ -1322,7 +1332,7 @@ export const ExcelExporter = {
       c.picName || c.userName,
       (c.items || []).length,
       Number(c.totalAmount || 0),
-      c.payoutChannel === 'PAYROLL' ? '随薪发放 (Payroll)' : '批次打款 (Batch Payout)',
+      c.payoutChannel === 'PAYROLL' ? (labels.channelPayrollText || '随薪发放 (Payroll)') : (labels.channelBatchText || '批次打款 (Batch Payout)'),
       c.status,
       c.managerReview?.reviewedByName || '-',
       c.managerReview?.reviewedAt?.slice(0, 16) || '-',
@@ -1364,7 +1374,7 @@ export const ExcelExporter = {
           it.mileageMeta?.parkingAmount || 0,
           Number(it.amount || 0),
           Number(it.taxAmount || 0),
-          it.ocrExtracted ? '是 (YES)' : '否 (NO)',
+          it.ocrExtracted ? (labels.yesText || '是 (YES)') : (labels.noText || '否 (NO)'),
           (it.warnings || []).join('; ') || '-',
           it.notes || '-'
         ]);

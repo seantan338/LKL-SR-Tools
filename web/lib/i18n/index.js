@@ -651,8 +651,13 @@ export const zh = {
     emptyColumn: '暂无候选人',
     readOnlyBanner: '当前处于合作人团队只读视察模式，仅支持查看看板进度，禁止跨团队拖拽流转。',
     readOnlyTip: '当前为只读视察模式，无法修改其他团队的流转阶段',
+    redirectNotice: '招聘看板已整合至「候选人管理」展示模式',
+  },
+  talentPool: {
+    redirectNotice: '储备人才库已整合至「候选人管理」专属选项',
   },
   candidates: {
+    loadingCandidates: '加载候选人管理...',
     candidateDrawer: {
       lblReminder: '提醒内容',
       phReminder: '例如: 询问候选人是否收到Offer...',
@@ -1496,6 +1501,7 @@ export const zh = {
     goToAnalyticsAttendance: '前往打卡记录看板进行高级配置 ➔',
   },
   common: {
+    redirecting: '正在为您平滑跳转...',
     all: '全部',
     confirm: '确认',
     unassigned: '未分配顾问',
@@ -2687,6 +2693,8 @@ export const zh = {
     reviewRejectedToast: '已驳回该请假申请'
   },
   claims: {
+    searchPlaceholder: '搜索顾问姓名、商户名或标题...',
+    invoiceNoExample: '如：INV-98231',
     moduleTitle: '报销与费用管理',
     tabMyClaims: '我的报销单',
     tabApproval: '报销审批与放款',
@@ -3452,8 +3460,13 @@ export const en = {
     emptyColumn: 'No candidates',
     readOnlyBanner: 'View-only mode: You are inspecting a partner team. Stage drag & drop is disabled.',
     readOnlyTip: 'View-only mode: Cannot modify partner team stages.',
+    redirectNotice: 'The recruitment pipeline has been consolidated into the Candidate Management view.',
+  },
+  talentPool: {
+    redirectNotice: 'The talent pool has been consolidated into Candidate Management.',
   },
   candidates: {
+    loadingCandidates: 'Loading candidate management...',
     candidateDrawer: {
       lblReminder: 'Reminder Detail',
       phReminder: 'e.g., Ask if they received the offer...',
@@ -4297,6 +4310,7 @@ export const en = {
     goToAnalyticsAttendance: 'Go to Attendance Dashboard for advanced settings ➔',
   },
   common: {
+    redirecting: 'Redirecting smoothly...',
     all: 'All',
     confirm: 'Confirm',
     unassigned: 'Unassigned',
@@ -5488,6 +5502,8 @@ export const en = {
     reviewRejectedToast: 'Leave request rejected'
   },
   claims: {
+    searchPlaceholder: 'Search by recruiter, merchant or title...',
+    invoiceNoExample: 'e.g.: INV-98231',
     moduleTitle: 'Expense Claims & Reimbursement',
     tabMyClaims: 'My Claims',
     tabApproval: 'Claims Approval & Payout',

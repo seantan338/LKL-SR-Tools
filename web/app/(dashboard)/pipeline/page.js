@@ -2,9 +2,11 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '../../../lib/i18n-context';
 
 export default function PipelineRedirect() {
   const router = useRouter();
+  const { t } = useI18n();
 
   useEffect(() => {
     router.replace('/candidates?view=kanban');
@@ -15,9 +17,9 @@ export default function PipelineRedirect() {
       <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
         <i className="ph-light ph-kanban" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: 'var(--accent-blue)' }}></i>
         <p style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '6px' }}>
-          招聘看板已整合至「候选人管理」展示模式
+          {t('pipeline.redirectNotice', '招聘看板已整合至「候选人管理」展示模式')}
         </p>
-        <p style={{ fontSize: '0.85rem' }}>正在为您平滑跳转...</p>
+        <p style={{ fontSize: '0.85rem' }}>{t('common.redirecting', '正在为您平滑跳转...')}</p>
       </div>
     </div>
   );

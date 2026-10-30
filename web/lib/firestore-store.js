@@ -845,10 +845,12 @@ export const FirestoreStore = {
         return (item.requestedPunchType || item.punchType || 'CLOCK_OUT') === targetPunchType;
       });
       if (duplicate) {
-        throw new Error('该打卡时段已存在正在审核中的申诉单，请勿重复提交');
+        const dupErr = new Error('该打卡时段已存在正在审核中的申诉单，请勿重复提交');
+        dupErr.code = 'ERR_DUPLICATE_APPEAL';
+        throw dupErr;
       }
     } catch (checkErr) {
-      if (checkErr.message?.includes('该打卡时段已存在')) {
+      if (checkErr.code === 'ERR_DUPLICATE_APPEAL' || checkErr.message?.includes('该打卡时段已存在')) {
         throw checkErr;
       }
       console.warn('Idempotency check query fallback notice:', checkErr?.message || checkErr);
@@ -1087,10 +1089,12 @@ export const FirestoreStore = {
         return false;
       });
       if (overlap) {
-        throw new Error('该日期时段已存在请假申请或已获批休假，请勿重复提交');
+        const overlapErr = new Error('该日期时段已存在请假申请或已获批休假，请勿重复提交');
+        overlapErr.code = 'ERR_OVERLAP_LEAVE';
+        throw overlapErr;
       }
     } catch (checkErr) {
-      if (checkErr.message?.includes('该日期时段已存在')) {
+      if (checkErr.code === 'ERR_OVERLAP_LEAVE' || checkErr.message?.includes('该日期时段已存在')) {
         throw checkErr;
       }
       console.warn('Leave overlap query notice:', checkErr?.message || checkErr);

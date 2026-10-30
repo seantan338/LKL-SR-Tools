@@ -2482,12 +2482,13 @@ function CandidatesContent() {
 }
 
 export default function CandidatesPage() {
+  const { t } = useI18n();
   return (
     <Suspense fallback={
       <div className="page-view active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
           <i className="ph-light ph-spinner-gap" style={{ fontSize: '2rem', animation: 'spin 1s linear infinite', marginBottom: '8px', display: 'block' }}></i>
-          <span>加载候选人管理...</span>
+          <span>{t('candidates.loadingCandidates', '加载候选人管理...')}</span>
         </div>
       </div>
     }>

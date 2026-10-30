@@ -195,7 +195,7 @@ export default function ExpenseClaimsAnalyticsTab({
                   type="text"
                   value={claimsSearchText}
                   onChange={(e) => setClaimsSearchText(e.target.value)}
-                  placeholder="搜索顾问姓名、商户名或标题..."
+                  placeholder={t('claims.searchPlaceholder', '搜索顾问姓名、商户名或标题...')}
                   className="input"
                   style={{ height: '32px', fontSize: '12px', width: '220px', paddingLeft: '28px' }}
                 />

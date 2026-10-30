@@ -548,7 +548,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             type="text"
                             value={item.invoiceNo}
                             onChange={(e) => updateItem(idx, 'invoiceNo', e.target.value)}
-                            placeholder="如：INV-98231"
+                            placeholder={t('claims.invoiceNoExample', '如：INV-98231')}
                             className="input"
                             style={{ width: '100%', fontSize: '13px' }}
                           />

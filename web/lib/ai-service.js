@@ -3,14 +3,17 @@
  */
 
 class AIService {
-  constructor(provider, apiKey) {
+  constructor(provider, apiKey, options = {}) {
     this.provider = provider;
     this.apiKey = apiKey;
+    this.options = options;
     
     if (provider === 'gemini') {
-      this.adapter = new GeminiAdapter(apiKey);
+      const defaultGeminiModel = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_GEMINI_MODEL) || 'gemini-1.5-flash';
+      this.adapter = new GeminiAdapter(apiKey, options.model || defaultGeminiModel);
     } else if (provider === 'openai') {
-      this.adapter = new OpenAIAdapter(apiKey);
+      const defaultOpenAiModel = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_OPENAI_MODEL) || 'gpt-4o-mini';
+      this.adapter = new OpenAIAdapter(apiKey, options.model || defaultOpenAiModel);
     } else {
       throw new Error(`Unsupported AI provider: ${provider}`);
     }
@@ -26,9 +29,10 @@ class AIService {
 }
 
 class GeminiAdapter {
-  constructor(apiKey) {
+  constructor(apiKey, model = 'gemini-1.5-flash') {
     this.apiKey = apiKey;
-    this.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+    this.model = model;
+    this.apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
   }
 
   async extractResumeData(rawText) {
@@ -196,8 +200,9 @@ ${serializedData}
 }
 
 class OpenAIAdapter {
-  constructor(apiKey) {
+  constructor(apiKey, model = 'gpt-4o-mini') {
     this.apiKey = apiKey;
+    this.model = model;
     this.apiUrl = 'https://api.openai.com/v1/chat/completions';
   }
 
@@ -241,7 +246,7 @@ ${rawText.substring(0, 8000)}
         'Authorization': `Bearer ${this.apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: this.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
         response_format: { type: "json_object" }
@@ -279,7 +284,7 @@ ${rawText.substring(0, 8000)}
         'Authorization': `Bearer ${this.apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: this.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
       })

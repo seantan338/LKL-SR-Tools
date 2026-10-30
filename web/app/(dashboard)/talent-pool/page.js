@@ -2,9 +2,11 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '../../../lib/i18n-context';
 
 export default function TalentPoolRedirect() {
   const router = useRouter();
+  const { t } = useI18n();
 
   useEffect(() => {
     router.replace('/candidates?pool=reserved');
@@ -15,9 +17,9 @@ export default function TalentPoolRedirect() {
       <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
         <i className="ph-light ph-archive-tray" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: 'var(--accent-amber)' }}></i>
         <p style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '6px' }}>
-          储备人才库已整合至「候选人管理」专属选项
+          {t('talentPool.redirectNotice', '储备人才库已整合至「候选人管理」专属选项')}
         </p>
-        <p style={{ fontSize: '0.85rem' }}>正在为您平滑跳转...</p>
+        <p style={{ fontSize: '0.85rem' }}>{t('common.redirecting', '正在为您平滑跳转...')}</p>
       </div>
     </div>
   );
