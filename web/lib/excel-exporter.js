@@ -61,6 +61,8 @@ export const EXCEL_I18N = {
     methodWfh: '居家办公 (WFH)',
     methodWifi: '公司 Wi-Fi',
     methodGps: '100m 地理围栏',
+    methodAdminManual: '管理员补录',
+    manualAuditNoteText: (name, reason) => `[管理员补录: 由 ${name || '管理员'} 补录${reason ? ' - ' + reason : ''}]`,
     methodRegular: '日常打卡',
     weekendRest: '休',
     absentDash: '—',
@@ -129,6 +131,8 @@ export const EXCEL_I18N = {
     methodWfh: 'Work From Home (WFH)',
     methodWifi: 'Office Wi-Fi',
     methodGps: '100m Geofence',
+    methodAdminManual: 'Admin Manual Entry',
+    manualAuditNoteText: (name, reason) => `[Admin Manual Entry: Added by ${name || 'Admin'}${reason ? ' - ' + reason : ''}]`,
     methodRegular: 'Standard Check-in',
     weekendRest: 'OFF',
     absentDash: '—',
@@ -568,6 +572,12 @@ export const ExcelExporter = {
         dateObj,
         type: evt.type || evt.action || 'CLOCK_IN'
       });
+      if (evt.manualEntry) {
+        dailyMap[key].manualEntry = evt.manualEntry;
+      }
+      if (evt.isManualEntry) {
+        dailyMap[key].isManualEntry = true;
+      }
       if (evt.verifyMethod && !dailyMap[key].verifyMethod) {
         dailyMap[key].verifyMethod = evt.verifyMethod;
         dailyMap[key].verifySnapshot = evt.verifySnapshot;
@@ -805,19 +815,28 @@ export const ExcelExporter = {
 
     const dailyRows = dailyLogs.map(log => {
       const a = log.analysis;
-      const methodLabel = log.verifyMethod === 'WFH'
-        ? labels.methodWfh
-        : log.verifyMethod === 'WIFI_IP'
-          ? labels.methodWifi
-          : log.verifyMethod === 'GPS_GEOFENCE'
-            ? labels.methodGps
-            : log.verifyMethod || labels.methodRegular;
+      const isManual = log.verifyMethod === 'ADMIN_MANUAL' || log.isManualEntry || (Array.isArray(log.events) && log.events.some(e => e.verifyMethod === 'ADMIN_MANUAL' || e.isManualEntry));
+      const methodLabel = isManual
+        ? labels.methodAdminManual
+        : log.verifyMethod === 'WFH'
+          ? labels.methodWfh
+          : log.verifyMethod === 'WIFI_IP'
+            ? labels.methodWifi
+            : log.verifyMethod === 'GPS_GEOFENCE'
+              ? labels.methodGps
+              : log.verifyMethod || labels.methodRegular;
+
+      const manualEntryData = log.manualEntry || (Array.isArray(log.events) && log.events.find(e => e.manualEntry)?.manualEntry);
+      const manualAuditNote = manualEntryData
+        ? (labels.manualAuditNoteText ? labels.manualAuditNoteText(manualEntryData.addedByName, manualEntryData.reason) : `[管理员补录: 由 ${manualEntryData.addedByName || '管理员'} 补录${manualEntryData.reason ? ' - ' + manualEntryData.reason : ''}]`)
+        : (log.verifySnapshot?.method === 'ADMIN_MANUAL' ? `[${labels.methodAdminManual}: ${log.verifySnapshot.reason || log.verifySnapshot.adminName || ''}]` : null);
 
       const punchFlow = Array.isArray(log.events) && log.events.length > 2
-        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}`).join(' -> ')}]`
+        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}${e.verifyMethod === 'ADMIN_MANUAL' ? ' (补录)' : ''}`).join(' -> ')}]`
         : null;
 
       const verifyDetails = [
+        manualAuditNote,
         log.verifySnapshot?.ip ? `IP: ${log.verifySnapshot.ip}` : null,
         a.note ? a.note : null,
         punchFlow

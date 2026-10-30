@@ -233,8 +233,37 @@ service cloud.firestore {
 
       match /attendance/{attendanceId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
-        allow write: if isHqTeam(teamId)
-          && (isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId));
+        // 考勤打卡写权限收紧：
+        // 1. 本部员工仅可写入本人实时打卡记录（禁止伪造他人 UID、禁止自写管理员补录标记与 ADMIN_MANUAL 核验凭证）
+        // 2. 本部 Owner / Manager 拥有手动补录及核验调整权限
+        allow create: if isHqTeam(teamId) && (
+          (
+            (isApprovedOnTeam(teamId) || isTeamMember(teamId))
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.get('verifyMethod', '') != 'ADMIN_MANUAL'
+            && request.resource.data.get('isManualEntry', false) == false
+          ) || isOwnerOrManagerOnTeam(teamId)
+        );
+        allow update, delete: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
+      }
+
+      match /attendance_appeals/{appealId} {
+        // 考勤异常申诉流转规则：
+        // 读取：申诉发起人本人或团队管理员/经理
+        allow read: if (isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId))
+          && (resource.data.userId == request.auth.uid || isOwnerOrManagerOnTeam(teamId));
+        // 发起申诉：必须为本人提交，初始状态锁定为 PENDING，严禁私自携带审批结论字段
+        allow create: if isHqTeam(teamId)
+          && (isApprovedOnTeam(teamId) || isTeamMember(teamId))
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.get('status', 'PENDING') == 'PENDING'
+          && request.resource.data.get('reviewedBy', null) == null;
+        // 审批处理：仅限本部 Owner / Manager
+        allow update: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
+        // 撤回申诉：申诉发起人仅可在未审批 (PENDING) 状态下自行撤回
+        allow delete: if isHqTeam(teamId)
+          && resource.data.userId == request.auth.uid
+          && resource.data.status == 'PENDING';
       }
 
       match /attendance_rules/{ruleId} {

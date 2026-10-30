@@ -1,7 +1,7 @@
 import { db } from './firebase';
 import { 
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
-  query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, increment 
+  query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, increment, Timestamp 
 } from 'firebase/firestore';
 import { Utils } from './utils';
 import { mergeInterviewReminder } from './interview-reminder.mjs';
@@ -698,6 +698,283 @@ export const FirestoreStore = {
     }
 
     return payload;
+  },
+
+  /**
+   * 管理员手动补录打卡时间 (明确留痕 ADMIN_MANUAL 凭证，记录操作人、服务器时间与原因)
+   */
+  async addManualAttendanceRecord(teamId, {
+    userId,
+    userEmail,
+    picName,
+    type = 'CLOCK_OUT',
+    dateStr,
+    timeStr,
+    reason = '',
+    appealId = null,
+    adminUser = null
+  }) {
+    if (!teamId || !userId || !dateStr || !timeStr) {
+      throw new Error('参数不完整：缺少 teamId, userId, dateStr 或 timeStr');
+    }
+
+    // 严谨换算本地时间戳 (针对 YYYY-MM-DD 与 HH:mm / HH:mm:ss)
+    const dateParts = dateStr.split('-').map(Number);
+    const timeParts = timeStr.split(':').map(Number);
+    const year = dateParts[0];
+    const month = dateParts[1] - 1;
+    const day = dateParts[2];
+    const hour = timeParts[0] || 0;
+    const minute = timeParts[1] || 0;
+    const second = timeParts[2] || 0;
+
+    const targetDate = new Date(year, month, day, hour, minute, second);
+    if (isNaN(targetDate.getTime())) {
+      throw new Error(`无效的日期或时间格式: ${dateStr} ${timeStr}`);
+    }
+
+    const recordId = Utils.generateId();
+    const adminName = adminUser?.displayName || adminUser?.name || adminUser?.email?.split('@')[0] || '管理员';
+    const adminEmail = adminUser?.email || '';
+    const adminUid = adminUser?.uid || '';
+
+    const payload = sanitizeFirestoreData({
+      id: recordId,
+      teamId,
+      userId,
+      userEmail: userEmail || '',
+      picName: picName || '',
+      type: type || 'CLOCK_OUT',
+      verifyMethod: 'ADMIN_MANUAL',
+      isManualEntry: true,
+      manualEntry: {
+        addedByUid: adminUid,
+        addedByName: adminName,
+        addedByEmail: adminEmail,
+        addedAt: new Date().toISOString(),
+        appealId: appealId || null,
+        reason: reason || '',
+        targetDate: dateStr,
+        targetTime: timeStr
+      },
+      verifySnapshot: {
+        method: 'ADMIN_MANUAL',
+        methodName: '管理员手动补录',
+        adminName,
+        adminEmail,
+        adminUid,
+        appealId: appealId || null,
+        reason: reason || '',
+        targetDate: dateStr,
+        targetTime: timeStr,
+        timestamp: new Date().toISOString()
+      },
+      note: `[管理员补录] ${type === 'CLOCK_OUT' ? '下班签退' : type === 'CLOCK_IN' ? '上班签到' : type} (${dateStr} ${timeStr}) - ${reason || '主管核准补录'}`,
+      timestamp: Timestamp.fromDate(targetDate),
+      createdAt: serverTimestamp(),
+      isDeleted: false
+    });
+
+    // 1. 写入专属 attendance 集合
+    const docRef = doc(db, 'teams', teamId, 'attendance', recordId);
+    await setDoc(docRef, payload);
+
+    // 2. 写入不可篡改审计日志 (targetType: ATTENDANCE_ADJUSTMENT，防止普通考勤监听器重复统计)
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: 'MANUAL_PUNCH_RECORDED',
+        targetType: 'ATTENDANCE_ADJUSTMENT',
+        targetName: `${picName || userEmail} 考勤补录`,
+        user: {
+          uid: adminUid,
+          email: adminEmail,
+          displayName: adminName
+        },
+        targetUser: {
+          uid: userId,
+          email: userEmail,
+          name: picName
+        },
+        details: `管理员 ${adminName} 为员工 ${picName} 补录 ${dateStr} ${timeStr} [${type === 'CLOCK_OUT' ? '下班签退' : '上班签到'}]，原因: ${reason || '无'}${appealId ? ` (申诉单 #${appealId})` : ''}`,
+        appealId: appealId || null,
+        recordId,
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (logErr) {
+      console.warn('Logging manual punch notice:', logErr?.message || logErr);
+    }
+
+    return payload;
+  },
+
+  /**
+   * 员工提交考勤异常申诉
+   */
+  async submitAttendanceAppeal(teamId, appealData) {
+    if (!teamId || !appealData?.userId || !appealData?.date) {
+      throw new Error('参数不完整：缺少 teamId, userId 或 date');
+    }
+
+    const appealId = Utils.generateId();
+    const payload = sanitizeFirestoreData({
+      id: appealId,
+      teamId,
+      userId: appealData.userId,
+      userEmail: appealData.userEmail || '',
+      picName: appealData.picName || '',
+      date: appealData.date, // 'YYYY-MM-DD'
+      appealType: appealData.appealType || 'MISSING_CLOCK_OUT',
+      requestedPunchType: appealData.requestedPunchType || 'CLOCK_OUT',
+      requestedTime: appealData.requestedTime || '18:00',
+      reason: appealData.reason || '',
+      status: 'PENDING', // 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      reviewedBy: null,
+      reviewedByUid: null,
+      reviewedAt: null,
+      reviewNote: null,
+      resultRecordId: null
+    });
+
+    const docRef = doc(db, 'teams', teamId, 'attendance_appeals', appealId);
+    await setDoc(docRef, payload);
+
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'info',
+        action: 'APPEAL_SUBMITTED',
+        targetType: 'ATTENDANCE_APPEAL',
+        targetName: `考勤异常申诉 (${appealData.picName || appealData.userEmail})`,
+        user: {
+          uid: appealData.userId,
+          email: appealData.userEmail,
+          displayName: appealData.picName
+        },
+        details: `提交了 ${appealData.date} 的考勤申诉 [申请补录 ${appealData.requestedPunchType === 'CLOCK_OUT' ? '下班' : '上班'} ${appealData.requestedTime}]，原因: ${appealData.reason}`,
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('Logging appeal submit notice:', e);
+    }
+
+    return { ...payload, id: appealId };
+  },
+
+  /**
+   * 订阅团队考勤异常申诉列表
+   */
+  subscribeToAttendanceAppeals(teamId, callback) {
+    if (!teamId) return () => {};
+    let unsub = () => {};
+    try {
+      const q = query(
+        collection(db, 'teams', teamId, 'attendance_appeals'),
+        orderBy('createdAt', 'desc')
+      );
+      unsub = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        callback(list);
+      }, (err) => {
+        console.warn('Attendance appeals subscription fallback (without index):', err?.message || err);
+        const fallbackUnsub = onSnapshot(collection(db, 'teams', teamId, 'attendance_appeals'), (snap) => {
+          const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          list.sort((a, b) => {
+            const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+            const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+            return tB - tA;
+          });
+          callback(list);
+        });
+        unsub = fallbackUnsub;
+      });
+    } catch (e) {
+      console.warn('Error in subscribeToAttendanceAppeals:', e);
+    }
+    return () => unsub();
+  },
+
+  /**
+   * 管理员审批考勤申诉 (APPROVED / REJECTED)
+   */
+  async reviewAttendanceAppeal(teamId, appealId, {
+    status,
+    reviewNote = '',
+    adminUser = null,
+    approvedTimeStr = '',
+    approvedPunchType = '',
+    originalAppeal
+  }) {
+    if (!teamId || !appealId) throw new Error('Missing teamId or appealId');
+    const adminName = adminUser?.displayName || adminUser?.name || adminUser?.email?.split('@')[0] || '管理员';
+    const adminUid = adminUser?.uid || '';
+    const docRef = doc(db, 'teams', teamId, 'attendance_appeals', appealId);
+
+    let resultRecordId = null;
+
+    if (status === 'APPROVED' && originalAppeal) {
+      // 审批通过：自动生成具有 ADMIN_MANUAL 标记的正式补录卡
+      const targetTime = approvedTimeStr || originalAppeal.requestedTime || '18:00';
+      const punchType = approvedPunchType || originalAppeal.requestedPunchType || 'CLOCK_OUT';
+
+      const punchRecord = await this.addManualAttendanceRecord(teamId, {
+        userId: originalAppeal.userId,
+        userEmail: originalAppeal.userEmail,
+        picName: originalAppeal.picName,
+        type: punchType,
+        dateStr: originalAppeal.date,
+        timeStr: targetTime,
+        reason: `[申诉核准] ${reviewNote ? reviewNote + ' - ' : ''}员工申诉理由: ${originalAppeal.reason || '无'}`,
+        appealId: appealId,
+        adminUser
+      });
+      resultRecordId = punchRecord?.id || null;
+    }
+
+    const updatePayload = {
+      status, // 'APPROVED' | 'REJECTED'
+      reviewedBy: adminName,
+      reviewedByUid: adminUid,
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      reviewNote: reviewNote || '',
+      resultRecordId: resultRecordId || null
+    };
+
+    await updateDoc(docRef, updatePayload);
+
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: status === 'APPROVED' ? 'APPEAL_APPROVED' : 'APPEAL_REJECTED',
+        targetType: 'ATTENDANCE_APPEAL',
+        targetName: `考勤申诉审批 (${originalAppeal?.picName || originalAppeal?.userEmail || appealId})`,
+        user: {
+          uid: adminUid,
+          email: adminUser?.email || '',
+          displayName: adminName
+        },
+        details: `管理员 ${adminName} ${status === 'APPROVED' ? '批准' : '驳回'} 了员工 ${originalAppeal?.picName || '员工'} ${originalAppeal?.date || ''} 的考勤申诉。批注: ${reviewNote || '无'}${resultRecordId ? ` (已生成补录卡 #${resultRecordId})` : ''}`,
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('Logging appeal review notice:', e);
+    }
+
+    return { id: appealId, ...updatePayload };
+  },
+
+  /**
+   * 员工在待审核状态下自行撤回申诉
+   */
+  async cancelAttendanceAppeal(teamId, appealId, userId) {
+    if (!teamId || !appealId) throw new Error('Missing teamId or appealId');
+    const docRef = doc(db, 'teams', teamId, 'attendance_appeals', appealId);
+    await deleteDoc(docRef);
   },
 
   // --- Google Sheets Long-term Webhook Sync Config ---

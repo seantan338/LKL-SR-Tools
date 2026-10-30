@@ -533,11 +533,14 @@ export default function AttendanceModal() {
     text: t('attendanceModal.statusPending', '今日待签到 · 上班考勤')
   };
   if (todayClockOut) {
+    const isManualOut = todayClockOut.verifyMethod === 'ADMIN_MANUAL' || todayClockOut.isManualEntry;
     statusBadge = {
-      bg: 'rgba(59, 130, 246, 0.15)',
-      color: 'var(--accent-blue)',
-      dot: 'var(--accent-blue)',
-      text: t('attendanceModal.statusClockedOut', { time: outTimeStr }, '今日已下班签退 ({time})')
+      bg: isManualOut ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+      color: isManualOut ? '#c084fc' : 'var(--accent-blue)',
+      dot: isManualOut ? '#c084fc' : 'var(--accent-blue)',
+      text: isManualOut
+        ? t('attendanceModal.statusManualClockedOut', { time: outTimeStr }, '今日已下班签退 (管理员补录: {time})')
+        : t('attendanceModal.statusClockedOut', { time: outTimeStr }, '今日已下班签退 ({time})')
     };
   } else if (enableLunchPunch && todayLunchOut && !todayLunchIn) {
     statusBadge = {
@@ -555,13 +558,16 @@ export default function AttendanceModal() {
     };
   } else if (todayClockIn) {
     const isWfhRecord = todayClockIn.verifyMethod === 'WFH';
+    const isManualIn = todayClockIn.verifyMethod === 'ADMIN_MANUAL' || todayClockIn.isManualEntry;
     statusBadge = {
-      bg: isWfhRecord ? 'rgba(168, 85, 247, 0.15)' : 'rgba(16, 185, 129, 0.12)',
-      color: isWfhRecord ? '#c084fc' : 'var(--accent-emerald)',
-      dot: isWfhRecord ? '#c084fc' : 'var(--accent-emerald)',
-      text: isWfhRecord
-        ? t('attendanceModal.statusWfhClockedIn', { time: inTimeStr }, '居家办公 (WFH) · 已签到 ({time})')
-        : t('attendanceModal.statusClockedIn', { time: inTimeStr }, '工作中 · 已签到 ({time})')
+      bg: isManualIn ? 'rgba(168, 85, 247, 0.15)' : isWfhRecord ? 'rgba(168, 85, 247, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+      color: isManualIn ? '#c084fc' : isWfhRecord ? '#c084fc' : 'var(--accent-emerald)',
+      dot: isManualIn ? '#c084fc' : isWfhRecord ? '#c084fc' : 'var(--accent-emerald)',
+      text: isManualIn
+        ? t('attendanceModal.statusManualClockedIn', { time: inTimeStr }, '管理员补录 · 已签到 ({time})')
+        : isWfhRecord
+          ? t('attendanceModal.statusWfhClockedIn', { time: inTimeStr }, '居家办公 (WFH) · 已签到 ({time})')
+          : t('attendanceModal.statusClockedIn', { time: inTimeStr }, '工作中 · 已签到 ({time})')
     };
   }
 
@@ -1154,6 +1160,33 @@ export default function AttendanceModal() {
               disabled={isVerifying}
             >
               {t('attendanceModal.later', '稍后打卡')}
+            </button>
+          </div>
+
+          {/* Quick link to personal attendance records & appeals */}
+          <div style={{ marginTop: 'var(--space-3)', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                window.location.href = '/analytics?tab=attendance&view=my';
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--accent-blue)',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 8px',
+                borderRadius: '4px'
+              }}
+            >
+              <i className="ph-bold ph-calendar-check"></i>
+              <span>{t('attendanceModal.linkMyAttendance', '查看我的考勤出席明细与异常申诉 →')}</span>
             </button>
           </div>
 

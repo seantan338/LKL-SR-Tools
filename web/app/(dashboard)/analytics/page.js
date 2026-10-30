@@ -19,6 +19,8 @@ import {
   evaluateGuaranteeStatus,
   formatCommissionCurrency
 } from '../../../lib/commission-engine';
+import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
+import ManualPunchModal from '../../../components/ManualPunchModal';
 
 const getApiUrl = (path) => {
   return path;
@@ -112,6 +114,57 @@ export default function AnalyticsPage() {
   const [overrideReasonInput, setOverrideReasonInput] = useState('');
   const [isSavingOverride, setIsSavingOverride] = useState(false);
   const [earlyClockOutModal, setEarlyClockOutModal] = useState(null);
+
+  // Attendance Sub-view & Appeals States
+  const [attendanceViewMode, setAttendanceViewMode] = useState('my'); // 'my' | 'team'
+  const [attendanceAppeals, setAttendanceAppeals] = useState([]);
+  const [appealModalOpen, setAppealModalOpen] = useState(false);
+  const [appealTargetRecord, setAppealTargetRecord] = useState(null);
+  const [manualPunchModalOpen, setManualPunchModalOpen] = useState(false);
+  const [manualPunchAppealToReview, setManualPunchAppealToReview] = useState(null);
+  const [manualPunchPrefillTarget, setManualPunchPrefillTarget] = useState(null);
+  const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  // URL search query handler for deep-links like /analytics?tab=attendance&view=my
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['performance', 'attendance', 'commission'].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+      const viewParam = params.get('view');
+      if (viewParam && ['my', 'team'].includes(viewParam)) {
+        setAttendanceViewMode(viewParam);
+      }
+    }
+  }, []);
+
+  // Sync attendanceViewMode default based on user permissions
+  useEffect(() => {
+    if (canManageAttendance) {
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      if (params && params.get('view') === 'my') {
+        setAttendanceViewMode('my');
+      } else {
+        setAttendanceViewMode('team');
+      }
+    } else {
+      setAttendanceViewMode('my');
+    }
+  }, [canManageAttendance]);
+
+  // Subscribe to Attendance Appeals
+  useEffect(() => {
+    if (!teamId) return;
+    const unsub = FirestoreStore.subscribeToAttendanceAppeals(teamId, (data) => {
+      setAttendanceAppeals(data || []);
+    });
+    return () => unsub();
+  }, [teamId]);
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -447,6 +500,7 @@ export default function AnalyticsPage() {
           dateObj: dateObj,
           picName: cleanPic,
           userEmail: userEmail || '',
+          userId: meta.uid || canonical.uid || '',
           firstActionTime: dateObj,
           lastActionTime: dateObj,
           actionCount: 0,
@@ -456,6 +510,8 @@ export default function AnalyticsPage() {
           manualClockOut: null,
           verifyMethod: meta.verifyMethod || null,
           verifySnapshot: meta.verifySnapshot || null,
+          clockInPunch: null,
+          clockOutPunch: null,
           allClockIns: [],
           allClockOuts: [],
           allLunchOuts: [],
@@ -466,6 +522,9 @@ export default function AnalyticsPage() {
       }
 
       const rec = recordMap[key];
+      if (meta.uid && !rec.userId) {
+        rec.userId = meta.uid;
+      }
 
       // 双写记录去重：60秒内的同类型记录视为同一打卡事件
       const isDuplicate = rec.allPunches.some(
@@ -478,12 +537,16 @@ export default function AnalyticsPage() {
       if (dateObj > rec.lastActionTime) rec.lastActionTime = dateObj;
 
       const timeStr = dateObj.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const isManual = Boolean(meta.isManualEntry || meta.verifyMethod === 'ADMIN_MANUAL');
       const punchItem = {
         actionType,
         time: dateObj,
         timeStr,
-        verifyMethod: meta.verifyMethod || null,
+        verifyMethod: meta.verifyMethod || (isManual ? 'ADMIN_MANUAL' : null),
         verifySnapshot: meta.verifySnapshot || null,
+        isManualEntry: isManual,
+        manualEntry: meta.manualEntry || null,
+        uid: meta.uid || null,
         note
       };
       rec.allPunches.push(punchItem);
@@ -493,6 +556,7 @@ export default function AnalyticsPage() {
         // 上班签到始终取当天最早的一次打卡
         if (!rec.manualClockIn || dateObj < rec.manualClockIn) {
           rec.manualClockIn = dateObj;
+          rec.clockInPunch = punchItem;
           if (meta.verifyMethod) {
             rec.verifyMethod = meta.verifyMethod;
             rec.verifySnapshot = meta.verifySnapshot;
@@ -513,9 +577,10 @@ export default function AnalyticsPage() {
         // 下班签退始终取当天最晚的一次打卡（支持多次打卡自动覆盖）
         if (!rec.manualClockOut || dateObj > rec.manualClockOut) {
           rec.manualClockOut = dateObj;
+          rec.clockOutPunch = punchItem;
           if (meta.verifyMethod) {
-            rec.verifyMethod = meta.verifyMethod;
-            rec.verifySnapshot = meta.verifySnapshot;
+            rec.clockOutVerifyMethod = meta.verifyMethod;
+            rec.clockOutVerifySnapshot = meta.verifySnapshot;
           }
         }
       }
@@ -537,6 +602,8 @@ export default function AnalyticsPage() {
         {
           verifyMethod: chk.verifyMethod,
           verifySnapshot: chk.verifySnapshot,
+          isManualEntry: chk.isManualEntry || chk.verifyMethod === 'ADMIN_MANUAL',
+          manualEntry: chk.manualEntry,
           uid: chk.userId || chk.uid
         }
       );
@@ -561,6 +628,8 @@ export default function AnalyticsPage() {
         {
           verifyMethod: l.verifyMethod,
           verifySnapshot: l.verifySnapshot,
+          isManualEntry: l.isManualEntry || l.verifyMethod === 'ADMIN_MANUAL',
+          manualEntry: l.manualEntry,
           uid: l.userId || l.user?.uid
         }
       );
@@ -720,6 +789,128 @@ export default function AnalyticsPage() {
       // ignore
     }
     return '';
+  };
+
+  // -------------------------------------------------------------
+  // Data Aggregation: My Attendance (当前员工个人出勤与异常统计)
+  // -------------------------------------------------------------
+  const pendingAppeals = useMemo(() => {
+    return attendanceAppeals.filter(a => a.status === 'PENDING');
+  }, [attendanceAppeals]);
+
+  const myAppealsByDate = useMemo(() => {
+    const map = {};
+    attendanceAppeals.forEach(a => {
+      const isMine = a.userId === user?.uid || (user?.email && a.userEmail?.toLowerCase() === user.email.toLowerCase());
+      if (isMine) {
+        // Same date: keep latest
+        if (!map[a.date] || (a.createdAt?.toMillis && map[a.date].createdAt?.toMillis && a.createdAt.toMillis() > map[a.date].createdAt.toMillis())) {
+          map[a.date] = a;
+        }
+      }
+    });
+    return map;
+  }, [attendanceAppeals, user]);
+
+  const myCanonicalPic = useMemo(() => {
+    const myName = userProfile?.displayName || userProfile?.name || user?.displayName || user?.email?.split('@')[0] || '';
+    return resolveCanonicalPic(myName, user?.uid, teamMembers);
+  }, [user, userProfile, teamMembers]);
+
+  const myAllAttendance = useMemo(() => {
+    return picAttendanceRecords.filter(item => {
+      const matchUid = user?.uid && (item.userId === user.uid || (item.allPunches && item.allPunches.some(p => p.uid === user.uid)));
+      const matchEmail = user?.email && item.userEmail && item.userEmail.toLowerCase() === user.email.toLowerCase();
+      const matchName = myCanonicalPic?.displayName && item.picName && item.picName.toLowerCase() === myCanonicalPic.displayName.toLowerCase();
+      return matchUid || matchEmail || matchName;
+    });
+  }, [picAttendanceRecords, user, myCanonicalPic]);
+
+  const myMonthlyAttendance = useMemo(() => {
+    return myAllAttendance.filter(item => {
+      if (myAttendanceMonth && !item.date.startsWith(myAttendanceMonth)) return false;
+      return true;
+    });
+  }, [myAllAttendance, myAttendanceMonth]);
+
+  const myStats = useMemo(() => {
+    let daysPresent = 0;
+    let fullShiftDays = 0;
+    let lateDays = 0;
+    let missingPunchDays = 0;
+    let wfhDays = 0;
+    let manualAddedDays = 0;
+
+    myMonthlyAttendance.forEach(item => {
+      daysPresent += 1;
+      const isWfh = item.verifyMethod === 'WFH' || (item.allPunches && item.allPunches.some(p => p.verifyMethod === 'WFH'));
+      if (isWfh) wfhDays += 1;
+
+      const isManual = item.clockInPunch?.isManualEntry || item.clockOutPunch?.isManualEntry || (item.allPunches && item.allPunches.some(p => p.isManualEntry));
+      if (isManual) manualAddedDays += 1;
+
+      if (item.shiftAnalysis?.isCompliant) fullShiftDays += 1;
+      if (item.shiftAnalysis?.isViolation || item.shiftAnalysis?.isLate) lateDays += 1;
+      if (item.shiftAnalysis?.isMissingPunch) missingPunchDays += 1;
+    });
+
+    const pendingCount = attendanceAppeals.filter(a => {
+      const isMe = a.userId === user?.uid || (user?.email && a.userEmail?.toLowerCase() === user.email.toLowerCase());
+      return isMe && a.status === 'PENDING' && (!myAttendanceMonth || a.date?.startsWith(myAttendanceMonth));
+    }).length;
+
+    return {
+      daysPresent,
+      fullShiftDays,
+      lateDays,
+      missingPunchDays,
+      wfhDays,
+      manualAddedDays,
+      pendingCount
+    };
+  }, [myMonthlyAttendance, attendanceAppeals, user, myAttendanceMonth]);
+
+  // Modal Handlers
+  const handleOpenAppealModal = (record) => {
+    setAppealTargetRecord(record);
+    setAppealModalOpen(true);
+  };
+
+  const handleCancelAppeal = async (appeal) => {
+    if (!appeal || !teamId || !user?.uid) return;
+    try {
+      await FirestoreStore.cancelAttendanceAppeal(teamId, appeal.id, user.uid);
+      showToast(t('attendanceAppeal.toastCancelled', '已撤回考勤申诉'));
+    } catch (err) {
+      console.error('Cancel appeal failed:', err);
+      showToast(t('attendanceAppeal.errCancelFailed', '撤回失败: ') + (err?.message || err));
+    }
+  };
+
+  const handleOpenReviewAppeal = (appeal) => {
+    setManualPunchAppealToReview(appeal);
+    setManualPunchPrefillTarget(null);
+    setManualPunchModalOpen(true);
+  };
+
+  const handleOpenPrefillManualPunch = (record) => {
+    setManualPunchAppealToReview(null);
+    setManualPunchPrefillTarget({
+      userId: record.userId,
+      userEmail: record.userEmail,
+      picName: record.picName,
+      date: record.date,
+      defaultPunchType: !record.manualClockOut ? 'CLOCK_OUT' : 'CLOCK_IN',
+      defaultTime: !record.manualClockOut ? '18:00' : '09:00',
+      defaultReason: `管理员特批补录`
+    });
+    setManualPunchModalOpen(true);
+  };
+
+  const handleOpenDirectManualPunch = () => {
+    setManualPunchAppealToReview(null);
+    setManualPunchPrefillTarget(null);
+    setManualPunchModalOpen(true);
   };
 
   // -------------------------------------------------------------
@@ -1936,9 +2127,640 @@ export default function AnalyticsPage() {
       {/* TAB 2: PIC 打卡记录 (Attendance & Activity Logs)                          */}
       {/* ========================================================================= */}
       {activeTab === 'attendance' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           
-          {/* Attendance Filter Toolbar */}
+          {/* View Mode Switcher: My Attendance vs Team Attendance (Admins can toggle, Employees view My Attendance) */}
+          {canManageAttendance && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${attendanceViewMode === 'my' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '13px', padding: '6px 16px', gap: '6px', border: 'none' }}
+                  onClick={() => setAttendanceViewMode('my')}
+                >
+                  <i className="ph-bold ph-user"></i>
+                  <span>{t('analytics.viewMyAttendance', '我的个人考勤')}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${attendanceViewMode === 'team' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ fontSize: '13px', padding: '6px 16px', gap: '6px', border: 'none' }}
+                  onClick={() => setAttendanceViewMode('team')}
+                >
+                  <i className="ph-bold ph-users-three"></i>
+                  <span>{t('analytics.viewTeamAttendance', '团队考勤明细')}</span>
+                  {pendingAppeals.length > 0 && (
+                    <span style={{
+                      background: '#ef4444',
+                      color: '#fff',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      marginLeft: '4px'
+                    }}>
+                      {pendingAppeals.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: 'rgba(168, 85, 247, 0.4)',
+                    color: '#c084fc',
+                    background: 'rgba(168, 85, 247, 0.08)',
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    borderRadius: 'var(--radius-md)'
+                  }}
+                  onClick={handleOpenDirectManualPunch}
+                >
+                  <i className="ph-bold ph-wrench"></i>
+                  <span>{t('manualPunch.btnQuickAdd', '管理员补录打卡')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 1: MY ATTENDANCE DASHBOARD & TABLE */}
+          {attendanceViewMode === 'my' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+              
+              {/* Header Bar */}
+              <div className="bezel-shell">
+                <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: 'rgba(59, 130, 246, 0.15)',
+                        color: 'var(--accent-blue)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px'
+                      }}>
+                        <i className="ph-bold ph-clock-user"></i>
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                          {t('analytics.myAttendanceTitle', '我的考勤打卡与出勤统计')}
+                        </h3>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                          {t('analytics.myAttendanceSub', '实时掌握个人出勤天数、打卡时间与班次达标情况；如因公出差外勤未打卡可提交异常申诉')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <select
+                        value={myAttendanceMonth}
+                        onChange={(e) => setMyAttendanceMonth(e.target.value)}
+                        className="select"
+                        style={{ height: '34px', fontSize: '12px', minWidth: '120px' }}
+                      >
+                        {exportMonthOptions.map(ym => (
+                          <option key={ym} value={ym}>{ym}</option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        style={{
+                          height: '34px',
+                          fontSize: '12px',
+                          gap: '6px',
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          fontWeight: '700',
+                          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+                        }}
+                        onClick={() => handleOpenAppealModal({ date: new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-') })}
+                      >
+                        <i className="ph-bold ph-paper-plane-tilt"></i>
+                        <span>{t('attendanceAppeal.btnQuickAppeal', '发起考勤申诉')}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bento Metric Stat Cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: 'var(--space-3)'
+              }}>
+                {/* 1. Present Days */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statPresentDays', '本月出勤天数')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                      {myStats.daysPresent} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '4px' }}>
+                      {t('analytics.statFullShiftNote', { count: myStats.fullShiftDays }, `达标工时 ${myStats.fullShiftDays} 天`)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Full Shift Compliant */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-check-circle" style={{ color: 'var(--accent-blue)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statCompliantRate', '班次达标率')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-blue)', fontFamily: 'monospace' }}>
+                      {myStats.daysPresent > 0 ? ((myStats.fullShiftDays / myStats.daysPresent) * 100).toFixed(0) : 0}%
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      {t('analytics.statCompliantSub', { ok: myStats.fullShiftDays, total: myStats.daysPresent }, `${myStats.fullShiftDays} / ${myStats.daysPresent} 天正常`)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Late / Violations */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-hourglass-high" style={{ color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statLateCount', '迟到 / 提前退')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                      {myStats.lateDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', marginTop: '4px' }}>
+                      {myStats.lateDays > 0 ? t('analytics.statLateAlert', '存在班次未达底线') : t('analytics.statNoViolation', '无迟到记录')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Missing Punches */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-warning-circle" style={{ color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statMissingPunch', '缺卡待申诉')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                      {myStats.missingPunchDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                      {myStats.missingPunchDays > 0 ? t('analytics.statMissingPunchAlert', '可在表格中点击申诉补录') : t('analytics.statAllPunched', '所有打卡均完整')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Admin Manual Punch */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-wrench" style={{ color: 'var(--accent-purple)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statAdminAdded', '管理员补录')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-purple)', fontFamily: 'monospace' }}>
+                      {myStats.manualAddedDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      {t('analytics.statAdminAddedNote', '特批或申诉核准留痕')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. Pending Appeals */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-paper-plane-tilt" style={{ color: myStats.pendingCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statPendingAppeals', '申诉审核中')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.pendingCount > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                      {myStats.pendingCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitCases', '件')}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      {myStats.pendingCount > 0 ? t('analytics.statPendingAppealsWait', '等待管理员批复中') : t('analytics.statNoPendingAppeals', '暂无在途申诉')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* My Attendance Daily Records Table */}
+              <div className="bezel-shell">
+                <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ph-bold ph-table" style={{ color: 'var(--accent-blue)', fontSize: '16px' }}></i>
+                      <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                        {t('analytics.myDailyTableTitle', { month: myAttendanceMonth }, `${myAttendanceMonth} 每日打卡与出勤流水`)}
+                      </h4>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                        {t('analytics.myRecordCount', { count: myMonthlyAttendance.length }, `共 ${myMonthlyAttendance.length} 天记录`)}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {t('analytics.myTableTip', '💡 提示：若因公出差外勤导致缺卡或未下班，可点击右侧「申诉」按钮申请补录')}
+                    </div>
+                  </div>
+
+                  {myMonthlyAttendance.length === 0 ? (
+                    <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      {t('analytics.emptyMyAttendance', { month: myAttendanceMonth }, `在 ${myAttendanceMonth} 期间暂无打卡记录，可在顶部弹窗进行日常考勤签到`)}
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colDate', '考勤日期')}</th>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '上班签到')}</th>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colClockOut', '下班签退')}</th>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时')}</th>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定班次')}</th>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
+                            <th style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>{t('analytics.colAppealAction', '异常申诉 / 补录状态')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {myMonthlyAttendance.map((item, idx) => {
+                            const firstTimeStr = (item.manualClockIn || item.firstActionTime)?.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '-';
+                            const clockOutTimeStr = item.manualClockOut ? item.manualClockOut.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+                            const dayWeekday = getWeekdayLabel(item.date);
+                            const appeal = myAppealsByDate[item.date];
+
+                            const isInManual = Boolean(item.clockInPunch?.isManualEntry);
+                            const isOutManual = Boolean(item.clockOutPunch?.isManualEntry);
+
+                            return (
+                              <tr key={`${item.date}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
+                                {/* Date */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontWeight: '700', fontFamily: 'monospace', color: item.isToday ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                                      {item.date}
+                                    </span>
+                                    {dayWeekday && (
+                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                        {dayWeekday}
+                                      </span>
+                                    )}
+                                    {item.isToday && (
+                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', fontWeight: '700' }}>
+                                        {t('analytics.todayTagShort', '今日')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Clock In */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                      {firstTimeStr}
+                                    </span>
+                                    {isInManual && (
+                                      <span
+                                        style={{
+                                          fontSize: '10px',
+                                          fontWeight: '700',
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(168, 85, 247, 0.18)',
+                                          color: '#c084fc',
+                                          border: '1px solid rgba(168, 85, 247, 0.35)',
+                                          cursor: 'help',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '2px'
+                                        }}
+                                        title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                      >
+                                        <i className="ph-bold ph-wrench"></i>
+                                        {t('analytics.badgeAdminManual', '补录')}
+                                      </span>
+                                    )}
+                                    {item.verifyMethod === 'WFH' && !isInManual && (
+                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
+                                        WFH
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Clock Out */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  {clockOutTimeStr ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                        {clockOutTimeStr}
+                                      </span>
+                                      {isOutManual && (
+                                        <span
+                                          style={{
+                                            fontSize: '10px',
+                                            fontWeight: '700',
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            background: 'rgba(168, 85, 247, 0.18)',
+                                            color: '#c084fc',
+                                            border: '1px solid rgba(168, 85, 247, 0.35)',
+                                            cursor: 'help',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '2px'
+                                          }}
+                                          title={item.clockOutPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                        >
+                                          <i className="ph-bold ph-wrench"></i>
+                                          {t('analytics.badgeAdminManual', '补录')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: item.isToday ? 'var(--accent-amber)' : '#f87171', fontSize: '12px' }}>
+                                      {item.isToday ? t('attendanceModal.pendingClockOut', '待签退') : t('analytics.statusMissedOutShort', '未签退(缺卡)')}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Duration */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
+                                  {item.manualClockOut && item.durationHours !== null && item.durationHours !== undefined ? (
+                                    item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时')
+                                  ) : (
+                                    <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                  )}
+                                </td>
+
+                                {/* Shift */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                      {item.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                                    </span>
+                                    {item.shiftAnalysis?.shift?.endStr && (
+                                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                        {t('analytics.shiftCutoffPrefix', '底线')} {item.shiftAnalysis.shift.endStr}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Status */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                                  <span style={{
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: item.statusColor,
+                                    background: `${item.statusColor}18`,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
+                                    {item.statusLabel}
+                                  </span>
+                                </td>
+
+                                {/* Appeal / Action */}
+                                <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
+                                  {appeal ? (
+                                    appeal.status === 'PENDING' ? (
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{
+                                          fontSize: '11px',
+                                          fontWeight: '600',
+                                          color: 'var(--accent-amber)',
+                                          background: 'rgba(245, 158, 11, 0.15)',
+                                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                                          padding: '2px 8px',
+                                          borderRadius: '4px'
+                                        }}>
+                                          🟡 {t('attendanceAppeal.statusPendingBadge', { time: appeal.requestedTime }, `申诉审核中 (${appeal.requestedTime})`)}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-sm"
+                                          style={{ padding: '2px 6px', fontSize: '11px', color: 'var(--text-muted)' }}
+                                          title={t('attendanceAppeal.btnCancelTip', '撤回本次申诉')}
+                                          onClick={() => handleCancelAppeal(appeal)}
+                                        >
+                                          {t('common.cancel', '撤回')}
+                                        </button>
+                                      </div>
+                                    ) : appeal.status === 'APPROVED' ? (
+                                      <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        color: 'var(--accent-emerald)',
+                                        background: 'rgba(16, 185, 129, 0.15)',
+                                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px'
+                                      }}>
+                                        🟢 {t('attendanceAppeal.statusApprovedBadge', '申诉已核准 (已补录)')}
+                                      </span>
+                                    ) : (
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                        <span
+                                          style={{
+                                            fontSize: '11px',
+                                            fontWeight: '600',
+                                            color: '#f87171',
+                                            background: 'rgba(239, 68, 68, 0.15)',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            padding: '2px 8px',
+                                            borderRadius: '4px',
+                                            cursor: 'help'
+                                          }}
+                                          title={`驳回原因: ${appeal.reviewNote || '无'}`}
+                                        >
+                                          🔴 {t('attendanceAppeal.statusRejectedBadge', '已驳回')}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="btn btn-secondary btn-sm"
+                                          style={{ padding: '2px 8px', fontSize: '11px' }}
+                                          onClick={() => handleOpenAppealModal(item)}
+                                        >
+                                          {t('attendanceAppeal.btnReappeal', '重提')}
+                                        </button>
+                                      </div>
+                                    )
+                                  ) : (
+                                    (item.shiftAnalysis?.isMissingPunch || item.shiftAnalysis?.isViolation || item.shiftAnalysis?.isLate || (!item.manualClockOut && !item.isToday)) ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm"
+                                        style={{
+                                          padding: '3px 10px',
+                                          fontSize: '11px',
+                                          fontWeight: '700',
+                                          background: 'rgba(245, 158, 11, 0.15)',
+                                          color: 'var(--accent-amber)',
+                                          border: '1px solid rgba(245, 158, 11, 0.35)',
+                                          borderRadius: '4px',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }}
+                                        onClick={() => handleOpenAppealModal(item)}
+                                      >
+                                        <i className="ph-bold ph-shield-warning"></i>
+                                        <span>{t('attendanceAppeal.btnRowAppeal', '异常申诉')}</span>
+                                      </button>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                                    )
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            /* VIEW 2: TEAM ATTENDANCE ROSTER (FOR MANAGERS & OWNERS) */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+              
+              {/* Pending Appeals Banner (Shown to managers when there are pending appeals) */}
+              {pendingAppeals.length > 0 && (
+                <div className="bezel-shell" style={{ border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                  <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)', background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <i className="ph-bold ph-bell-ringing" style={{ fontSize: '16px' }}></i>
+                        </div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--accent-amber)' }}>
+                          {t('attendanceAppeal.adminPendingTitle', { count: pendingAppeals.length }, `待审批员工考勤申诉 (${pendingAppeals.length} 条待办)`)}
+                        </h4>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {t('attendanceAppeal.adminReviewTip', '核实员工公出或故障情况后，可直接点击「核准并补录」')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {pendingAppeals.map(appeal => (
+                        <div
+                          key={appeal.id}
+                          style={{
+                            background: 'rgba(0, 0, 0, 0.25)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '12px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
+                                {appeal.picName || appeal.userEmail}
+                              </span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                ({appeal.userEmail})
+                              </span>
+                              <span style={{
+                                fontSize: '11px',
+                                fontFamily: 'monospace',
+                                fontWeight: '700',
+                                color: 'var(--accent-blue)',
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                padding: '1px 6px',
+                                borderRadius: '4px'
+                              }}>
+                                {appeal.date}
+                              </span>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: 'var(--accent-amber)',
+                                background: 'rgba(245, 158, 11, 0.15)',
+                                padding: '1px 6px',
+                                borderRadius: '4px'
+                              }}>
+                                {appeal.requestedPunchType === 'CLOCK_OUT' ? t('attendanceAppeal.typeClockOut', '下班签退') : t('attendanceAppeal.typeClockIn', '上班签到')} {appeal.requestedTime}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              <strong style={{ color: 'var(--text-muted)' }}>{t('attendanceAppeal.colReason', '申诉说明')}: </strong>
+                              {appeal.reason}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              style={{
+                                fontSize: '12px',
+                                padding: '4px 12px',
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                border: 'none',
+                                color: '#fff',
+                                fontWeight: '700',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              onClick={() => handleOpenReviewAppeal(appeal)}
+                            >
+                              <i className="ph-bold ph-check"></i>
+                              <span>{t('attendanceAppeal.btnApprovePunch', '审查并核准补录')}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              style={{
+                                fontSize: '12px',
+                                padding: '4px 10px',
+                                color: '#f87171',
+                                borderColor: 'rgba(239, 68, 68, 0.35)'
+                              }}
+                              onClick={() => handleOpenReviewAppeal(appeal)}
+                            >
+                              <i className="ph-bold ph-x"></i>
+                              <span>{t('attendanceAppeal.btnRejectPunch', '驳回')}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Attendance Filter Toolbar */}
           <div className="bezel-shell">
             <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
@@ -2203,6 +3025,9 @@ export default function AnalyticsPage() {
                               const firstTimeStr = (item.manualClockIn || item.firstActionTime)?.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || '-';
                               const clockOutTimeStr = item.manualClockOut ? item.manualClockOut.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
 
+                              const isClockInManual = Boolean(item.clockInPunch?.isManualEntry);
+                              const isClockOutManual = Boolean(item.clockOutPunch?.isManualEntry);
+
                               return (
                                 <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
                                   <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
@@ -2221,6 +3046,27 @@ export default function AnalyticsPage() {
                                       <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
                                         {firstTimeStr}
                                       </span>
+                                      {isClockInManual && (
+                                        <span
+                                          style={{
+                                            fontSize: '10px',
+                                            fontWeight: '700',
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            background: 'rgba(168, 85, 247, 0.18)',
+                                            color: '#c084fc',
+                                            border: '1px solid rgba(168, 85, 247, 0.35)',
+                                            cursor: 'help',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '2px'
+                                          }}
+                                          title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                        >
+                                          <i className="ph-bold ph-wrench"></i>
+                                          {t('analytics.badgeAdminManual', '补录')}
+                                        </span>
+                                      )}
                                       {item.allClockIns && item.allClockIns.length > 1 && (
                                         <span
                                           style={{
@@ -2244,6 +3090,27 @@ export default function AnalyticsPage() {
                                         <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
                                           {clockOutTimeStr}
                                         </span>
+                                        {isClockOutManual && (
+                                          <span
+                                            style={{
+                                              fontSize: '10px',
+                                              fontWeight: '700',
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              background: 'rgba(168, 85, 247, 0.18)',
+                                              color: '#c084fc',
+                                              border: '1px solid rgba(168, 85, 247, 0.35)',
+                                              cursor: 'help',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '2px'
+                                            }}
+                                            title={item.clockOutPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                          >
+                                            <i className="ph-bold ph-wrench"></i>
+                                            {t('analytics.badgeAdminManual', '补录')}
+                                          </span>
+                                        )}
                                         {item.allClockOuts && item.allClockOuts.length > 1 && (
                                           <span
                                             style={{
@@ -2417,16 +3284,28 @@ export default function AnalyticsPage() {
                                   </td>
                                   <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
                                     {canManageAttendance ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-secondary btn-sm"
-                                        style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
-                                        title={t('analytics.btnOverrideShift', '调整核定班次')}
-                                        onClick={() => handleOpenOverrideModal(item)}
-                                      >
-                                        <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
-                                        {t('analytics.btnEditShift', '改班')}
-                                      </button>
+                                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                        <button
+                                          type="button"
+                                          className="btn btn-secondary btn-sm"
+                                          style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
+                                          title={t('analytics.btnOverrideShift', '调整核定班次')}
+                                          onClick={() => handleOpenOverrideModal(item)}
+                                        >
+                                          <i className="ph-bold ph-pencil-simple" style={{ color: 'var(--accent-purple)' }}></i>
+                                          {t('analytics.btnEditShift', '改班')}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline"
+                                          style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px', borderColor: 'rgba(168, 85, 247, 0.4)', color: '#c084fc', background: 'rgba(168, 85, 247, 0.08)' }}
+                                          title={t('analytics.btnManualPunch', '管理员手动补录打卡时间')}
+                                          onClick={() => handleOpenPrefillManualPunch(item)}
+                                        >
+                                          <i className="ph-bold ph-wrench"></i>
+                                          {t('analytics.btnManualPunchShort', '补录')}
+                                        </button>
+                                      </div>
                                     ) : (
                                       <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>-</span>
                                     )}
@@ -2441,6 +3320,9 @@ export default function AnalyticsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
             </div>
           )}
 
@@ -3665,6 +4547,36 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
+
+      {/* Attendance Appeal Modal (员工考勤异常申诉) */}
+      <AttendanceAppealModal
+        isOpen={appealModalOpen}
+        onClose={() => {
+          setAppealModalOpen(false);
+          setAppealTargetRecord(null);
+        }}
+        targetRecord={appealTargetRecord}
+        user={user}
+        userProfile={userProfile}
+        teamId={teamId}
+        onSuccess={(msg) => showToast(msg)}
+      />
+
+      {/* Manual Punch Modal (管理员手动补录考勤 / 审批申诉) */}
+      <ManualPunchModal
+        isOpen={manualPunchModalOpen}
+        onClose={() => {
+          setManualPunchModalOpen(false);
+          setManualPunchAppealToReview(null);
+          setManualPunchPrefillTarget(null);
+        }}
+        teamId={teamId}
+        adminUser={userProfile || user}
+        teamMembers={teamMembers}
+        appealToReview={manualPunchAppealToReview}
+        prefillTarget={manualPunchPrefillTarget}
+        onSuccess={(msg) => showToast(msg)}
+      />
 
     </div>
   );
