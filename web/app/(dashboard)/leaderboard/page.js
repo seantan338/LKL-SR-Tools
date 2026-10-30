@@ -74,14 +74,15 @@ export default function LeaderboardPage() {
     }
   }, []);
 
-  // Subscribe to Attendance Appeals
+  // Subscribe to Attendance Appeals (managers get all, staff gets own to conform to firestore.rules)
   useEffect(() => {
-    if (!isHqTeam) return;
+    if (!isHqTeam || !user?.uid) return;
+    const filterUid = (!isOwner && !isManager) ? user.uid : null;
     const unsub = FirestoreStore.subscribeToAttendanceAppeals('default_team', (appeals) => {
       setAttendanceAppeals(appeals || []);
-    });
+    }, filterUid);
     return () => unsub();
-  }, [isHqTeam]);
+  }, [isHqTeam, isOwner, isManager, user?.uid]);
 
   // Commission Engine States (Phase 6 - Owner Only)
   const [commissionRecords, setCommissionRecords] = useState([]);
@@ -218,7 +219,7 @@ export default function LeaderboardPage() {
         });
       } catch (logErr) {}
 
-      showToast(t('leaderboard.exportSuccess', { filename }, `🎉 考勤报表 (${filename}) 导出成功！`));
+      showToast(t('leaderboard.exportSuccess', { filename }, `考勤报表 (${filename}) 导出成功`));
     } catch (err) {
       console.error('Export leaderboard attendance error:', err);
       showToast(`${t('leaderboard.exportFailed', '导出失败: ')}${err.message}`, 'error');
@@ -607,6 +608,14 @@ export default function LeaderboardPage() {
     }
   };
 
+  const toShortTimeStr = (d) => {
+    const safeD = CascadeShiftEngine.toSafeDate(d);
+    if (!safeD || isNaN(safeD.getTime())) return '-';
+    const hh = String(safeD.getHours()).padStart(2, '0');
+    const mm = String(safeD.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   const myMonthlyAttendance = useMemo(() => {
     if (!user?.uid) return [];
     const myUid = user.uid;
@@ -697,8 +706,8 @@ export default function LeaderboardPage() {
         analysis,
         clockInPunch,
         clockOutPunch,
-        lunchOutStr: lunchOutEvt?.dateObj ? CascadeShiftEngine.toShortTime(lunchOutEvt.dateObj) : null,
-        lunchInStr: lunchInEvt?.dateObj ? CascadeShiftEngine.toShortTime(lunchInEvt.dateObj) : null,
+        lunchOutStr: lunchOutEvt?.dateObj ? toShortTimeStr(lunchOutEvt.dateObj) : null,
+        lunchInStr: lunchInEvt?.dateObj ? toShortTimeStr(lunchInEvt.dateObj) : null,
         isManual,
         isWfh,
         statusColor,
@@ -1379,8 +1388,8 @@ export default function LeaderboardPage() {
                       <th style={{ padding: '10px 12px', minWidth: '130px' }}>{t('leaderboard.conversionRate', '成单转化率')}</th>
                       {isOwner && (
                         <>
-                          <th style={{ padding: '10px 12px', minWidth: '130px', color: 'var(--accent-amber)' }}>{t('commission.pendingColumn', '🔒 保证期待解')}</th>
-                          <th style={{ padding: '10px 12px', minWidth: '130px', color: '#10B981', fontWeight: '700' }}>{t('commission.unlockedColumn', '✅ 可结算佣金')}</th>
+                          <th style={{ padding: '10px 12px', minWidth: '130px', color: 'var(--accent-amber)' }}>{t('commission.pendingColumn', '保证期待解')}</th>
+                          <th style={{ padding: '10px 12px', minWidth: '130px', color: '#10B981', fontWeight: '700' }}>{t('commission.unlockedColumn', '可结算佣金')}</th>
                         </>
                       )}
                       <th style={{ padding: '10px 12px', color: 'var(--accent-amber)', fontWeight: '700' }}>{t('leaderboard.compositeScore', '综合积分')}</th>
@@ -1758,10 +1767,13 @@ export default function LeaderboardPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {myAppealsList.slice(0, 5).map(app => {
-                  const punchTypeLabel = app.punchType === 'CLOCK_IN' ? t('analytics.punchIn', '上班签到')
-                    : app.punchType === 'CLOCK_OUT' ? t('analytics.punchOut', '下班签退')
-                    : app.punchType === 'LUNCH_OUT' ? t('analytics.lunchOut', '午休离开')
-                    : app.punchType === 'LUNCH_IN' ? t('analytics.lunchIn', '午休返回') : app.punchType;
+                  const punchType = app.requestedPunchType || app.punchType;
+                  const punchTypeLabel = punchType === 'CLOCK_IN' ? t('analytics.punchIn', '上班签到')
+                    : punchType === 'CLOCK_OUT' ? t('analytics.punchOut', '下班签退')
+                    : punchType === 'LUNCH_OUT' ? t('analytics.lunchOut', '午休离开')
+                    : punchType === 'LUNCH_IN' ? t('analytics.lunchIn', '午休返回') : (punchType || '-');
+                  const displayTime = app.requestedTime || app.actualTime || '-';
+                  const displayReason = app.reason || app.reasonText;
 
                   return (
                     <div
@@ -1786,11 +1798,11 @@ export default function LeaderboardPage() {
                           {punchTypeLabel}
                         </span>
                         <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          {t('attendanceAppeal.requestedTimePrefix', '主张时间:')} <strong style={{ color: 'var(--text-primary)' }}>{app.actualTime}</strong>
+                          {t('attendanceAppeal.requestedTimePrefix', '主张时间:')} <strong style={{ color: 'var(--text-primary)' }}>{displayTime}</strong>
                         </span>
-                        {app.reasonText && (
+                        {displayReason && (
                           <span style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            ({app.reasonText})
+                            ({displayReason})
                           </span>
                         )}
                       </div>
@@ -1913,8 +1925,8 @@ export default function LeaderboardPage() {
                   </thead>
                   <tbody>
                     {myMonthlyAttendance.map((item, idx) => {
-                      const firstTimeStr = item.clockInPunch?.dateObj ? CascadeShiftEngine.toShortTime(item.clockInPunch.dateObj) : '-';
-                      const clockOutTimeStr = item.clockOutPunch?.dateObj ? CascadeShiftEngine.toShortTime(item.clockOutPunch.dateObj) : null;
+                      const firstTimeStr = item.clockInPunch?.dateObj ? toShortTimeStr(item.clockInPunch.dateObj) : '-';
+                      const clockOutTimeStr = item.clockOutPunch?.dateObj ? toShortTimeStr(item.clockOutPunch.dateObj) : null;
                       const dayWeekday = getWeekdayLabel(item.date);
                       const appeal = myAppealsByDate[item.date];
 
@@ -2073,7 +2085,7 @@ export default function LeaderboardPage() {
                                     gap: '3px'
                                   }}>
                                     <i className="ph-bold ph-hourglass-simple"></i>
-                                    {t('attendanceAppeal.statusPendingBadge', { time: appeal.actualTime || appeal.requestedTime }, `申诉审核中 (${appeal.actualTime || appeal.requestedTime})`)}
+                                    {t('attendanceAppeal.statusPendingBadge', { time: appeal.requestedTime || appeal.actualTime }, `申诉审核中 (${appeal.requestedTime || appeal.actualTime})`)}
                                   </span>
                                   <button
                                     type="button"
@@ -2106,7 +2118,7 @@ export default function LeaderboardPage() {
                                   gap: '3px'
                                 }}>
                                   <i className="ph-bold ph-check-circle"></i>
-                                  {t('attendanceAppeal.statusApprovedBadge', { time: appeal.actualTime || appeal.requestedTime }, `已核准 (${appeal.actualTime || appeal.requestedTime})`)}
+                                  {t('attendanceAppeal.statusApprovedBadge', { time: appeal.requestedTime || appeal.actualTime }, `已核准 (${appeal.requestedTime || appeal.actualTime})`)}
                                 </span>
                               ) : (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -2184,7 +2196,9 @@ export default function LeaderboardPage() {
       <AttendanceAppealModal
         isOpen={appealModalOpen}
         onClose={() => setAppealModalOpen(false)}
-        teamId="default_team"
+        teamId={teamId || 'default_team'}
+        user={user}
+        userProfile={userProfile}
         targetDate={appealTargetDate}
         defaultPunchType={appealTargetPunchType}
         onSuccess={(msg) => showToast(msg)}

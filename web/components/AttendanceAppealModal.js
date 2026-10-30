@@ -3,11 +3,14 @@
 import { useState, useEffect } from 'react';
 import { FirestoreStore } from '../lib/firestore-store';
 import { useI18n } from '../lib/i18n-context';
+import { useAuth } from '../lib/auth-context';
 
 export default function AttendanceAppealModal({
   isOpen,
   onClose,
   targetRecord,
+  targetDate,
+  defaultPunchType,
   user,
   userProfile,
   teamId,
@@ -15,6 +18,11 @@ export default function AttendanceAppealModal({
 }) {
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
+  const auth = useAuth();
+
+  const currentUser = user || auth?.user;
+  const currentUserProfile = userProfile || auth?.userProfile;
+  const currentTeamId = teamId || auth?.teamId || 'default_team';
 
   const [dateStr, setDateStr] = useState('');
   const [requestedPunchType, setRequestedPunchType] = useState('CLOCK_OUT');
@@ -25,6 +33,21 @@ export default function AttendanceAppealModal({
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
+    if (targetDate) {
+      setDateStr(targetDate);
+    }
+    if (defaultPunchType) {
+      setRequestedPunchType(defaultPunchType);
+      if (defaultPunchType === 'CLOCK_IN') {
+        setRequestedTime('09:00');
+      } else if (defaultPunchType === 'CLOCK_OUT') {
+        setRequestedTime('18:00');
+      } else if (defaultPunchType === 'LUNCH_OUT') {
+        setRequestedTime('12:00');
+      } else if (defaultPunchType === 'LUNCH_IN') {
+        setRequestedTime('13:00');
+      }
+    }
     if (targetRecord) {
       setDateStr(targetRecord.date || '');
       // If user had clock-in but no clock-out, default to CLOCK_OUT; if no clock-in at all, CLOCK_IN
@@ -35,11 +58,11 @@ export default function AttendanceAppealModal({
         setRequestedPunchType('CLOCK_OUT');
         setRequestedTime('18:00');
       }
-      setAppealCategory('OFFSITE_WORK');
-      setReasonText('');
-      setErrorMsg('');
     }
-  }, [targetRecord]);
+    setAppealCategory('OFFSITE_WORK');
+    setReasonText('');
+    setErrorMsg('');
+  }, [targetRecord, targetDate, defaultPunchType]);
 
   if (!isOpen) return null;
 
@@ -66,17 +89,23 @@ export default function AttendanceAppealModal({
       return;
     }
 
+    const uid = currentUser?.uid;
+    if (!uid) {
+      setErrorMsg('未检测到有效登录用户，请重新登录后再试');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setErrorMsg('');
 
-      const picName = userProfile?.displayName || userProfile?.name || user?.displayName || user?.email?.split('@')[0] || '员工';
+      const picName = currentUserProfile?.displayName || currentUserProfile?.name || currentUser?.displayName || currentUser?.email?.split('@')[0] || '员工';
       const categoryObj = categories.find(c => c.id === appealCategory);
       const combinedReason = `[${categoryObj?.label || appealCategory}] ${reasonText.trim()}`;
 
-      await FirestoreStore.submitAttendanceAppeal(teamId, {
-        userId: user.uid,
-        userEmail: user.email || '',
+      await FirestoreStore.submitAttendanceAppeal(currentTeamId, {
+        userId: uid,
+        userEmail: currentUser?.email || '',
         picName,
         date: dateStr,
         appealType: requestedPunchType === 'CLOCK_OUT' ? 'MISSING_CLOCK_OUT' : 'MISSING_CLOCK_IN',

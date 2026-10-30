@@ -865,22 +865,27 @@ export const FirestoreStore = {
   },
 
   /**
-   * 订阅团队考勤异常申诉列表
+   * 订阅团队考勤异常申诉列表 (支持普通员工按 filterUserId 进行本人数据隔离订阅)
    */
-  subscribeToAttendanceAppeals(teamId, callback) {
+  subscribeToAttendanceAppeals(teamId, callback, filterUserId = null) {
     if (!teamId) return () => {};
     let unsub = () => {};
     try {
-      const q = query(
-        collection(db, 'teams', teamId, 'attendance_appeals'),
-        orderBy('createdAt', 'desc')
-      );
+      const colRef = collection(db, 'teams', teamId, 'attendance_appeals');
+      const q = filterUserId
+        ? query(colRef, where('userId', '==', filterUserId), orderBy('createdAt', 'desc'))
+        : query(colRef, orderBy('createdAt', 'desc'));
+
       unsub = onSnapshot(q, (snapshot) => {
         const list = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
         callback(list);
       }, (err) => {
         console.warn('Attendance appeals subscription fallback (without index):', err?.message || err);
-        const fallbackUnsub = onSnapshot(collection(db, 'teams', teamId, 'attendance_appeals'), (snap) => {
+        const fallbackQ = filterUserId
+          ? query(colRef, where('userId', '==', filterUserId))
+          : colRef;
+
+        const fallbackUnsub = onSnapshot(fallbackQ, (snap) => {
           const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
           list.sort((a, b) => {
             const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
