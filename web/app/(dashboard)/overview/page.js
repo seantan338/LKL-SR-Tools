@@ -1,22 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth-context';
 import { useNotifications } from '../../../lib/notification-context';
 import { useI18n } from '../../../lib/i18n-context';
 import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
 import CandidateDrawer from '../../../components/CandidateDrawer';
+import ExpenseClaimModal from '../../../components/ExpenseClaimModal';
 
 export default function OverviewPage() {
-  const { teamId, role, user } = useAuth();
+  const { teamId, role, user, isHqTeam, isOwner, isManager } = useAuth();
   const { candidates, candidatesLoading: loading } = useNotifications();
   const { t } = useI18n();
+  const router = useRouter();
+
   const [latestFilter, setLatestFilter] = useState('all'); // 'all', 'active', 'rejected'
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
 
   const handleOpenCandidate = (candidate) => {
     setSelectedCandidate(candidate);
@@ -25,6 +30,24 @@ export default function OverviewPage() {
 
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleGoAttendance = () => {
+    router.push('/leaderboard?tab=my_attendance');
+  };
+
+  const handleQuickPunch = (e) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('omni_open_attendance_modal'));
+  };
+
+  const handleGoClaims = () => {
+    router.push('/analytics?tab=claims');
+  };
+
+  const handleOpenNewClaim = (e) => {
+    e.stopPropagation();
+    setIsClaimModalOpen(true);
   };
 
   useEffect(() => {
@@ -133,6 +156,233 @@ export default function OverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* 1.5 HQ 本部核心运营直通入口 (Attendance & Claims Quick Hub) */}
+      {isHqTeam && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: (isOwner || isManager) ? 'repeat(auto-fit, minmax(320px, 1fr))' : '1fr',
+          gap: 'var(--space-4)'
+        }}>
+          {/* Card 1: 考勤与出席直达 (Attendance Hub) */}
+          <div 
+            className="bezel-shell" 
+            style={{ 
+              padding: '4px',
+              cursor: 'pointer',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+            }}
+            onClick={handleGoAttendance}
+            title={t('overview.quickAttendanceSub', '今日打卡 · 考勤明细 · 请假与调休管理')}
+          >
+            <div 
+              className="bezel-core" 
+              style={{ 
+                padding: '0.85rem 1.15rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                <div 
+                  style={{ 
+                    width: '42px', 
+                    height: '42px', 
+                    borderRadius: 'var(--radius-md)', 
+                    background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.22) 0%, rgba(2, 132, 199, 0.35) 100%)', 
+                    color: '#38bdf8', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontSize: '1.4rem',
+                    boxShadow: '0 2px 10px rgba(14, 165, 233, 0.25)',
+                    flexShrink: 0
+                  }}
+                >
+                  <i className="ph-fill ph-clock-user"></i>
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                      {t('overview.quickAttendanceTitle', '出席记录与考勤')}
+                    </span>
+                    <span style={{ 
+                      fontSize: '0.68rem', 
+                      padding: '1px 7px', 
+                      borderRadius: '999px', 
+                      background: 'rgba(14, 165, 233, 0.12)', 
+                      color: '#38bdf8',
+                      border: '1px solid rgba(14, 165, 233, 0.25)',
+                      fontWeight: 600
+                    }}>
+                      HQ
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t('overview.quickAttendanceSub', '今日打卡 · 考勤明细 · 请假与调休管理')}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{
+                    height: '32px',
+                    fontSize: '12px',
+                    gap: '5px',
+                    padding: '0 10px',
+                    borderColor: 'rgba(14, 165, 233, 0.3)',
+                    color: 'var(--text-primary)'
+                  }}
+                  onClick={handleQuickPunch}
+                  title={t('overview.quickPunchBtn', '快捷打卡')}
+                >
+                  <i className="ph-bold ph-fingerprint" style={{ color: '#38bdf8' }}></i>
+                  <span>{t('overview.quickPunchBtn', '快捷打卡')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{
+                    height: '32px',
+                    fontSize: '12px',
+                    gap: '5px',
+                    padding: '0 12px',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: '600',
+                    boxShadow: '0 3px 10px rgba(2, 132, 199, 0.3)'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGoAttendance();
+                  }}
+                >
+                  <span>{t('overview.quickAttendanceBtn', '前往考勤台')}</span>
+                  <i className="ph-bold ph-arrow-up-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: 报销与费用审批直达 (Claims Hub - Admin/Manager only during testing) */}
+          {(isOwner || isManager) && (
+            <div 
+              className="bezel-shell" 
+              style={{ 
+                padding: '4px',
+                cursor: 'pointer',
+                transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+              }}
+              onClick={handleGoClaims}
+              title={t('overview.quickClaimsSub', '智能票据识别 · 里程核算 · 审批与批次放款')}
+            >
+              <div 
+                className="bezel-core" 
+                style={{ 
+                  padding: '0.85rem 1.15rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                  <div 
+                    style={{ 
+                      width: '42px', 
+                      height: '42px', 
+                      borderRadius: 'var(--radius-md)', 
+                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.35) 100%)', 
+                      color: '#34d399', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontSize: '1.4rem',
+                      boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)',
+                      flexShrink: 0
+                    }}
+                  >
+                    <i className="ph-fill ph-receipt"></i>
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                      <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                        {t('overview.quickClaimsTitle', '报销审批与费用')}
+                      </span>
+                      <span style={{ 
+                        fontSize: '0.68rem', 
+                        padding: '1px 7px', 
+                        borderRadius: '999px', 
+                        background: 'rgba(16, 185, 129, 0.12)', 
+                        color: '#34d399',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        fontWeight: 600
+                      }}>
+                        {t('overview.adminBadge', '管理专享')}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t('overview.quickClaimsSub', '智能票据识别 · 里程核算 · 审批与批次放款')}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    style={{
+                      height: '32px',
+                      fontSize: '12px',
+                      gap: '5px',
+                      padding: '0 10px',
+                      borderColor: 'rgba(16, 185, 129, 0.3)',
+                      color: 'var(--text-primary)'
+                    }}
+                    onClick={handleOpenNewClaim}
+                    title={t('overview.quickSubmitClaimBtn', '发起报销')}
+                  >
+                    <i className="ph-bold ph-plus" style={{ color: '#34d399' }}></i>
+                    <span>{t('overview.quickSubmitClaimBtn', '发起报销')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    style={{
+                      height: '32px',
+                      fontSize: '12px',
+                      gap: '5px',
+                      padding: '0 12px',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      border: 'none',
+                      color: '#fff',
+                      fontWeight: '600',
+                      boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGoClaims();
+                    }}
+                  >
+                    <span>{t('overview.quickClaimsBtn', '审批与放款台')}</span>
+                    <i className="ph-bold ph-arrow-up-right"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2. 双侧对称 6-6 黄金核心看板 (移动端自适应堆叠) */}
       <div className="overview-boards-grid">
@@ -423,6 +673,14 @@ export default function OverviewPage() {
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
           candidate={selectedCandidate}
+        />
+      )}
+
+      {/* 3. Expense Claim Modal (HQ Admin / Manager Quick Access) */}
+      {isHqTeam && (isOwner || isManager) && (
+        <ExpenseClaimModal
+          isOpen={isClaimModalOpen}
+          onClose={() => setIsClaimModalOpen(false)}
         />
       )}
     </div>
