@@ -1053,6 +1053,13 @@ export default function AnalyticsPage() {
     }
   };
 
+  const formatPunchNoteDisplay = (rawNote, punchItemOrSnapshot) => {
+    if (!rawNote || typeof rawNote !== 'string') return rawNote;
+    const snapRadius = punchItemOrSnapshot?.allowedRadius || punchItemOrSnapshot?.verifySnapshot?.allowedRadius;
+    const activeRadius = Math.round(snapRadius || attendanceRules?.maxDistanceMeters || 100);
+    return rawNote.replace(/^\[\d+m\s*\/\s*(\d+m)\]/, `[${activeRadius}m / $1]`);
+  };
+
   const executeAttendanceCheckin = async (type = 'CLOCK_IN', workMode = 'OFFICE') => {
     if (!teamId || !user) return;
     if (workMode === 'WFH' && !canWfh) {
@@ -1128,9 +1135,10 @@ export default function AnalyticsPage() {
         return;
       }
 
-      // Case B: Wi-Fi not matched -> enter Stage 2 (100m GPS Geofence)
+      // Case B: Wi-Fi not matched -> enter Stage 2 (GPS Geofence)
       if (r1?.code === 'NEED_GPS') {
-        setClockInStatusMsg(t('analytics.statusCheckingGps', '未连接公司 Wi-Fi，正在调用高精度 GPS 验证 100 米地理围栏...'));
+        const configuredRadius = Math.round(attendanceRules?.maxDistanceMeters || 100);
+        setClockInStatusMsg(t('analytics.statusCheckingGps', { radius: configuredRadius }, `未连接公司 Wi-Fi，正在调用高精度 GPS 验证 ${configuredRadius} 米地理围栏...`));
 
         if (typeof window === 'undefined' || !navigator.geolocation) {
           throw new Error(t('analytics.errNoGeo', '当前浏览器不支持地理定位，且未连接公司 Wi-Fi，无法完成考勤打卡。'));
@@ -1155,7 +1163,7 @@ export default function AnalyticsPage() {
           throw new Error(reason);
         }
 
-        setClockInStatusMsg((t('analytics.statusGpsCaptured', '已捕获 GPS (精度 ±{acc}m)，正在提交后端进行 100 米测距与室内漂移补偿判定...')).replace('{acc}', Math.round(pos.coords.accuracy)));
+        setClockInStatusMsg(t('analytics.statusGpsCaptured', { acc: Math.round(pos.coords.accuracy), radius: configuredRadius }, `已捕获 GPS (精度 ±${Math.round(pos.coords.accuracy)}m)，正在提交后端进行 ${configuredRadius} 米测距与室内漂移补偿判定...`));
 
         const resp2 = await fetch(getApiUrl('/api/attendance/verify'), {
           method: 'POST',
@@ -1175,10 +1183,12 @@ export default function AnalyticsPage() {
         const r2 = stage2Res?.result;
 
         if (r2?.passed) {
+          const allowedRadius = Math.round(r2.allowed_radius || attendanceRules?.maxDistanceMeters || 100);
           const verifySnapshot = {
             method: 'GPS_GEOFENCE',
-            methodName: t('analytics.methodGeofence', '100m地理围栏'),
+            methodName: `${allowedRadius}m${isEn ? ' Geofence' : '地理围栏'}`,
             officeName: r2.office_name,
+            allowedRadius: allowedRadius,
             effectiveDistance: r2.effective_distance,
             actualDistance: r2.actual_distance,
             accuracy: r2.accuracy,
@@ -1195,16 +1205,17 @@ export default function AnalyticsPage() {
               type,
               verifyMethod: 'GPS_GEOFENCE',
               verifySnapshot,
-              note: `[100m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(type)}`
+              note: `[${allowedRadius}m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(type)}`
             });
           } catch (storeErr) {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
           }
 
-          showToast((t('analytics.successGpsToast', '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）')).replace('{dist}', Math.round(r2.effective_distance)));
+          showToast(t('analytics.successGpsToast', { radius: allowedRadius, dist: Math.round(r2.effective_distance) }, `打卡成功！已通过 ${allowedRadius} 米地理围栏核验（距公司约 ${Math.round(r2.effective_distance)} 米）`));
           return;
         } else {
-          throw new Error(r2?.message || t('analytics.geofenceExceeded', '超出公司 100 米考勤有效范围'));
+          const limitRadius = Math.round(r2?.allowed_radius || configuredRadius);
+          throw new Error(r2?.message || t('analytics.geofenceExceeded', { radius: limitRadius }, `超出公司 ${limitRadius} 米考勤有效范围`));
         }
       }
 
@@ -3207,22 +3218,25 @@ export default function AnalyticsPage() {
                                         <i className="ph-bold ph-wifi-high"></i>
                                         {t('analytics.methodWifi', '公司 Wi-Fi')}
                                       </span>
-                                    ) : item.verifyMethod === 'GPS_GEOFENCE' ? (
-                                      <span style={{
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
-                                        fontSize: '11px',
-                                        fontWeight: '600',
-                                        color: 'var(--accent-blue)',
-                                        background: 'rgba(59, 130, 246, 0.15)',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px'
-                                      }} title={`Effective: ${Math.round(item.verifySnapshot?.effectiveDistance || 0)}m (±${Math.round(item.verifySnapshot?.accuracy || 0)}m)`}>
-                                        <i className="ph-bold ph-map-pin"></i>
-                                        {t('analytics.methodGeofence', '100m围栏')} ({Math.round(item.verifySnapshot?.effectiveDistance || 0)}m)
-                                      </span>
-                                    ) : item.verifyMethod === 'RULE_DISABLED' ? (
+                                    ) : item.verifyMethod === 'GPS_GEOFENCE' ? (() => {
+                                      const fenceRadius = Math.round(item.verifySnapshot?.allowedRadius || attendanceRules?.maxDistanceMeters || 100);
+                                      return (
+                                        <span style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '11px',
+                                          fontWeight: '600',
+                                          color: 'var(--accent-blue)',
+                                          background: 'rgba(59, 130, 246, 0.15)',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }} title={`Effective: ${Math.round(item.verifySnapshot?.effectiveDistance || 0)}m (±${Math.round(item.verifySnapshot?.accuracy || 0)}m, limit: ${fenceRadius}m)`}>
+                                          <i className="ph-bold ph-map-pin"></i>
+                                          {t('analytics.methodGeofence', { radius: fenceRadius }, `${fenceRadius}m${isEn ? ' Geofence' : '围栏'}`)} ({Math.round(item.verifySnapshot?.effectiveDistance || 0)}m)
+                                        </span>
+                                      );
+                                    })() : item.verifyMethod === 'RULE_DISABLED' ? (
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',
@@ -3314,9 +3328,9 @@ export default function AnalyticsPage() {
                                   <td style={{ padding: 'var(--space-3) var(--space-3)', maxWidth: '240px' }}>
                                     <div
                                       style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                                      title={item.allPunches && item.allPunches.length > 0 ? item.allPunches.map(p => `[${p.timeStr}] ${p.actionType}: ${p.note || ''}`).join('\n') : item.actions.map(a => a.note).join('; ')}
+                                      title={item.allPunches && item.allPunches.length > 0 ? item.allPunches.map(p => `[${p.timeStr}] ${p.actionType}: ${formatPunchNoteDisplay(p.note, p) || ''}`).join('\n') : item.actions.map(a => formatPunchNoteDisplay(a.note, item)).join('; ')}
                                     >
-                                      {item.actions.length > 0 ? (item.actions[0].note || t('analytics.defaultProgressNote', '员工考勤打卡')) : t('analytics.onlineProgressNote', '在线跟进')}
+                                      {item.actions.length > 0 ? (formatPunchNoteDisplay(item.actions[0].note, item) || t('analytics.defaultProgressNote', '员工考勤打卡')) : t('analytics.onlineProgressNote', '在线跟进')}
                                     </div>
                                   </td>
                                   <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
@@ -3863,7 +3877,7 @@ export default function AnalyticsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
                   <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <i className="ph-bold ph-map-pin" style={{ color: 'var(--accent-blue)' }}></i>
-                    {t('analytics.secGeofenceTitle', '办公地点与 100 米弹性地理围栏')}
+                    {t('analytics.secGeofenceTitle', '办公地点与弹性地理围栏')}
                   </h4>
                   <button
                     className="btn btn-sm btn-outline"

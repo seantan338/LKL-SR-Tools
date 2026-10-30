@@ -392,9 +392,10 @@ export default function AttendanceModal() {
         return;
       }
 
-      // Case 2: Wi-Fi not matched -> enter Stage 2 (100m GPS Geofence)
+      // Case 2: Wi-Fi not matched -> enter Stage 2 (GPS Geofence)
       if (r1?.code === 'NEED_GPS') {
-        setStatusMessage(t('attendanceModal.statusCheckingGps', '未连接公司 Wi-Fi，正在调用高精度 GPS 校验 100 米考勤围栏...'));
+        const configuredRadius = Math.round(attendanceRules?.maxDistanceMeters || 100);
+        setStatusMessage(t('attendanceModal.statusCheckingGps', { radius: configuredRadius }, `未连接公司 Wi-Fi，正在调用高精度 GPS 校验 ${configuredRadius} 米考勤围栏...`));
 
         if (typeof window === 'undefined' || !navigator.geolocation) {
           throw new Error(t('analytics.errNoGeo', '当前浏览器不支持地理定位，且未连接公司 Wi-Fi，无法完成考勤打卡。'));
@@ -439,10 +440,12 @@ export default function AttendanceModal() {
         const r2 = stage2Res?.result;
 
         if (r2?.passed) {
+          const allowedRadius = Math.round(r2.allowed_radius || attendanceRules?.maxDistanceMeters || 100);
           const verifySnapshot = {
             method: 'GPS_GEOFENCE',
-            methodName: t('analytics.methodGeofence', '100米地理围栏'),
+            methodName: `${allowedRadius}m${isEn ? ' Geofence' : '地理围栏'}`,
             officeName: r2.office_name,
+            allowedRadius: allowedRadius,
             effectiveDistance: r2.effective_distance,
             actualDistance: r2.actual_distance,
             accuracy: r2.accuracy,
@@ -459,13 +462,13 @@ export default function AttendanceModal() {
               type: punchType,
               verifyMethod: 'GPS_GEOFENCE',
               verifySnapshot,
-              note: `[100m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(punchType)}`
+              note: `[${allowedRadius}m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(punchType)}`
             });
           } catch (storeErr) {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
           }
 
-          let successTip = t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）');
+          let successTip = t('analytics.successGpsToast', { radius: allowedRadius, dist: Math.round(r2.effective_distance) }, `打卡成功！已通过 ${allowedRadius} 米地理围栏核验（距公司约 ${Math.round(r2.effective_distance)} 米）`);
           if (punchType === 'CLOCK_IN') {
             const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
             successTip += t('attendanceModal.toastShiftSuffix', { name: shift.name, endStr: shift.endStr }, ` (${shift.name}，底线: ${shift.endStr})`);
@@ -476,7 +479,8 @@ export default function AttendanceModal() {
           setTimeout(() => setIsOpen(false), 1500);
           return;
         } else {
-          throw new Error(r2?.message || t('analytics.geofenceExceeded', '超出公司 100 米考勤有效范围'));
+          const limitRadius = Math.round(r2?.allowed_radius || configuredRadius);
+          throw new Error(r2?.message || t('analytics.geofenceExceeded', { radius: limitRadius }, `超出公司 ${limitRadius} 米考勤有效范围`));
         }
       }
 

@@ -40,48 +40,49 @@ def test_verify_gps_within_100m_pass():
         "maxDriftCompensation": 40,
         "officeLocations": [
             {
-                "name": "KL HQ",
-                "latitude": 3.139000,
-                "longitude": 101.686900,
+                "name": "Johor HQ",
+                "latitude": 1.440472,
+                "longitude": 103.617917,
                 "radiusMeters": 100
             }
         ],
         "officeWifi": { "allowedIps": ["202.186.10.20"] }
     }
-    # User 50m away with 10m accuracy
-    # 0.00045 degrees lat is ~50 meters
+    # User 50m away with 10m accuracy (0.00045 deg lat ~ 50m)
     res = verify_clockin_eligibility(
         "115.164.50.1",
-        {"latitude": 3.139450, "longitude": 101.686900, "accuracy": 10.0},
+        {"latitude": 1.440922, "longitude": 103.617917, "accuracy": 10.0},
         rules
     )
     assert res["passed"] is True
     assert res["verify_method"] == "GPS_GEOFENCE"
     assert res["effective_distance"] <= 100.0
+    assert res["allowed_radius"] == 100.0
 
 def test_verify_gps_indoor_drift_compensation():
     rules = {
         "enabled": True,
-        "maxDistanceMeters": 100,
+        "maxDistanceMeters": 150,
         "maxDriftCompensation": 40,
         "officeLocations": [
             {
-                "name": "KL HQ",
-                "latitude": 3.139000,
-                "longitude": 101.686900,
-                "radiusMeters": 100
+                "name": "Johor HQ",
+                "latitude": 1.440472,
+                "longitude": 103.617917,
+                "radiusMeters": 150
             }
         ]
     }
     # Suppose raw distance is 125 meters (0.00112 deg lat) with 35m accuracy (indoor high-rise)
-    # Effective distance = 125 - 35 = 90 meters <= 100m (Should PASS!)
+    # Effective distance = 125 - 35 = 90 meters <= 150m (Should PASS!)
     res = verify_clockin_eligibility(
         "115.164.50.1",
-        {"latitude": 3.140120, "longitude": 101.686900, "accuracy": 35.0},
+        {"latitude": 1.441592, "longitude": 103.617917, "accuracy": 35.0},
         rules
     )
     assert res["passed"] is True
-    assert res["effective_distance"] <= 100.0
+    assert res["effective_distance"] <= 150.0
+    assert res["allowed_radius"] == 150.0
 
 def test_verify_gps_out_of_range_reject():
     rules = {
@@ -90,9 +91,9 @@ def test_verify_gps_out_of_range_reject():
         "maxDriftCompensation": 40,
         "officeLocations": [
             {
-                "name": "KL HQ",
-                "latitude": 3.139000,
-                "longitude": 101.686900,
+                "name": "Johor HQ",
+                "latitude": 1.440472,
+                "longitude": 103.617917,
                 "radiusMeters": 100
             }
         ]
@@ -100,7 +101,7 @@ def test_verify_gps_out_of_range_reject():
     # User 800m away (at home)
     res = verify_clockin_eligibility(
         "115.164.50.1",
-        {"latitude": 3.146200, "longitude": 101.686900, "accuracy": 10.0},
+        {"latitude": 1.447672, "longitude": 103.617917, "accuracy": 10.0},
         rules
     )
     assert res["passed"] is False
@@ -112,17 +113,17 @@ def test_verify_coarse_accuracy_rejection():
         "maxDistanceMeters": 100,
         "officeLocations": [
             {
-                "name": "KL HQ",
-                "latitude": 3.139000,
-                "longitude": 101.686900,
+                "name": "Johor HQ",
+                "latitude": 1.440472,
+                "longitude": 103.617917,
                 "radiusMeters": 100
             }
         ]
     }
-    # Accuracy is 500m (cellular tower coarse location)
+    # User ~170m away with 550m cellular coarse accuracy (> 500m)
     res = verify_clockin_eligibility(
         "115.164.50.1",
-        {"latitude": 3.139000, "longitude": 101.686900, "accuracy": 500.0},
+        {"latitude": 1.442000, "longitude": 103.617917, "accuracy": 550.0},
         rules
     )
     assert res["passed"] is False

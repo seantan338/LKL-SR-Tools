@@ -259,6 +259,7 @@ def verify_clockin_eligibility(
                 "office_name": o_name,
                 "actual_distance": actual_dist,
                 "effective_distance": effective_dist,
+                "allowed_radius": o_radius,
                 "accuracy": user_accuracy,
                 "compensation": comp,
             }

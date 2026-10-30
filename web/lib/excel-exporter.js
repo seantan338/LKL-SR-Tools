@@ -60,7 +60,7 @@ export const EXCEL_I18N = {
     unassignedShift: '未定班次',
     methodWfh: '居家办公 (WFH)',
     methodWifi: '公司 Wi-Fi',
-    methodGps: '100m 地理围栏',
+    methodGps: 'GPS 地理围栏',
     methodAdminManual: '管理员补录',
     manualAuditNoteText: (name, reason) => `[管理员补录: 由 ${name || '管理员'} 补录${reason ? ' - ' + reason : ''}]`,
     methodRegular: '日常打卡',
@@ -130,7 +130,7 @@ export const EXCEL_I18N = {
     unassignedShift: 'Unassigned Shift',
     methodWfh: 'Work From Home (WFH)',
     methodWifi: 'Office Wi-Fi',
-    methodGps: '100m Geofence',
+    methodGps: 'GPS Geofence',
     methodAdminManual: 'Admin Manual Entry',
     manualAuditNoteText: (name, reason) => `[Admin Manual Entry: Added by ${name || 'Admin'}${reason ? ' - ' + reason : ''}]`,
     methodRegular: 'Standard Check-in',
@@ -823,7 +823,7 @@ export const ExcelExporter = {
           : log.verifyMethod === 'WIFI_IP'
             ? labels.methodWifi
             : log.verifyMethod === 'GPS_GEOFENCE'
-              ? labels.methodGps
+              ? (log.verifySnapshot?.allowedRadius ? `${log.verifySnapshot.allowedRadius}m ${isEn ? 'Geofence' : '地理围栏'}` : labels.methodGps)
               : log.verifyMethod || labels.methodRegular;
 
       const manualEntryData = log.manualEntry || (Array.isArray(log.events) && log.events.find(e => e.manualEntry)?.manualEntry);
@@ -838,7 +838,7 @@ export const ExcelExporter = {
       const verifyDetails = [
         manualAuditNote,
         log.verifySnapshot?.ip ? `IP: ${log.verifySnapshot.ip}` : null,
-        a.note ? a.note : null,
+        a.note ? a.note.replace(/^\[\d+m\s*\/\s*(\d+m)\]/, `[${log.verifySnapshot?.allowedRadius || 100}m / $1]`) : null,
         punchFlow
       ].filter(Boolean).join('; ') || '-';
 
