@@ -272,7 +272,8 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Card 2: 报销与费用直达 (Claims Hub - HQ Team) */}
+          {/* Card 2: 报销与费用直达 (Claims Hub - HQ Owner/Manager only) */}
+          {(isOwner || isManager) && (
           <div 
             className="bezel-shell" 
             style={{ 
@@ -379,6 +380,7 @@ export default function OverviewPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
 

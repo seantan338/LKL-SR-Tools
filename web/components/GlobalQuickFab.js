@@ -31,7 +31,7 @@ export default function GlobalQuickFab() {
   const fabRef = useRef(null);
 
   // 报销功能对公司本部 (HQ) 全员开放
-  const canAccessClaims = Boolean(isHqTeam);
+  const canAccessClaims = Boolean(isHqTeam && (isOwner || isManager));
 
   // Close menus on Escape key press
   useEffect(() => {

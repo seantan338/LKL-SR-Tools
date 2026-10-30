@@ -858,7 +858,7 @@ export default function LeaderboardPage() {
       await FirestoreStore.cancelAttendanceAppeal('default_team', appealId);
       showToast(t('attendanceAppeal.cancelSuccess', '已成功撤销申诉'));
     } catch (err) {
-      showToast(err.message || '撤销失败');
+      showToast(err.message || (isEn ? 'Cancel failed' : '撤销失败'));
     }
   };
 
@@ -867,7 +867,7 @@ export default function LeaderboardPage() {
       await FirestoreStore.cancelAttendanceLeave('default_team', leaveId);
       showToast(t('attendanceLeave.cancelSuccess', '已成功撤销请假申请'));
     } catch (err) {
-      showToast(err.message || '撤销失败');
+      showToast(err.message || (isEn ? 'Cancel failed' : '撤销失败'));
     }
   };
 
@@ -2235,7 +2235,7 @@ export default function LeaderboardPage() {
                                     alignItems: 'center',
                                     gap: '2px'
                                   }}
-                                  title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                  title={item.clockInPunch?.manualEntry ? (isEn ? `[Admin manual entry]\nAdded by: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\nTime: ${item.clockInPunch.manualEntry.addedAt || ''}\nReason: ${item.clockInPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}`) : (isEn ? 'Admin manual entry' : '管理员手动补录')}
                                 >
                                   <i className="ph-bold ph-wrench"></i>
                                   {t('analytics.badgeAdminManual', '补录')}
@@ -2272,7 +2272,7 @@ export default function LeaderboardPage() {
                                       alignItems: 'center',
                                       gap: '2px'
                                     }}
-                                    title={item.clockOutPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                    title={item.clockOutPunch?.manualEntry ? (isEn ? `[Admin manual entry]\nAdded by: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\nTime: ${item.clockOutPunch.manualEntry.addedAt || ''}\nReason: ${item.clockOutPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}`) : (isEn ? 'Admin manual entry' : '管理员手动补录')}
                                   >
                                     <i className="ph-bold ph-wrench"></i>
                                     {t('analytics.badgeAdminManual', '补录')}

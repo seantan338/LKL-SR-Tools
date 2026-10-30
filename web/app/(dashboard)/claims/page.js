@@ -56,7 +56,7 @@ export default function ClaimsPage() {
 
   // 订阅报销单（管理层返回全团队，普通员工仅返回本人）
   useEffect(() => {
-    if (!isHqTeam || !user?.uid) {
+    if (!isHqTeam || !isAdmin || !user?.uid) {
       setClaimsLoading(false);
       return;
     }
@@ -66,7 +66,7 @@ export default function ClaimsPage() {
       setClaimsLoading(false);
     });
     return () => unsub();
-  }, [isHqTeam, role, user?.uid]);
+  }, [isHqTeam, isAdmin, role, user?.uid]);
 
   const myClaims = useMemo(
     () => claims.filter((c) => c.userId === user?.uid),
@@ -123,7 +123,7 @@ export default function ClaimsPage() {
     try {
       await FirestoreStore.updateExpenseClaimStatus(HQ_TEAM_ID, user, claim.id, 'MANAGER_APPROVED', {
         title: claim.title,
-        note: '主管初审通过，流转至财务/Owner终审 / Manager approved'
+        note: t('claims.noteManagerApproved', '主管初审通过，流转至财务/Owner终审')
       });
       showToast(t('claims.toastManagerApproved', '初审通过，已流转至财务/Owner终审'), 'success');
     } catch (err) {
@@ -135,7 +135,7 @@ export default function ClaimsPage() {
     try {
       await FirestoreStore.updateExpenseClaimStatus(HQ_TEAM_ID, user, claim.id, 'APPROVED_PENDING_PAYOUT', {
         title: claim.title,
-        note: '财务终审批准，进入待放款资金池 / Final approval granted'
+        note: t('claims.noteFinanceApproved', '财务终审批准，进入待放款资金池')
       });
       showToast(t('claims.toastFinanceApproved', '终审批准，已进入待放款资金池'), 'success');
     } catch (err) {
@@ -148,8 +148,8 @@ export default function ClaimsPage() {
     if (!claimIds.length) return;
     // 失败时异常向上抛出，由审批台组件统一提示并保留勾选状态
     const batchTitle = type === 'PAYROLL'
-      ? `${exportMonth === 'all' ? getCurrentMonth() : exportMonth} 薪资随薪发放报销批次 / Payroll claims batch`
-      : `批次放款 / Batch payout - ${new Date().toISOString().slice(0, 10)}`;
+      ? `${exportMonth === 'all' ? getCurrentMonth() : exportMonth} ${t('claims.batchTitlePayroll', '薪资随薪发放报销批次')}`
+      : `${t('claims.batchTitlePayout', '批次放款')} - ${new Date().toISOString().slice(0, 10)}`;
 
     await FirestoreStore.createClaimPayoutBatch(HQ_TEAM_ID, user, {
       batchTitle,
@@ -199,8 +199,8 @@ export default function ClaimsPage() {
     }
   };
 
-  // ---------- Non-HQ gate ----------
-  if (!isHqTeam) {
+  // ---------- Access gate: HQ + 管理员 (Owner / Manager) only ----------
+  if (!isHqTeam || !isAdmin) {
     return (
       <div className="page-view active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
         <div className="bezel-shell" style={{ maxWidth: '420px', width: '100%' }}>
@@ -208,7 +208,9 @@ export default function ClaimsPage() {
             <i className="ph-bold ph-lock-key" style={{ fontSize: '36px', color: 'var(--accent-amber)' }}></i>
             <h3 style={{ margin: '12px 0 6px', fontSize: '16px' }}>{t('claims.moduleTitle', '费用与报销')}</h3>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
-              公司本部 (HQ) 专属功能 / HQ members only
+              {isHqTeam
+                ? t('claims.adminOnlyNotice', '报销模块仅限管理员（Owner / Manager）访问')
+                : t('claims.hqOnlyNotice', '公司本部 (HQ) 专属功能')}
             </p>
           </div>
         </div>
@@ -267,7 +269,7 @@ export default function ClaimsPage() {
                 style={{ height: '32px', fontSize: '12px' }}
                 title={t('claims.exportReportBtn', '导出报销对账表')}
               >
-                <option value="all">全部月份 (All Months)</option>
+                <option value="all">{t('claims.allMonths', '全部月份')}</option>
                 {exportMonthOptions.map((ym) => (
                   <option key={ym} value={ym}>{ym}</option>
                 ))}
@@ -387,7 +389,7 @@ export default function ClaimsPage() {
                               {t('claims.itemsCount', { count: (claim.items || []).length }, `${(claim.items || []).length} 项明细`)}
                             </span>
                             {hasWarning && (
-                              <i className="ph-bold ph-warning-circle" style={{ color: 'var(--accent-red)' }} title="Risk warning"></i>
+                              <i className="ph-bold ph-warning-circle" style={{ color: 'var(--accent-red)' }} title={t('claims.riskWarning', '风险提示')}></i>
                             )}
                           </div>
 
@@ -458,9 +460,9 @@ export default function ClaimsPage() {
                                     <i className="ph-bold ph-car-profile"></i>
                                     <span>
                                       {it.mileageMeta.origin} → {it.mileageMeta.destination} · {it.mileageMeta.distanceKm} km
-                                      {' · '}RM {Number(it.mileageMeta.appliedRate || 0).toFixed(2)}/km
-                                      {Number(it.mileageMeta.tollAmount) > 0 && ` · Toll ${Number(it.mileageMeta.tollAmount).toFixed(2)}`}
-                                      {Number(it.mileageMeta.parkingAmount) > 0 && ` · Parking ${Number(it.mileageMeta.parkingAmount).toFixed(2)}`}
+                                      {' · '}{t('claims.rmPerKm', 'RM')} {Number(it.mileageMeta.appliedRate || 0).toFixed(2)}/km
+                                      {Number(it.mileageMeta.tollAmount) > 0 && ` · ${t('claims.toll', '过路费')} ${Number(it.mileageMeta.tollAmount).toFixed(2)}`}
+                                      {Number(it.mileageMeta.parkingAmount) > 0 && ` · ${t('claims.parking', '停车费')} ${Number(it.mileageMeta.parkingAmount).toFixed(2)}`}
                                     </span>
                                   </div>
                                 )}

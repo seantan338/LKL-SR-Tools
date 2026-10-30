@@ -302,13 +302,11 @@ service cloud.firestore {
       // 报销与费用子系统 (Expense Claims & Mileage Reimbursement)
       match /expense_claims/{claimId} {
         // 读取：本部成员可查看本人报销单；本部 Owner / Manager 可查看全员报销单
-        allow read: if isHqTeam(teamId) && (
-          (isApprovedOnTeam(teamId) && resource.data.userId == request.auth.uid)
-          || isOwnerOrManagerOnTeam(teamId)
-        );
-        // 创建：本部成员仅可提交属于本人的单据，初始状态锁定为 SUBMITTED
+        // 【仅管理员】报销模块仅对本部 Owner / Manager 开放，普通成员无任何读写权限
+        allow read: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
+        // 创建：仅本部 Owner / Manager 可提交属于本人的单据，初始状态锁定为 SUBMITTED
         allow create: if isHqTeam(teamId)
-          && isApprovedOnTeam(teamId)
+          && isOwnerOrManagerOnTeam(teamId)
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.get('status', 'SUBMITTED') == 'SUBMITTED';
         // 更新：
@@ -316,12 +314,12 @@ service cloud.firestore {
         // 2. 本部 Manager 可初审 (SUBMITTED -> MANAGER_APPROVED 或 REJECTED)
         // 3. 本部 Owner 可终审 (MANAGER_APPROVED -> APPROVED_PENDING_PAYOUT 或 REJECTED)、批次放款 (PAID) 或锁定入薪资 (LOCKED_IN_PAYROLL)
         allow update: if isHqTeam(teamId) && (
-          (resource.data.userId == request.auth.uid && resource.data.status == 'SUBMITTED' && request.resource.data.status == 'CANCELLED')
+          (isOwnerOrManagerOnTeam(teamId) && resource.data.userId == request.auth.uid && resource.data.status == 'SUBMITTED' && request.resource.data.status == 'CANCELLED')
           || isOwnerOrManagerOnTeam(teamId)
         );
-        // 删除：仅本人在 SUBMITTED 状态下可删除本人单据；或由本部 Owner 删除
+        // 删除：仅本人(管理员)在 SUBMITTED 状态下可删除本人单据；或由本部 Owner 删除
         allow delete: if isHqTeam(teamId) && (
-          (resource.data.userId == request.auth.uid && resource.data.status == 'SUBMITTED')
+          (isOwnerOrManagerOnTeam(teamId) && resource.data.userId == request.auth.uid && resource.data.status == 'SUBMITTED')
           || (hasUserDoc() && userDoc().role == 'owner')
         );
       }
