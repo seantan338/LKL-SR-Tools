@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { FirestoreStore } from '../lib/firestore-store';
 import { useI18n } from '../lib/i18n-context';
 import { useAuth } from '../lib/auth-context';
 
-export default function AttendanceLeaveModal({
+function AttendanceLeaveModal({
   isOpen,
   onClose,
   targetDate,
@@ -24,43 +25,37 @@ export default function AttendanceLeaveModal({
   const currentUserProfile = userProfile || auth?.userProfile;
   const currentTeamId = teamId || auth?.teamId || 'default_team';
 
-  // State
-  const [selectedUid, setSelectedUid] = useState('');
+  // 直接在 useState 初始化时确定表单初值，彻底消除重置型 useEffect 副作用
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const initialDate = targetDate || todayStr;
+
+  const [selectedUid, setSelectedUid] = useState(() => {
+    if (isAdminMode && Array.isArray(hqMembers) && hqMembers.length > 0) {
+      return currentUser?.uid || hqMembers[0]?.uid || hqMembers[0]?.id || '';
+    }
+    return currentUser?.uid || '';
+  });
   const [leaveType, setLeaveType] = useState('ANNUAL');
   const [durationType, setDurationType] = useState('FULL_DAY');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(initialDate);
+  const [endDate, setEndDate] = useState(initialDate);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 初始化表单：仅在弹窗从关闭变为打开（isOpen 为 true）的一瞬间执行一次重置
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const initialDate = targetDate || todayStr;
-    setStartDate(initialDate);
-    setEndDate(initialDate);
-    setLeaveType('ANNUAL');
-    setDurationType('FULL_DAY');
-    setReason('');
-    setErrorMsg('');
-
-    if (isAdminMode && Array.isArray(hqMembers) && hqMembers.length > 0) {
-      setSelectedUid(currentUser?.uid || hqMembers[0]?.uid || hqMembers[0]?.id || '');
-    } else {
-      setSelectedUid(currentUser?.uid || '');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  // 当切换为半天假时，自动锁定结束日期等于开始日期
-  useEffect(() => {
-    if (durationType === 'HALF_AM' || durationType === 'HALF_PM') {
+  const handleDurationChange = (newDuration) => {
+    setDurationType(newDuration);
+    if (newDuration === 'HALF_AM' || newDuration === 'HALF_PM') {
       setEndDate(startDate);
     }
-  }, [durationType, startDate]);
+  };
+
+  const handleStartDateChange = (newStart) => {
+    setStartDate(newStart);
+    if (durationType === 'HALF_AM' || durationType === 'HALF_PM' || endDate < newStart) {
+      setEndDate(newStart);
+    }
+  };
 
   // 计算预计折算天数
   const calculatedDays = useMemo(() => {
@@ -169,7 +164,7 @@ export default function AttendanceLeaveModal({
     }
   };
 
-  return (
+  const modalContent = (
     <div style={{
       position: 'fixed',
       top: 0,
@@ -302,7 +297,7 @@ export default function AttendanceLeaveModal({
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setDurationType(tab.id)}
+                      onClick={() => handleDurationChange(tab.id)}
                       style={{
                         flex: 1,
                         padding: '5px 0',
@@ -334,7 +329,7 @@ export default function AttendanceLeaveModal({
                   className="input"
                   style={{ width: '100%', height: '36px', fontSize: '13px' }}
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
                   required
                 />
               </div>
@@ -463,4 +458,11 @@ export default function AttendanceLeaveModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }
+
+export default memo(AttendanceLeaveModal);

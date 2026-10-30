@@ -5154,16 +5154,18 @@ export default function AnalyticsPage() {
       />
 
       {/* Attendance Leave Modal (主管代录入 / 员工请假) */}
-      <AttendanceLeaveModal
-        isOpen={leaveModalOpen}
-        onClose={() => setLeaveModalOpen(false)}
-        teamId={teamId}
-        user={user}
-        userProfile={userProfile}
-        hqMembers={teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending')}
-        isAdminMode={Boolean(canManageAttendance)}
-        onSuccess={(msg) => showToast(msg)}
-      />
+      {leaveModalOpen && (
+        <AttendanceLeaveModal
+          isOpen={leaveModalOpen}
+          onClose={() => setLeaveModalOpen(false)}
+          teamId={teamId}
+          user={user}
+          userProfile={userProfile}
+          hqMembers={teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending')}
+          isAdminMode={Boolean(canManageAttendance)}
+          onSuccess={(msg) => showToast(msg)}
+        />
+      )}
 
       {/* Leave Rejection Modal */}
       {leaveRejectModalOpen && leaveTargetToReject && (

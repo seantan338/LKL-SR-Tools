@@ -60,11 +60,13 @@ export default function AttendanceModal() {
     setTimeout(() => setToastMsg(''), 3500);
   };
 
-  // 1. Digital Clock (Updates every second)
+  // 1. Digital Clock (Updates every second only when attendance modal is visible and leave form is not open)
   useEffect(() => {
+    if (!isOpen || isLeaveModalOpen) return;
+    setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isOpen, isLeaveModalOpen]);
 
   // 1.1 Subscribe to current user's approved attendance leaves
   useEffect(() => {
