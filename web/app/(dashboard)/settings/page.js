@@ -18,6 +18,7 @@ import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { detectJobOrderColumns, mapSheetRowsToJobOrders, findExistingJobOrder, jobOrderSheetKey } from '../../../lib/job-order-sheet.mjs';
 import { authFetch } from '../../../lib/api-client';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../../../lib/version';
+import CommissionRuleModal from '../../../components/CommissionRuleModal';
 
 export default function SettingsPage() {
   const { teamId, user, isOwner, isManager, signInWithGoogleSheets } = useAuth();
@@ -27,6 +28,18 @@ export default function SettingsPage() {
   const isEn = lang === 'en';
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+
+  // Commission Engine & Incentive Rules States (Phase 6)
+  const [commissionConfig, setCommissionConfig] = useState(null);
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+
+  useEffect(() => {
+    if (!teamId) return;
+    const unsub = FirestoreStore.subscribeToCommissionConfig(teamId, (cfg) => {
+      setCommissionConfig(cfg);
+    });
+    return () => unsub();
+  }, [teamId]);
 
   // Long-Term Google Sheets Webhook Sync States
   const [savedSyncConfig, setSavedSyncConfig] = useState(null);
@@ -2272,6 +2285,90 @@ function onEdit(e) {
                 </div>
               </div>
             )}
+
+            {/* Dynamic Commission & Incentive Rules Section (Phase 6 - Owner Only) */}
+            {isOwner && (
+              <div className="form-section">
+                <h4 style={{ fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 'var(--space-3)' }}>
+                  {t('commission.settingsSectionTitle', '成单佣金规则与风控引擎')}
+                </h4>
+                <div style={{ padding: 'var(--space-5)', background: 'var(--card-bg, #ffffff)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-hairline)', boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)' }}></i>
+                        <span>{t('commission.settingsCardTitle', '团队佣金计算模板与保证期双态风控')}</span>
+                        {commissionConfig?.enabled !== false ? (
+                          <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--accent-emerald, #10B981)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                            {t('common.active', '运行中')}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                            {t('common.disabled', '已停用')}
+                          </span>
+                        )}
+                      </label>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6, maxWidth: '640px' }}>
+                        {t('commission.settingsCardDesc', '全参数可配置（零写死）：支持按单定额 / 服务费提成 / 薪资比例 3 种计费模式，成单自动流转入保证期待解锁 (Pending) 钱包，可职位级覆写与成单主管特批。')}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => setShowCommissionModal(true)}
+                      style={{ fontSize: '0.84rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <i className="ph-bold ph-sliders"></i>
+                      <span>{t('commission.configureRulesBtn', '配置佣金与风控规则')}</span>
+                    </button>
+                  </div>
+
+                  {/* Summary badges */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-hairline)' }}>
+                    <div style={{ background: 'var(--bg-subtle, rgba(255,255,255,0.04))', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('commission.currentModeBadge', '计费模式')}:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>
+                        {commissionConfig?.defaultBillingMode === 'AGENCY_FLAT'
+                          ? (isEn
+                              ? `💼 Agency Flat Fee (RM ${commissionConfig.defaultAgencyFlatFee || 2000} @ ${commissionConfig.defaultAgencyFlatRate || 20}%)`
+                              : `💼 固定服务费 (RM ${commissionConfig.defaultAgencyFlatFee || 2000} @ ${commissionConfig.defaultAgencyFlatRate || 20}%)`)
+                          : (commissionConfig?.defaultBillingMode === 'PERCENTAGE'
+                              ? (isEn
+                                  ? `📈 Salary Percentage (${commissionConfig.defaultAgencyFeeRate || 15}% Client / ${commissionConfig.defaultRecruiterRate || 20}% Recruiter)`
+                                  : `📈 薪资比例 (${commissionConfig.defaultAgencyFeeRate || 15}% 客户费率 / ${commissionConfig.defaultRecruiterRate || 20}% 提成)`)
+                              : (isEn
+                                  ? `⭐ Direct Flat (RM ${commissionConfig?.defaultFlatCommissionAmount ?? 500}/deal)`
+                                  : `⭐ 按单固定佣金 (每单 RM ${commissionConfig?.defaultFlatCommissionAmount ?? 500})`))}
+                      </strong>
+                    </div>
+
+                    <div style={{ background: 'var(--bg-subtle, rgba(255,255,255,0.04))', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('commission.guaranteeBadge', '保证期')}:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>
+                        🔒 {commissionConfig?.defaultGuaranteeDays ?? 90} {t('common.days', '天')}
+                      </strong>
+                    </div>
+
+                    <div style={{ background: 'var(--bg-subtle, rgba(255,255,255,0.04))', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-hairline)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('commission.splitsBadge', '默认分成')}:</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        👥 {commissionConfig?.defaultSplits?.map(s => `${isEn ? (s.labelEn || s.labelZh) : (s.labelZh || s.labelEn)} ${s.ratio}%`).join(' + ') || (isEn ? 'Delivery 70% + BD 30%' : '交付 70% + BD 30%')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal portal */}
+            <CommissionRuleModal
+              isOpen={showCommissionModal}
+              onClose={() => setShowCommissionModal(false)}
+              teamId={teamId}
+              userId={user?.uid}
+              currentConfig={commissionConfig}
+            />
 
             {/* System Version & Cloud Build Status Section (v1.6.0) */}
             <div className="form-section">

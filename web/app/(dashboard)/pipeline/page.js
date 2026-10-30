@@ -10,12 +10,15 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
 import { SystemLogger } from '../../../lib/logger';
 import CandidateDrawer from '../../../components/CandidateDrawer';
+import CommissionDealModal from '../../../components/CommissionDealModal';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
 import { DragDropContext, Draggable } from '@hello-pangea/dnd';
 import { StrictModeDroppable } from '../../../components/StrictModeDroppable';
 import ScrollContainer from 'react-indiana-drag-scroll';
 
 export default function PipelinePage() {
-  const { teamId, role, user, isReadOnlyView } = useAuth();
+  const { teamId, role, user, isOwner, isReadOnlyView } = useAuth();
   const { candidates, candidatesLoading: loading } = useNotifications();
   const { showToast } = useFeedback();
   const { t } = useI18n();
@@ -23,6 +26,32 @@ const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [focusInterview, setFocusInterview] = useState(false);
   const [isBrowser, setIsBrowser] = useState(false);
+
+  // Commission Deal Modal States (Phase 6)
+  const [dealCandidate, setDealCandidate] = useState(null);
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+  const [jobOrders, setJobOrders] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  useEffect(() => {
+    if (!teamId) return;
+    const unsubOrders = FirestoreStore.subscribeToJobOrders(teamId, role, user?.uid, (orders) => {
+      setJobOrders(orders || []);
+    });
+    const usersRef = collection(db, 'users');
+    const unsubUsers = onSnapshot(usersRef, (snap) => {
+      const activeMembers = snap.docs
+        .map(d => ({ ...d.data(), uid: d.id }))
+        .filter(u => u.teamId === teamId && u.role && u.role !== 'pending' && u.role !== 'revoked');
+      setTeamMembers(activeMembers);
+    }, (err) => {
+      console.warn("Could not fetch team members for commission split:", err);
+    });
+    return () => {
+      unsubOrders();
+      unsubUsers();
+    };
+  }, [teamId, role, user?.uid]);
 
   useEffect(() => {
     setIsBrowser(true);
@@ -59,6 +88,13 @@ const stages = [
       
       const candidate = candidates.find(c => c.id === candidateId);
       if (!candidate) return;
+
+      // Intercept transition to onboarding: open CommissionDealModal for Owner only!
+      if (targetStageKey === 'onboarding' && isOwner) {
+        setDealCandidate(candidate);
+        setIsDealModalOpen(true);
+        return;
+      }
 
       const now = new Date().toISOString();
       const newHistory = [...(candidate.stageHistory || []), { stage: targetStageKey, movedAt: now }];
@@ -102,6 +138,61 @@ const stages = [
     setFocusInterview(true);
     setIsDrawerOpen(true);
   }
+
+  // 成单入职确认并持久化佣金台账
+  const handleConfirmDeal = async (dealData) => {
+    if (!dealCandidate) return;
+    const now = new Date().toISOString();
+    const newHistory = [...(dealCandidate.stageHistory || []), { stage: 'onboarding', movedAt: now }];
+
+    try {
+      // 1. Update candidate stage to onboarding
+      await FirestoreStore.updateCandidate(teamId, dealCandidate.id, {
+        stage: 'onboarding',
+        onboardDate: dealData.onboardDate,
+        stageHistory: newHistory
+      });
+
+      // 2. Persist commission record
+      await FirestoreStore.upsertCommissionRecord(teamId, user?.uid, dealData);
+
+      // 3. Log audit
+      SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', dealCandidate.name, {
+        actionDetail: `候选人正式入职成单，已生成保证期佣金台账 (金额: RM ${dealData.billingSnapshot?.totalCommissionPool || 0})`,
+        fromStage: dealCandidate.stage || 'screening',
+        toStage: 'onboarding'
+      });
+
+      showToast(t('commission.dealSuccessToast', `🎉 成单成功！已为 ${dealCandidate.name} 建立佣金台账并在保证期中追踪`), 'success');
+    } catch (err) {
+      console.error('Failed to complete deal:', err);
+      showToast(t('commission.dealFailedToast', '成单处理失败，请重试: ') + (err.message || err), 'error');
+    } finally {
+      setDealCandidate(null);
+      setIsDealModalOpen(false);
+    }
+  };
+
+  // 仅推进至入职，跳过建立佣金单 (非提成场景)
+  const handleSkipCommission = async () => {
+    if (!dealCandidate) return;
+    const now = new Date().toISOString();
+    const newHistory = [...(dealCandidate.stageHistory || []), { stage: 'onboarding', movedAt: now }];
+
+    try {
+      await FirestoreStore.updateCandidate(teamId, dealCandidate.id, {
+        stage: 'onboarding',
+        stageHistory: newHistory
+      });
+      showToast(t('pipeline.movedToOnboarding', `已推进 ${dealCandidate.name} 至正式入职阶段`), 'info');
+    } catch (err) {
+      console.error('Failed to advance stage:', err);
+      showToast(t('pipeline.stageUpdateFailed', '推进状态失败: ') + (err.message || err), 'error');
+    } finally {
+      setDealCandidate(null);
+      setIsDealModalOpen(false);
+    }
+  };
 
   return (
     <>
@@ -329,6 +420,22 @@ const stages = [
         onClose={() => { setIsDrawerOpen(false); setFocusInterview(false); }}
         candidate={selectedCandidate}
         focusInterview={focusInterview}
+      />
+
+      {/* Commission Deal Modal (Phase 6) */}
+      <CommissionDealModal
+        isOpen={isDealModalOpen}
+        onClose={() => {
+          setIsDealModalOpen(false);
+          setDealCandidate(null);
+        }}
+        candidate={dealCandidate}
+        teamId={teamId}
+        currentUser={user}
+        teamMembers={teamMembers}
+        jobOrders={jobOrders}
+        onConfirmDeal={handleConfirmDeal}
+        onSkipCommission={handleSkipCommission}
       />
     </>
   );

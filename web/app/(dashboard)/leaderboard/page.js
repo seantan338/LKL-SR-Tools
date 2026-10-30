@@ -11,14 +11,28 @@ import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/f
 import { ExcelExporter, isAccountExcluded, deduplicateDayEvents } from '../../../lib/excel-exporter';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
 import { SystemLogger } from '../../../lib/logger';
+import { 
+  getGuaranteeRemainingDays, 
+  evaluateGuaranteeStatus, 
+  formatCommissionCurrency 
+} from '../../../lib/commission-engine';
+import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
 
 export default function LeaderboardPage() {
-  const { teamId, isHqTeam, role, user, isOwner, isManager } = useAuth();
+  const { teamId, isHqTeam, role, user, userProfile, isOwner, isManager } = useAuth();
   const { candidates, candidatesLoading } = useNotifications();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
 
-  const [activeTab, setActiveTab] = useState('sales'); // 'sales' | 'attendance'
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const tabParam = p.get('tab');
+      if (tabParam === 'my_attendance' || tabParam === 'my') return 'my_attendance';
+      if (tabParam === 'attendance') return 'attendance';
+    }
+    return 'sales';
+  });
   const [dateFilter, setDateFilter] = useState('month'); // 'month' | '7days' | '30days' | 'all'
   const [orders, setOrders] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -26,8 +40,53 @@ export default function LeaderboardPage() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [attendanceRules, setAttendanceRules] = useState(null);
+  const [attendanceAppeals, setAttendanceAppeals] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+
+  // My Attendance View States
+  const [appealModalOpen, setAppealModalOpen] = useState(false);
+  const [appealTargetDate, setAppealTargetDate] = useState('');
+  const [appealTargetPunchType, setAppealTargetPunchType] = useState('CLOCK_OUT');
+  const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const exportMonthOptions = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      list.push(ym);
+    }
+    return list;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const tabParam = p.get('tab');
+      if (tabParam === 'my_attendance' || tabParam === 'my') {
+        setActiveTab('my_attendance');
+      }
+    }
+  }, []);
+
+  // Subscribe to Attendance Appeals (managers get all, staff gets own to conform to firestore.rules)
+  useEffect(() => {
+    if (!isHqTeam || !user?.uid) return;
+    const filterUid = (!isOwner && !isManager) ? user.uid : null;
+    const unsub = FirestoreStore.subscribeToAttendanceAppeals('default_team', (appeals) => {
+      setAttendanceAppeals(appeals || []);
+    }, filterUid);
+    return () => unsub();
+  }, [isHqTeam, isOwner, isManager, user?.uid]);
+
+  // Commission Engine States (Phase 6 - Owner Only)
+  const [commissionRecords, setCommissionRecords] = useState([]);
+  const [commissionConfig, setCommissionConfig] = useState(null);
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -96,6 +155,31 @@ export default function LeaderboardPage() {
     return () => unsub();
   }, [isHqTeam]);
 
+  // 2.6 Subscribe to Commission Records & Config (Phase 6 - Owner Only)
+  useEffect(() => {
+    if (!isOwner) return;
+    const currentTeam = teamId || 'default_team';
+    const unsubRecords = FirestoreStore.subscribeToCommissionRecords(currentTeam, (recs) => {
+      setCommissionRecords(recs || []);
+    });
+    const unsubConfig = FirestoreStore.subscribeToCommissionConfig(currentTeam, (cfg) => {
+      setCommissionConfig(cfg);
+    });
+    return () => {
+      unsubRecords();
+      unsubConfig();
+    };
+  }, [teamId, isOwner]);
+
+  const canViewAllAmounts = Boolean(isOwner || isManager || commissionConfig?.leaderboardVisibility === 'PUBLIC_AMOUNT');
+
+  const formatLeaderboardAmount = (amount, advisorUid) => {
+    if (canViewAllAmounts || (user?.uid && advisorUid === user.uid)) {
+      return formatCommissionCurrency(amount, 'MYR');
+    }
+    return 'RM ***';
+  };
+
   const handleExportAttendanceExcel = async () => {
     if (!isHqTeam || (!isOwner && !isManager)) {
       showToast(t('leaderboard.exportNoPermission', '仅 HQ 本部管理人员可导出考勤出勤月报'));
@@ -135,7 +219,7 @@ export default function LeaderboardPage() {
         });
       } catch (logErr) {}
 
-      showToast(t('leaderboard.exportSuccess', { filename }, `🎉 考勤报表 (${filename}) 导出成功！`));
+      showToast(t('leaderboard.exportSuccess', { filename }, `考勤报表 (${filename}) 导出成功`));
     } catch (err) {
       console.error('Export leaderboard attendance error:', err);
       showToast(`${t('leaderboard.exportFailed', '导出失败: ')}${err.message}`, 'error');
@@ -226,7 +310,10 @@ export default function LeaderboardPage() {
         interview: 0,
         offer: 0,
         onboarded: 0,
-        activeOrders: 0
+        activeOrders: 0,
+        pendingCommission: 0,
+        unlockedCommission: 0,
+        totalDeals: 0
       };
     });
 
@@ -246,7 +333,10 @@ export default function LeaderboardPage() {
           interview: 0,
           offer: 0,
           onboarded: 0,
-          activeOrders: 0
+          activeOrders: 0,
+          pendingCommission: 0,
+          unlockedCommission: 0,
+          totalDeals: 0
         };
       }
       return map[targetKey];
@@ -282,6 +372,30 @@ export default function LeaderboardPage() {
       }
     });
 
+    // Aggregate Commission from commissionRecords (Phase 6)
+    const todayStr = new Date().toISOString().split('T')[0];
+    commissionRecords.forEach(rec => {
+      if (rec.status === 'CANCELLED') return;
+      const dealTime = rec.createdAt || rec.onboardDate;
+      if (!isDateInRange(dealTime)) return;
+
+      const remainingDays = getGuaranteeRemainingDays(rec.unlockDate, todayStr);
+      const isUnlocked = rec.status === 'UNLOCKED' || rec.status === 'SETTLED' || (Number(rec.guaranteeDays) <= 0) || (remainingDays === 0);
+
+      (rec.splits || []).forEach(split => {
+        const pic = getOrCreatePic(split.displayName, split.uid);
+        if (!pic) return;
+
+        const amt = Number(split.amount) || 0;
+        if (isUnlocked) {
+          pic.unlockedCommission += amt;
+        } else {
+          pic.pendingCommission += amt;
+        }
+        pic.totalDeals += 1;
+      });
+    });
+
     const list = Object.values(map).map(item => {
       const rate = item.totalSourced > 0
         ? ((item.onboarded / item.totalSourced) * 100).toFixed(1)
@@ -297,7 +411,7 @@ export default function LeaderboardPage() {
 
     // Primary: Onboarded DESC, Secondary: Composite Score DESC, Tertiary: Total Sourced DESC
     return list.sort((a, b) => b.onboarded - a.onboarded || b.compositeScore - a.compositeScore || b.totalSourced - a.totalSourced);
-  }, [candidates, orders, hqMembers, teamMembers, dateFilter]);
+  }, [candidates, orders, hqMembers, teamMembers, dateFilter, commissionRecords]);
 
   // -------------------------------------------------------------
   // Track 2: Attendance & Punctuality Leaderboard (HQ Only)
@@ -473,6 +587,200 @@ export default function LeaderboardPage() {
     );
   }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, isEn]);
 
+  // -------------------------------------------------------------
+  // Track 3: Personal Attendance & Anomaly Appeals (My Attendance)
+  // -------------------------------------------------------------
+  const currentPic = useMemo(() => {
+    const rawName = userProfile?.displayName || userProfile?.name || user?.displayName || (user?.email ? user.email.split('@')[0] : '');
+    return resolveCanonicalPic(rawName, user?.uid, teamMembers);
+  }, [user, userProfile, teamMembers]);
+
+  const getWeekdayLabel = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      const day = d.getDay();
+      const zh = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      const en = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return (isEn ? en : zh)[day] || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const toShortTimeStr = (d) => {
+    return CascadeShiftEngine.toShortTime(d);
+  };
+
+  const myMonthlyAttendance = useMemo(() => {
+    if (!user?.uid) return [];
+    const myUid = user.uid;
+    const myEmail = user.email?.toLowerCase();
+    const myName = currentPic?.displayName?.toLowerCase();
+
+    const dailyMap = {};
+    const combinedEvents = [...manualCheckins, ...logs];
+    const shiftConfig = attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG;
+    const shiftOverrides = attendanceRules?.shiftOverrides || {};
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    combinedEvents.forEach(evt => {
+      const ts = evt.timestamp || evt.createdAt;
+      const d = CascadeShiftEngine.toSafeDate(ts);
+      if (!d) return;
+
+      const evtUid = evt.userId || evt.user?.uid;
+      const evtEmail = (evt.userEmail || evt.user?.email || '').toLowerCase();
+      const evtName = (evt.picName || evt.userName || evt.user?.displayName || '').toLowerCase();
+
+      const matchUid = evtUid && evtUid === myUid;
+      const matchEmail = myEmail && evtEmail && evtEmail === myEmail;
+      const matchName = myName && evtName && evtName === myName;
+
+      if (!matchUid && !matchEmail && !matchName) return;
+
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (myAttendanceMonth && !dateStr.startsWith(myAttendanceMonth)) return;
+
+      if (!dailyMap[dateStr]) {
+        dailyMap[dateStr] = {
+          date: dateStr,
+          dateObj: d,
+          events: [],
+          isToday: dateStr === todayStr
+        };
+      }
+
+      dailyMap[dateStr].events.push({
+        ...evt,
+        dateObj: d,
+        type: evt.type || evt.action || 'CLOCK_IN'
+      });
+    });
+
+    const list = Object.values(dailyMap).map(day => {
+      const cleanEvents = deduplicateDayEvents(day.events);
+      const overrideKey = `${day.date}__${currentPic?.displayName}`;
+      const overrideKeyUid = `${day.date}__${myUid}`;
+      const overrideShift = shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid] || null;
+
+      const analysis = CascadeShiftEngine.resolveDailyShift(
+        cleanEvents,
+        shiftConfig,
+        { locale: isEn ? 'en' : 'zh', overrideShift, isToday: day.isToday }
+      );
+
+      const clockInPunch = cleanEvents.find(e => e.type === 'CLOCK_IN' || e.type === 'CHECK_IN') || cleanEvents[0];
+      const clockOutPunch = cleanEvents.filter(e => e.type === 'CLOCK_OUT' || e.type === 'CHECK_OUT').pop() || null;
+      const lunchOutEvt = cleanEvents.find(e => e.type === 'LUNCH_OUT');
+      const lunchInEvt = cleanEvents.find(e => e.type === 'LUNCH_IN');
+
+      const isManual = cleanEvents.some(e => e.verifyMethod === 'ADMIN_MANUAL' || e.isManualEntry);
+      const isWfh = cleanEvents.some(e => e.verifyMethod === 'WFH' || e.verifySnapshot?.method === 'WFH');
+
+      let statusColor = 'var(--text-muted)';
+      let statusLabel = analysis.complianceLabel || (isEn ? 'Normal' : '正常');
+
+      if (day.isToday && (analysis.isInProgress || analysis.compliance === 'IN_PROGRESS')) {
+        statusColor = 'var(--accent-blue)';
+        statusLabel = isEn ? 'On Duty' : '在岗工作中';
+      } else if (analysis.isMissingPunch) {
+        statusColor = 'var(--accent-amber)';
+        statusLabel = isEn ? 'Missing Punch' : '未签退(缺卡)';
+      } else if (analysis.isViolation || analysis.isLate) {
+        statusColor = '#f87171';
+        statusLabel = analysis.complianceLabel || (isEn ? 'Late' : '迟到违规');
+      } else if (analysis.isCompliant) {
+        statusColor = 'var(--accent-emerald)';
+        statusLabel = analysis.complianceLabel || (isEn ? 'Compliant' : '已达标');
+      }
+
+      return {
+        ...day,
+        cleanEvents,
+        analysis,
+        clockInPunch,
+        clockOutPunch,
+        lunchOutStr: lunchOutEvt?.dateObj ? toShortTimeStr(lunchOutEvt.dateObj) : null,
+        lunchInStr: lunchInEvt?.dateObj ? toShortTimeStr(lunchInEvt.dateObj) : null,
+        isManual,
+        isWfh,
+        statusColor,
+        statusLabel
+      };
+    });
+
+    return list.sort((a, b) => b.date.localeCompare(a.date));
+  }, [user, currentPic, manualCheckins, logs, myAttendanceMonth, attendanceRules, isEn]);
+
+  const myAppealsByDate = useMemo(() => {
+    const map = {};
+    if (!user?.uid) return map;
+    const myUid = user.uid;
+    const myEmail = user.email?.toLowerCase();
+
+    attendanceAppeals.forEach(a => {
+      const matchUid = a.userId && a.userId === myUid;
+      const matchEmail = myEmail && a.userEmail && a.userEmail.toLowerCase() === myEmail;
+      if (matchUid || matchEmail) {
+        map[a.date] = a;
+      }
+    });
+    return map;
+  }, [attendanceAppeals, user]);
+
+  const myAppealsList = useMemo(() => {
+    if (!user?.uid) return [];
+    const myUid = user.uid;
+    const myEmail = user.email?.toLowerCase();
+
+    return attendanceAppeals.filter(a => {
+      const matchUid = a.userId && a.userId === myUid;
+      const matchEmail = myEmail && a.userEmail && a.userEmail.toLowerCase() === myEmail;
+      return matchUid || matchEmail;
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [attendanceAppeals, user]);
+
+  const myStats = useMemo(() => {
+    let daysPresent = 0;
+    let fullShiftDays = 0;
+    let lateDays = 0;
+    let missingPunchDays = 0;
+    let wfhDays = 0;
+    let manualAddedDays = 0;
+
+    myMonthlyAttendance.forEach(item => {
+      daysPresent += 1;
+      if (item.isWfh) wfhDays += 1;
+      if (item.isManual) manualAddedDays += 1;
+      if (item.analysis?.isCompliant) fullShiftDays += 1;
+      if (item.analysis?.isViolation || item.analysis?.isLate) lateDays += 1;
+      if (item.analysis?.isMissingPunch) missingPunchDays += 1;
+    });
+
+    const pendingCount = myAppealsList.filter(a => a.status === 'PENDING' && (!myAttendanceMonth || a.date?.startsWith(myAttendanceMonth))).length;
+
+    return {
+      daysPresent,
+      fullShiftDays,
+      lateDays,
+      missingPunchDays,
+      wfhDays,
+      manualAddedDays,
+      pendingCount
+    };
+  }, [myMonthlyAttendance, myAppealsList, myAttendanceMonth]);
+
+  const handleCancelAppeal = async (appealId) => {
+    try {
+      await FirestoreStore.cancelAttendanceAppeal('default_team', appealId);
+      showToast(t('attendanceAppeal.cancelSuccess', '已成功撤销申诉'));
+    } catch (err) {
+      showToast(err.message || '撤销失败');
+    }
+  };
+
   // Current active list & Top 3
   const currentRankingList = activeTab === 'sales' ? salesLeaderboard : attendanceLeaderboard;
   const top1 = currentRankingList[0] || null;
@@ -581,43 +889,116 @@ export default function LeaderboardPage() {
               ({attendanceLeaderboard.length})
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('my_attendance')}
+            style={{
+              padding: '6px 14px',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              background: activeTab === 'my_attendance' ? 'var(--card-bg)' : 'transparent',
+              color: activeTab === 'my_attendance' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: '700',
+              fontSize: 'var(--text-sm)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: activeTab === 'my_attendance' ? 'var(--shadow-card)' : 'none',
+              borderBottom: activeTab === 'my_attendance' ? '2px solid var(--accent-emerald)' : '2px solid transparent',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <i className="ph-bold ph-user-check" style={{ color: activeTab === 'my_attendance' ? 'var(--accent-emerald)' : 'inherit' }}></i>
+            <span>{t('leaderboard.tabMyAttendance', '我的个人考勤')}</span>
+            {myStats.pendingCount > 0 && (
+              <span style={{
+                background: 'var(--accent-amber)',
+                color: '#000',
+                fontSize: '10px',
+                fontWeight: '800',
+                padding: '1px 6px',
+                borderRadius: '10px'
+              }}>
+                {myStats.pendingCount}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Date Filter Pills */}
-        <div style={{
-          display: 'flex',
-          gap: '4px',
-          background: 'var(--input-bg)',
-          padding: '3px',
-          borderRadius: 'var(--radius-full)',
-          border: '1px solid var(--border-interactive)'
-        }}>
-          {[
-            { id: 'month', label: t('leaderboard.filterMonth', '本月') },
-            { id: '7days', label: t('leaderboard.filter7Days', '近 7 天') },
-            { id: '30days', label: t('leaderboard.filter30Days', '近 30 天') },
-            { id: 'all', label: t('leaderboard.filterAll', '全部') },
-          ].map(f => (
+        {/* Date Filter Pills / Month Selector */}
+        {activeTab === 'my_attendance' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <select
+              value={myAttendanceMonth}
+              onChange={(e) => setMyAttendanceMonth(e.target.value)}
+              className="select"
+              style={{ height: '32px', fontSize: '12px', minWidth: '110px' }}
+            >
+              {exportMonthOptions.map(ym => (
+                <option key={ym} value={ym}>{ym}</option>
+              ))}
+            </select>
             <button
-              key={f.id}
-              onClick={() => setDateFilter(f.id)}
+              type="button"
+              className="btn btn-sm btn-primary"
               style={{
+                height: '32px',
+                fontSize: '12px',
+                gap: '6px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                 border: 'none',
-                background: dateFilter === f.id ? 'var(--accent-blue)' : 'transparent',
-                color: dateFilter === f.id ? '#ffffff' : 'var(--text-muted)',
-                padding: '4px 12px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: '11px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                color: '#fff',
+                fontWeight: '700',
+                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+              }}
+              onClick={() => {
+                setAppealTargetDate(new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
+                setAppealTargetPunchType('CLOCK_OUT');
+                setAppealModalOpen(true);
               }}
             >
-              {f.label}
+              <i className="ph-bold ph-paper-plane-tilt"></i>
+              <span>{t('attendanceAppeal.btnQuickAppeal', '发起考勤申诉')}</span>
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div style={{
+            display: 'flex',
+            gap: '4px',
+            background: 'var(--input-bg)',
+            padding: '3px',
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--border-interactive)'
+          }}>
+            {[
+              { id: 'month', label: t('leaderboard.filterMonth', '本月') },
+              { id: '7days', label: t('leaderboard.filter7Days', '近 7 天') },
+              { id: '30days', label: t('leaderboard.filter30Days', '近 30 天') },
+              { id: 'all', label: t('leaderboard.filterAll', '全部') },
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setDateFilter(f.id)}
+                style={{
+                  border: 'none',
+                  background: dateFilter === f.id ? 'var(--accent-blue)' : 'transparent',
+                  color: dateFilter === f.id ? '#ffffff' : 'var(--text-muted)',
+                  padding: '4px 12px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
 
       {/* Attendance Tab Action Bar */}
       {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
@@ -675,8 +1056,11 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Top 3 Podium (Classic Olympic Stagger: #2 Left, #1 Center, #3 Right) */}
-      {currentRankingList.length > 0 && (
+      {/* Top 3 Podium & Full Leaderboard (When activeTab !== 'my_attendance') */}
+      {activeTab !== 'my_attendance' ? (
+        <>
+          {/* Top 3 Podium (Classic Olympic Stagger: #2 Left, #1 Center, #3 Right) */}
+          {currentRankingList.length > 0 && (
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -997,7 +1381,13 @@ export default function LeaderboardPage() {
                       <th style={{ padding: '10px 12px' }}>{t('leaderboard.offers', 'Offer 数')}</th>
                       <th style={{ padding: '10px 12px' }}>{t('leaderboard.interviews', '面试数')}</th>
                       <th style={{ padding: '10px 12px' }}>{t('leaderboard.sourced', '推人量')}</th>
-                      <th style={{ padding: '10px 12px', minWidth: '140px' }}>{t('leaderboard.conversionRate', '成单转化率')}</th>
+                      <th style={{ padding: '10px 12px', minWidth: '130px' }}>{t('leaderboard.conversionRate', '成单转化率')}</th>
+                      {isOwner && (
+                        <>
+                          <th style={{ padding: '10px 12px', minWidth: '130px', color: 'var(--accent-amber)' }}>{t('commission.pendingColumn', '保证期待解')}</th>
+                          <th style={{ padding: '10px 12px', minWidth: '130px', color: '#10B981', fontWeight: '700' }}>{t('commission.unlockedColumn', '可结算佣金')}</th>
+                        </>
+                      )}
                       <th style={{ padding: '10px 12px', color: 'var(--accent-amber)', fontWeight: '700' }}>{t('leaderboard.compositeScore', '综合积分')}</th>
                     </>
                   ) : (
@@ -1014,7 +1404,7 @@ export default function LeaderboardPage() {
               <tbody>
                 {currentRankingList.length === 0 ? (
                   <tr>
-                    <td colSpan={activeTab === 'sales' ? 8 : 7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
+                    <td colSpan={activeTab === 'sales' ? (isOwner ? 10 : 8) : 7} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--text-muted)' }}>
                       {t('leaderboard.noData', '暂无榜单数据')}
                     </td>
                   </tr>
@@ -1106,6 +1496,20 @@ export default function LeaderboardPage() {
                                 </span>
                               </div>
                             </td>
+                            {isOwner && (
+                              <>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{ fontSize: '0.84rem', color: (item.pendingCommission || 0) > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontWeight: '600' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
+                                    {formatLeaderboardAmount(item.pendingCommission || 0, item.uid)}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{ fontSize: '0.88rem', color: (item.unlockedCommission || 0) > 0 ? '#10B981' : 'var(--text-muted)', fontWeight: '700' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
+                                    {formatLeaderboardAmount(item.unlockedCommission || 0, item.uid)}
+                                  </span>
+                                </td>
+                              </>
+                            )}
                             <td style={{ padding: '12px' }}>
                               <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', fontWeight: '700', fontSize: '12px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
                                 {item.compositeScore}
@@ -1168,6 +1572,634 @@ export default function LeaderboardPage() {
           </div>
         </div>
       </div>
+      </>
+    ) : (
+      /* TRACK 3: PERSONAL ATTENDANCE & ANOMALY APPEALS (MY ATTENDANCE) */
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+        
+        {/* Header Bar */}
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  color: 'var(--accent-blue)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px'
+                }}>
+                  <i className="ph-bold ph-clock-user"></i>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                    {t('analytics.myAttendanceTitle', '我的考勤打卡与出勤统计')}
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    {t('analytics.myAttendanceSub', '实时掌握个人出勤天数、打卡时间与班次达标情况；如因公出差外勤未打卡可提交异常申诉')}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <select
+                  value={myAttendanceMonth}
+                  onChange={(e) => setMyAttendanceMonth(e.target.value)}
+                  className="select"
+                  style={{ height: '34px', fontSize: '12px', minWidth: '120px' }}
+                >
+                  {exportMonthOptions.map(ym => (
+                    <option key={ym} value={ym}>{ym}</option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{
+                    height: '34px',
+                    fontSize: '12px',
+                    gap: '6px',
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: '700',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+                  }}
+                  onClick={() => {
+                    setAppealTargetDate(new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
+                    setAppealTargetPunchType('CLOCK_OUT');
+                    setAppealModalOpen(true);
+                  }}
+                >
+                  <i className="ph-bold ph-paper-plane-tilt"></i>
+                  <span>{t('attendanceAppeal.btnQuickAppeal', '发起考勤申诉')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bento Metric Stat Cards (Zero Emoji) */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: 'var(--space-3)'
+        }}>
+          {/* 1. Present Days */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-calendar-check" style={{ color: 'var(--accent-emerald)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statPresentDays', '本月出勤天数')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                {myStats.daysPresent} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '4px' }}>
+                {t('analytics.statFullShiftNote', { count: myStats.fullShiftDays }, `达标工时 ${myStats.fullShiftDays} 天`)}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Full Shift Compliant */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-check-circle" style={{ color: 'var(--accent-blue)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statCompliantRate', '班次达标率')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-blue)', fontFamily: 'monospace' }}>
+                {myStats.daysPresent > 0 ? ((myStats.fullShiftDays / myStats.daysPresent) * 100).toFixed(0) : 0}%
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {t('analytics.statCompliantSub', { ok: myStats.fullShiftDays, total: myStats.daysPresent }, `${myStats.fullShiftDays} / ${myStats.daysPresent} 天正常`)}
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Late / Violations */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-hourglass-high" style={{ color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statLateCount', '迟到 / 提前退')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                {myStats.lateDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', marginTop: '4px' }}>
+                {myStats.lateDays > 0 ? t('analytics.statLateAlert', '存在班次未达底线') : t('analytics.statNoViolation', '无迟到记录')}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Missing Punches */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-warning-circle" style={{ color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statMissingPunch', '缺卡待申诉')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                {myStats.missingPunchDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                {myStats.missingPunchDays > 0 ? t('analytics.statMissingPunchAlert', '可在表格中点击申诉补录') : t('analytics.statAllPunched', '所有打卡均完整')}
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Admin Manual Punch */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-wrench" style={{ color: 'var(--accent-purple)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statAdminAdded', '管理员补录')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-purple)', fontFamily: 'monospace' }}>
+                {myStats.manualAddedDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {t('analytics.statAdminAddedNote', '特批或申诉核准留痕')}
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Pending Appeals */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-paper-plane-tilt" style={{ color: myStats.pendingCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statPendingAppeals', '申诉审核中')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.pendingCount > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
+                {myStats.pendingCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitCases', '件')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {myStats.pendingCount > 0 ? t('analytics.statPendingAppealsWait', '等待管理员批复中') : t('analytics.statNoPendingAppeals', '暂无在途申诉')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* My Appeals Records Stream (If Any Exist) */}
+        {myAppealsList.length > 0 && (
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-3)' }}>
+                <i className="ph-bold ph-paper-plane-tilt" style={{ color: 'var(--accent-amber)', fontSize: '16px' }}></i>
+                <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                  {t('attendanceAppeal.myAppealsTitle', '我的考勤申诉记录')}
+                </h4>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                  {myAppealsList.length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {myAppealsList.slice(0, 5).map(app => {
+                  const punchType = app.requestedPunchType || app.punchType;
+                  const punchTypeLabel = punchType === 'CLOCK_IN' ? t('analytics.punchIn', '上班签到')
+                    : punchType === 'CLOCK_OUT' ? t('analytics.punchOut', '下班签退')
+                    : punchType === 'LUNCH_OUT' ? t('analytics.lunchOut', '午休离开')
+                    : punchType === 'LUNCH_IN' ? t('analytics.lunchIn', '午休返回') : (punchType || '-');
+                  const displayTime = app.requestedTime || app.actualTime || '-';
+                  const displayReason = app.reason || app.reasonText;
+
+                  return (
+                    <div
+                      key={app.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-hairline)',
+                        borderRadius: 'var(--radius-md)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
+                          {app.date}
+                        </span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', fontWeight: '600' }}>
+                          {punchTypeLabel}
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          {t('attendanceAppeal.requestedTimePrefix', '主张时间:')} <strong style={{ color: 'var(--text-primary)' }}>{displayTime}</strong>
+                        </span>
+                        {displayReason && (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            ({displayReason})
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {app.status === 'PENDING' ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: 'var(--accent-amber)',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <i className="ph-bold ph-hourglass-simple"></i>
+                              {t('attendanceAppeal.statusPending', '审核中')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelAppeal(app.id)}
+                              className="btn btn-sm btn-ghost"
+                              style={{ color: '#f87171', fontSize: '11px', padding: '2px 8px', gap: '2px' }}
+                              title={t('attendanceAppeal.withdrawTooltip', '撤销此申诉')}
+                            >
+                              <i className="ph-bold ph-x"></i>
+                              <span>{t('attendanceAppeal.btnCancel', '撤销')}</span>
+                            </button>
+                          </div>
+                        ) : app.status === 'APPROVED' ? (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: 'var(--accent-emerald)',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <i className="ph-bold ph-check-circle"></i>
+                            {t('attendanceAppeal.statusApproved', '已通过 (已自动补录)')}
+                          </span>
+                        ) : (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: '#f87171',
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }} title={app.reviewNote || ''}>
+                              <i className="ph-bold ph-x-circle"></i>
+                              {t('attendanceAppeal.statusRejected', '未通过')}
+                            </span>
+                            {app.reviewNote && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                ({app.reviewNote})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* My Attendance Daily Records Table */}
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ph-bold ph-table" style={{ color: 'var(--accent-blue)', fontSize: '16px' }}></i>
+                <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                  {t('analytics.myDailyTableTitle', { month: myAttendanceMonth }, `${myAttendanceMonth} 每日打卡与出勤流水`)}
+                </h4>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                  {t('analytics.myRecordCount', { count: myMonthlyAttendance.length }, `共 ${myMonthlyAttendance.length} 天记录`)}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <i className="ph-bold ph-info" style={{ color: 'var(--accent-blue)' }}></i>
+                <span>{t('analytics.myTableTip', '提示：若因公出差外勤导致缺卡或未下班，可点击右侧「申诉」按钮申请补录')}</span>
+              </div>
+            </div>
+
+            {myMonthlyAttendance.length === 0 ? (
+              <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                {t('analytics.emptyMyAttendance', { month: myAttendanceMonth }, `在 ${myAttendanceMonth} 期间暂无打卡记录，可在顶部弹窗进行日常考勤签到`)}
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colDate', '考勤日期')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colFirstCheckin', '上班签到')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colClockOut', '下班签退')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colWorkDuration', '当日工时')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAssignedShift', '核定班次')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttStatus', '考勤状态')}</th>
+                      <th style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>{t('analytics.colAppealAction', '异常申诉 / 补录状态')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myMonthlyAttendance.map((item, idx) => {
+                      const firstTimeStr = item.clockInPunch?.dateObj ? toShortTimeStr(item.clockInPunch.dateObj) : '-';
+                      const clockOutTimeStr = item.clockOutPunch?.dateObj ? toShortTimeStr(item.clockOutPunch.dateObj) : null;
+                      const dayWeekday = getWeekdayLabel(item.date);
+                      const appeal = myAppealsByDate[item.date];
+
+                      const isInManual = Boolean(item.clockInPunch?.isManualEntry || item.clockInPunch?.verifyMethod === 'ADMIN_MANUAL');
+                      const isOutManual = Boolean(item.clockOutPunch?.isManualEntry || item.clockOutPunch?.verifyMethod === 'ADMIN_MANUAL');
+
+                      return (
+                        <tr key={`${item.date}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
+                          {/* Date */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontWeight: '700', fontFamily: 'monospace', color: item.isToday ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                                {item.date}
+                              </span>
+                              {dayWeekday && (
+                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                  {dayWeekday}
+                                </span>
+                              )}
+                              {item.isToday && (
+                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', fontWeight: '700' }}>
+                                  {t('analytics.todayTagShort', '今日')}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Clock In */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                {firstTimeStr}
+                              </span>
+                              {isInManual && (
+                                <span
+                                  style={{
+                                    fontSize: '10px',
+                                    fontWeight: '700',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    background: 'rgba(168, 85, 247, 0.18)',
+                                    color: '#c084fc',
+                                    border: '1px solid rgba(168, 85, 247, 0.35)',
+                                    cursor: 'help',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                  title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                >
+                                  <i className="ph-bold ph-wrench"></i>
+                                  {t('analytics.badgeAdminManual', '补录')}
+                                </span>
+                              )}
+                              {item.isWfh && !isInManual && (
+                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  <i className="ph-bold ph-house-line"></i>
+                                  WFH
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Clock Out */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                            {clockOutTimeStr ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                  {clockOutTimeStr}
+                                </span>
+                                {isOutManual && (
+                                  <span
+                                    style={{
+                                      fontSize: '10px',
+                                      fontWeight: '700',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      background: 'rgba(168, 85, 247, 0.18)',
+                                      color: '#c084fc',
+                                      border: '1px solid rgba(168, 85, 247, 0.35)',
+                                      cursor: 'help',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '2px'
+                                    }}
+                                    title={item.clockOutPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                  >
+                                    <i className="ph-bold ph-wrench"></i>
+                                    {t('analytics.badgeAdminManual', '补录')}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: item.isToday ? 'var(--accent-amber)' : '#f87171', fontSize: '12px' }}>
+                                {item.isToday ? t('attendanceModal.pendingClockOut', '在岗工作中') : t('analytics.statusMissedOutShort', '未签退(缺卡)')}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Duration */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
+                            {clockOutTimeStr && item.analysis?.durationHours !== null && item.analysis?.durationHours !== undefined ? (
+                              item.analysis.durationHours > 0 ? `${item.analysis.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时')
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>-</span>
+                            )}
+                          </td>
+
+                          {/* Shift */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                {item.analysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
+                              </span>
+                              {item.analysis?.shift?.endStr && (
+                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                  {t('analytics.shiftCutoffPrefix', '底线')} {item.analysis.shift.endStr}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: item.statusColor,
+                              background: `${item.statusColor}18`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.statusColor }}></span>
+                              {item.statusLabel}
+                            </span>
+                          </td>
+
+                          {/* Appeal / Action */}
+                          <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
+                            {appeal ? (
+                              appeal.status === 'PENDING' ? (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: 'var(--accent-amber)',
+                                    background: 'rgba(245, 158, 11, 0.15)',
+                                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                  }}>
+                                    <i className="ph-bold ph-hourglass-simple"></i>
+                                    {t('attendanceAppeal.statusPendingBadge', { time: appeal.requestedTime || appeal.actualTime }, `申诉审核中 (${appeal.requestedTime || appeal.actualTime})`)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelAppeal(appeal.id)}
+                                    title={t('attendanceAppeal.withdrawTooltip', '撤销申诉')}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#f87171',
+                                      cursor: 'pointer',
+                                      padding: '2px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center'
+                                    }}
+                                  >
+                                    <i className="ph-bold ph-x"></i>
+                                  </button>
+                                </div>
+                              ) : appeal.status === 'APPROVED' ? (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: 'var(--accent-emerald)',
+                                  background: 'rgba(16, 185, 129, 0.15)',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}>
+                                  <i className="ph-bold ph-check-circle"></i>
+                                  {t('attendanceAppeal.statusApprovedBadge', { time: appeal.requestedTime || appeal.actualTime }, `已核准 (${appeal.requestedTime || appeal.actualTime})`)}
+                                </span>
+                              ) : (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: '#f87171',
+                                    background: 'rgba(239, 68, 68, 0.15)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                  }} title={appeal.reviewNote || ''}>
+                                    <i className="ph-bold ph-x-circle"></i>
+                                    {t('attendanceAppeal.statusRejectedBadge', '未通过')}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-ghost"
+                                    style={{ fontSize: '10px', padding: '1px 6px', color: 'var(--accent-amber)', border: '1px solid rgba(245, 158, 11, 0.3)' }}
+                                    onClick={() => {
+                                      setAppealTargetDate(item.date);
+                                      setAppealTargetPunchType('CLOCK_OUT');
+                                      setAppealModalOpen(true);
+                                    }}
+                                  >
+                                    {t('attendanceAppeal.btnReappeal', '重申')}
+                                  </button>
+                                </div>
+                              )
+                            ) : (
+                              (item.analysis?.isMissingPunch || item.analysis?.isViolation || item.analysis?.isLate) ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-ghost"
+                                  style={{
+                                    fontSize: '11px',
+                                    padding: '3px 8px',
+                                    gap: '4px',
+                                    color: 'var(--accent-amber)',
+                                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    background: 'rgba(245, 158, 11, 0.08)'
+                                  }}
+                                  onClick={() => {
+                                    setAppealTargetDate(item.date);
+                                    setAppealTargetPunchType(item.analysis?.isMissingPunch ? 'CLOCK_OUT' : 'CLOCK_IN');
+                                    setAppealModalOpen(true);
+                                  }}
+                                >
+                                  <i className="ph-bold ph-paper-plane-tilt"></i>
+                                  <span>{t('attendanceAppeal.btnAppeal', '申诉')}</span>
+                                </button>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+    )}
+
+    {/* Attendance Appeal Modal */}
+    {appealModalOpen && (
+      <AttendanceAppealModal
+        isOpen={appealModalOpen}
+        onClose={() => setAppealModalOpen(false)}
+        teamId={teamId || 'default_team'}
+        user={user}
+        userProfile={userProfile}
+        targetDate={appealTargetDate}
+        defaultPunchType={appealTargetPunchType}
+        onSuccess={(msg) => showToast(msg)}
+      />
+    )}
 
     </div>
   );

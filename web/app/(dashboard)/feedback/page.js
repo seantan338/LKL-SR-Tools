@@ -219,29 +219,37 @@ export default function FeedbackPage() {
 
       {/* Metrics Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
-        <div className="bezel-shell" style={{ padding: 'var(--space-4)' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
-            {t('feedbackPage.metricTotal', '总反馈收集')}
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
+              {t('feedbackPage.metricTotal', '总反馈收集')}
+            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.total}</div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.total}</div>
         </div>
-        <div className="bezel-shell" style={{ padding: 'var(--space-4)' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
-            {t('feedbackPage.metricPending', '待评估提案')}
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
+              {t('feedbackPage.metricPending', '待评估提案')}
+            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.pending}</div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.pending}</div>
         </div>
-        <div className="bezel-shell" style={{ padding: 'var(--space-4)' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
-            {t('feedbackPage.metricInReview', '正在推进实施')}
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
+              {t('feedbackPage.metricInReview', '正在推进实施')}
+            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.inReview}</div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.inReview}</div>
         </div>
-        <div className="bezel-shell" style={{ padding: 'var(--space-4)' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
-            {t('feedbackPage.metricResolved', '已采纳与解决')}
+        <div className="bezel-shell">
+          <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginBottom: '4px' }}>
+              {t('feedbackPage.metricResolved', '已采纳与解决')}
+            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.resolved}</div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>{metrics.resolved}</div>
         </div>
       </div>
 
@@ -297,18 +305,22 @@ export default function FeedbackPage() {
       {/* Feedback List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         {loading ? (
-          <div className="bezel-shell" style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <i className="ph-light ph-spinner ph-spin" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)' }}></i>
-            <div>{t('feedbackPage.loading', '正在加载意见列表...')}</div>
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <i className="ph-light ph-spinner ph-spin" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)' }}></i>
+              <div>{t('feedbackPage.loading', '正在加载意见列表...')}</div>
+            </div>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="bezel-shell" style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <i className="ph-light ph-chat-circle-dots" style={{ fontSize: '2.5rem', marginBottom: 'var(--space-3)', display: 'block', color: 'var(--text-faint)' }}></i>
-            <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
-              {t('feedbackPage.emptyTitle', '暂无相关反馈内容')}
-            </div>
-            <div style={{ fontSize: 'var(--text-xs)', marginTop: '4px' }}>
-              {t('feedbackPage.emptySubtitle', '如果您在使用过程中有任何改进建议或遇到系统问题，欢迎随时点击右上角反馈！')}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <i className="ph-light ph-chat-circle-dots" style={{ fontSize: '2.5rem', marginBottom: 'var(--space-3)', display: 'block', color: 'var(--text-faint)' }}></i>
+              <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                {t('feedbackPage.emptyTitle', '暂无相关反馈内容')}
+              </div>
+              <div style={{ fontSize: 'var(--text-xs)', marginTop: '4px' }}>
+                {t('feedbackPage.emptySubtitle', '如果您在使用过程中有任何改进建议或遇到系统问题，欢迎随时点击右上角反馈！')}
+              </div>
             </div>
           </div>
         ) : (
@@ -322,14 +334,17 @@ export default function FeedbackPage() {
               <div 
                 key={item.id} 
                 className="bezel-shell hover-row" 
-                style={{ 
-                  padding: 'var(--space-5)', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: 'var(--space-3)',
-                  borderLeft: `4px solid ${catMeta.color}`
-                }}
               >
+                <div
+                  className="bezel-core"
+                  style={{ 
+                    padding: 'var(--space-5)', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 'var(--space-3)',
+                    borderLeft: `4px solid ${catMeta.color}`
+                  }}
+                >
                 {/* Card Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
@@ -445,7 +460,8 @@ export default function FeedbackPage() {
                   </div>
                 </div>
               </div>
-            );
+            </div>
+          );
           })
         )}
       </div>
@@ -457,7 +473,8 @@ export default function FeedbackPage() {
           background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
         }}>
-          <div className="bezel-shell" style={{ width: '90%', maxWidth: '560px', padding: 'var(--space-6)', background: 'var(--bg-surface)' }}>
+          <div className="bezel-shell modal-bezel" style={{ width: '90%', maxWidth: '560px' }}>
+            <div className="bezel-core" style={{ padding: 'var(--space-6)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                 <i className="ph-light ph-chat-circle-dots" style={{ fontSize: '1.5rem', color: 'var(--accent-blue)' }}></i>
@@ -541,6 +558,7 @@ export default function FeedbackPage() {
             </form>
           </div>
         </div>
+      </div>
       )}
 
       {/* Admin Response Modal */}
@@ -550,7 +568,8 @@ export default function FeedbackPage() {
           background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
         }}>
-          <div className="bezel-shell" style={{ width: '90%', maxWidth: '500px', padding: 'var(--space-6)', background: 'var(--bg-surface)' }}>
+          <div className="bezel-shell modal-bezel" style={{ width: '90%', maxWidth: '500px' }}>
+            <div className="bezel-core" style={{ padding: 'var(--space-6)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
               <h3 style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
                 {t('feedbackPage.replyModalTitle', '回复反馈: ')}{respondingFeedback.title}
@@ -583,7 +602,8 @@ export default function FeedbackPage() {
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
     </div>
   );
 }

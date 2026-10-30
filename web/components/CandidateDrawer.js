@@ -61,7 +61,7 @@ const getInitialCandidateFormData = () => ({
 
 export default function CandidateDrawer({ isOpen, onClose, candidate, focusInterview = false }) {
   const router = useRouter();
-  const { teamId, user, userProfile, isReadOnlyView } = useAuth();
+  const { teamId, user, userProfile, isReadOnlyView, isOwner } = useAuth();
   const { confirm, showToast: showGlobalToast } = useFeedback();
   const { t, lang } = useI18n();
   const isEn = lang === 'en';
@@ -720,8 +720,23 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
       };
 
       await FirestoreStore.updateCandidate(teamId, currentCandidate.id, updatePayload);
+
+      // Check & cancel any pending commission records (Clawback risk control - Owner Only)
+      let cancelledCommissionCount = 0;
+      if (isOwner) {
+        cancelledCommissionCount = await FirestoreStore.cancelPendingCommissionForCandidate(
+          teamId,
+          user?.displayName || user?.email || 'supervisor',
+          currentCandidate.id,
+          combinedReason
+        );
+        if (cancelledCommissionCount > 0) {
+          showToast(t('commission.clawbackToast', `已自动冲销 ${cancelledCommissionCount} 笔保证期内待解锁佣金单，防止错发！`), 'warning');
+        }
+      }
+
       SystemLogger.audit(teamId, user, 'REJECT', 'CANDIDATE', currentCandidate.name, {
-        actionDetail: `淘汰/放弃候选人: ${combinedReason}`
+        actionDetail: `淘汰/放弃候选人: ${combinedReason}${cancelledCommissionCount > 0 ? ` (已冲销 ${cancelledCommissionCount} 笔佣金)` : ''}`
       });
 
       setCurrentCandidate(prev => ({

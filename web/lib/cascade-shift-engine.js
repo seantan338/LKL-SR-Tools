@@ -111,6 +111,18 @@ export class CascadeShiftEngine {
   }
 
   /**
+   * 格式化 Date / Timestamp 为 HH:mm（短时间，带安全防御与远古/负数时间戳过滤）
+   * @param {Date|any} date
+   * @returns {string} 'HH:mm' 或 '-'
+   */
+  static toShortTime(date) {
+    const safeD = this.toSafeDate(date);
+    if (!safeD || isNaN(safeD.getTime()) || safeD.getFullYear() < 2020) return '-';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(safeD.getHours())}:${pad(safeD.getMinutes())}`;
+  }
+
+  /**
    * 安全转换 Firestore Timestamp / Date / 毫秒数 / ISO string 为合法 Date
    * @param {any} val
    * @returns {Date|null}

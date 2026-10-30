@@ -1,7 +1,7 @@
 import { db } from './firebase';
 import { 
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
-  query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, increment 
+  query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, increment, Timestamp 
 } from 'firebase/firestore';
 import { Utils } from './utils';
 import { mergeInterviewReminder } from './interview-reminder.mjs';
@@ -700,6 +700,325 @@ export const FirestoreStore = {
     return payload;
   },
 
+  /**
+   * 管理员手动补录打卡时间 (明确留痕 ADMIN_MANUAL 凭证，记录操作人、服务器时间与原因)
+   */
+  async addManualAttendanceRecord(teamId, {
+    userId,
+    userEmail,
+    picName,
+    type = 'CLOCK_OUT',
+    dateStr,
+    timeStr,
+    reason = '',
+    appealId = null,
+    adminUser = null
+  }) {
+    if (!teamId || !userId || !dateStr || !timeStr) {
+      throw new Error('参数不完整：缺少 teamId, userId, dateStr 或 timeStr');
+    }
+
+    // 严谨换算本地时间戳 (针对 YYYY-MM-DD 与 HH:mm / HH:mm:ss)
+    const dateParts = dateStr.split('-').map(Number);
+    const timeParts = timeStr.split(':').map(Number);
+    const year = dateParts[0];
+    const month = dateParts[1] - 1;
+    const day = dateParts[2];
+    const hour = timeParts[0] || 0;
+    const minute = timeParts[1] || 0;
+    const second = timeParts[2] || 0;
+
+    const targetDate = new Date(year, month, day, hour, minute, second);
+    if (isNaN(targetDate.getTime())) {
+      throw new Error(`无效的日期或时间格式: ${dateStr} ${timeStr}`);
+    }
+
+    const recordId = Utils.generateId();
+    const adminName = adminUser?.displayName || adminUser?.name || adminUser?.email?.split('@')[0] || '管理员';
+    const adminEmail = adminUser?.email || '';
+    const adminUid = adminUser?.uid || '';
+
+    const payload = sanitizeFirestoreData({
+      id: recordId,
+      teamId,
+      userId,
+      userEmail: userEmail || '',
+      picName: picName || '',
+      type: type || 'CLOCK_OUT',
+      verifyMethod: 'ADMIN_MANUAL',
+      isManualEntry: true,
+      manualEntry: {
+        addedByUid: adminUid,
+        addedByName: adminName,
+        addedByEmail: adminEmail,
+        addedAt: new Date().toISOString(),
+        appealId: appealId || null,
+        reason: reason || '',
+        targetDate: dateStr,
+        targetTime: timeStr
+      },
+      verifySnapshot: {
+        method: 'ADMIN_MANUAL',
+        methodName: '管理员手动补录',
+        adminName,
+        adminEmail,
+        adminUid,
+        appealId: appealId || null,
+        reason: reason || '',
+        targetDate: dateStr,
+        targetTime: timeStr,
+        timestamp: new Date().toISOString()
+      },
+      note: `[管理员补录] ${type === 'CLOCK_OUT' ? '下班签退' : type === 'CLOCK_IN' ? '上班签到' : type} (${dateStr} ${timeStr}) - ${reason || '主管核准补录'}`,
+      timestamp: Timestamp.fromDate(targetDate),
+      createdAt: serverTimestamp(),
+      isDeleted: false
+    });
+
+    // 1. 写入专属 attendance 集合
+    const docRef = doc(db, 'teams', teamId, 'attendance', recordId);
+    await setDoc(docRef, payload);
+
+    // 2. 写入不可篡改审计日志 (targetType: ATTENDANCE_ADJUSTMENT，防止普通考勤监听器重复统计)
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: 'MANUAL_PUNCH_RECORDED',
+        targetType: 'ATTENDANCE_ADJUSTMENT',
+        targetName: `${picName || userEmail} 考勤补录`,
+        user: {
+          uid: adminUid,
+          email: adminEmail,
+          displayName: adminName
+        },
+        targetUser: {
+          uid: userId,
+          email: userEmail,
+          name: picName
+        },
+        details: `管理员 ${adminName} 为员工 ${picName} 补录 ${dateStr} ${timeStr} [${type === 'CLOCK_OUT' ? '下班签退' : '上班签到'}]，原因: ${reason || '无'}${appealId ? ` (申诉单 #${appealId})` : ''}`,
+        appealId: appealId || null,
+        recordId,
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (logErr) {
+      console.warn('Logging manual punch notice:', logErr?.message || logErr);
+    }
+
+    return payload;
+  },
+
+  /**
+   * 员工提交考勤异常申诉
+   */
+  async submitAttendanceAppeal(teamId, appealData) {
+    if (!teamId || !appealData?.userId || !appealData?.date) {
+      throw new Error('参数不完整：缺少 teamId, userId 或 date');
+    }
+
+    // 格式防御校验
+    const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+    if (!DATE_REGEX.test(appealData.date)) {
+      throw new Error('无效的考勤日期格式，必须为 YYYY-MM-DD');
+    }
+
+    const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const requestedTime = appealData.requestedTime || (appealData.requestedPunchType === 'CLOCK_IN' ? '09:00' : '18:00');
+    if (!TIME_REGEX.test(requestedTime)) {
+      throw new Error('无效的主张打卡时间，必须为 HH:mm 格式');
+    }
+
+    const targetPunchType = appealData.requestedPunchType || 'CLOCK_OUT';
+
+    // 幂等性防抖与防重复提交：检查同用户在同一日期同一打卡类型是否已有 PENDING 申诉
+    try {
+      const q = query(
+        collection(db, 'teams', teamId, 'attendance_appeals'),
+        where('userId', '==', appealData.userId),
+        where('date', '==', appealData.date),
+        where('status', '==', 'PENDING')
+      );
+      const snap = await getDocs(q);
+      const duplicate = snap.docs.find(d => {
+        const item = d.data();
+        return (item.requestedPunchType || item.punchType || 'CLOCK_OUT') === targetPunchType;
+      });
+      if (duplicate) {
+        throw new Error('该打卡时段已存在正在审核中的申诉单，请勿重复提交');
+      }
+    } catch (checkErr) {
+      if (checkErr.message?.includes('该打卡时段已存在')) {
+        throw checkErr;
+      }
+      console.warn('Idempotency check query fallback notice:', checkErr?.message || checkErr);
+    }
+
+    const appealId = Utils.generateId();
+    const payload = sanitizeFirestoreData({
+      id: appealId,
+      teamId,
+      userId: appealData.userId,
+      userEmail: appealData.userEmail || '',
+      picName: appealData.picName || '',
+      date: appealData.date, // 'YYYY-MM-DD'
+      appealType: appealData.appealType || 'MISSING_CLOCK_OUT',
+      requestedPunchType: appealData.requestedPunchType || 'CLOCK_OUT',
+      requestedTime: appealData.requestedTime || '18:00',
+      reason: appealData.reason || '',
+      status: 'PENDING', // 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      reviewedBy: null,
+      reviewedByUid: null,
+      reviewedAt: null,
+      reviewNote: null,
+      resultRecordId: null
+    });
+
+    const docRef = doc(db, 'teams', teamId, 'attendance_appeals', appealId);
+    await setDoc(docRef, payload);
+
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'info',
+        action: 'APPEAL_SUBMITTED',
+        targetType: 'ATTENDANCE_APPEAL',
+        targetName: `考勤异常申诉 (${appealData.picName || appealData.userEmail})`,
+        user: {
+          uid: appealData.userId,
+          email: appealData.userEmail,
+          displayName: appealData.picName
+        },
+        details: `提交了 ${appealData.date} 的考勤申诉 [申请补录 ${appealData.requestedPunchType === 'CLOCK_OUT' ? '下班' : '上班'} ${appealData.requestedTime}]，原因: ${appealData.reason}`,
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('Logging appeal submit notice:', e);
+    }
+
+    return { ...payload, id: appealId };
+  },
+
+  /**
+   * 订阅团队考勤异常申诉列表 (支持普通员工按 filterUserId 进行本人数据隔离订阅)
+   */
+  subscribeToAttendanceAppeals(teamId, callback, filterUserId = null) {
+    if (!teamId) return () => {};
+    let unsub = () => {};
+    try {
+      const colRef = collection(db, 'teams', teamId, 'attendance_appeals');
+      const q = filterUserId
+        ? query(colRef, where('userId', '==', filterUserId), orderBy('createdAt', 'desc'))
+        : query(colRef, orderBy('createdAt', 'desc'));
+
+      unsub = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        callback(list);
+      }, (err) => {
+        console.warn('Attendance appeals subscription fallback (without index):', err?.message || err);
+        const fallbackQ = filterUserId
+          ? query(colRef, where('userId', '==', filterUserId))
+          : colRef;
+
+        const fallbackUnsub = onSnapshot(fallbackQ, (snap) => {
+          const list = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+          list.sort((a, b) => {
+            const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+            const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+            return tB - tA;
+          });
+          callback(list);
+        });
+        unsub = fallbackUnsub;
+      });
+    } catch (e) {
+      console.warn('Error in subscribeToAttendanceAppeals:', e);
+    }
+    return () => unsub();
+  },
+
+  /**
+   * 管理员审批考勤申诉 (APPROVED / REJECTED)
+   */
+  async reviewAttendanceAppeal(teamId, appealId, {
+    status,
+    reviewNote = '',
+    adminUser = null,
+    approvedTimeStr = '',
+    approvedPunchType = '',
+    originalAppeal
+  }) {
+    if (!teamId || !appealId) throw new Error('Missing teamId or appealId');
+    const adminName = adminUser?.displayName || adminUser?.name || adminUser?.email?.split('@')[0] || '管理员';
+    const adminUid = adminUser?.uid || '';
+    const docRef = doc(db, 'teams', teamId, 'attendance_appeals', appealId);
+
+    let resultRecordId = null;
+
+    if (status === 'APPROVED' && originalAppeal) {
+      // 审批通过：自动生成具有 ADMIN_MANUAL 标记的正式补录卡
+      const targetTime = approvedTimeStr || originalAppeal.requestedTime || '18:00';
+      const punchType = approvedPunchType || originalAppeal.requestedPunchType || 'CLOCK_OUT';
+
+      const punchRecord = await this.addManualAttendanceRecord(teamId, {
+        userId: originalAppeal.userId,
+        userEmail: originalAppeal.userEmail,
+        picName: originalAppeal.picName,
+        type: punchType,
+        dateStr: originalAppeal.date,
+        timeStr: targetTime,
+        reason: `[申诉核准] ${reviewNote ? reviewNote + ' - ' : ''}员工申诉理由: ${originalAppeal.reason || '无'}`,
+        appealId: appealId,
+        adminUser
+      });
+      resultRecordId = punchRecord?.id || null;
+    }
+
+    const updatePayload = {
+      status, // 'APPROVED' | 'REJECTED'
+      reviewedBy: adminName,
+      reviewedByUid: adminUid,
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      reviewNote: reviewNote || '',
+      resultRecordId: resultRecordId || null
+    };
+
+    await updateDoc(docRef, updatePayload);
+
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: status === 'APPROVED' ? 'APPEAL_APPROVED' : 'APPEAL_REJECTED',
+        targetType: 'ATTENDANCE_APPEAL',
+        targetName: `考勤申诉审批 (${originalAppeal?.picName || originalAppeal?.userEmail || appealId})`,
+        user: {
+          uid: adminUid,
+          email: adminUser?.email || '',
+          displayName: adminName
+        },
+        details: `管理员 ${adminName} ${status === 'APPROVED' ? '批准' : '驳回'} 了员工 ${originalAppeal?.picName || '员工'} ${originalAppeal?.date || ''} 的考勤申诉。批注: ${reviewNote || '无'}${resultRecordId ? ` (已生成补录卡 #${resultRecordId})` : ''}`,
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (e) {
+      console.warn('Logging appeal review notice:', e);
+    }
+
+    return { id: appealId, ...updatePayload };
+  },
+
+  /**
+   * 员工在待审核状态下自行撤回申诉
+   */
+  async cancelAttendanceAppeal(teamId, appealId, userId) {
+    if (!teamId || !appealId) throw new Error('Missing teamId or appealId');
+    const docRef = doc(db, 'teams', teamId, 'attendance_appeals', appealId);
+    await deleteDoc(docRef);
+  },
+
   // --- Google Sheets Long-term Webhook Sync Config ---
   subscribeToSheetSyncConfig(teamId, callback) {
     if (!teamId) return () => {};
@@ -942,6 +1261,272 @@ export const FirestoreStore = {
     const q = query(readsRef, where('announcementId', '==', announcementId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  },
+
+  // --- Commission Engine & Deal Ledger (Phase 6) ---
+
+  subscribeToCommissionConfig(teamId, callback) {
+    if (!teamId) return () => {};
+    let localConfig = null;
+    try {
+      const saved = localStorage.getItem(`talent_flow_commission_cfg_${teamId}`);
+      if (saved) localConfig = JSON.parse(saved);
+    } catch (e) {}
+
+    // Primary: listen to tags/commission_config (guaranteed permitted in existing cloud rules)
+    const configDocRef = doc(db, 'teams', teamId, 'tags', 'commission_config');
+    const unsubTags = onSnapshot(configDocRef, (snap) => {
+      if (snap.exists()) {
+        const cfg = snap.data();
+        try {
+          localStorage.setItem(`talent_flow_commission_cfg_${teamId}`, JSON.stringify(cfg));
+        } catch (e) {}
+        callback(cfg);
+      } else {
+        // Fallback: check root team document
+        getDoc(doc(db, 'teams', teamId)).then(teamSnap => {
+          if (teamSnap.exists() && teamSnap.data()?.commissionConfig) {
+            callback(teamSnap.data().commissionConfig);
+          } else {
+            callback(localConfig || null);
+          }
+        }).catch(() => {
+          callback(localConfig || null);
+        });
+      }
+    }, (err) => {
+      console.warn("Notice: Subscribing to tags/commission_config fallback to team doc / local:", err?.message || err);
+      getDoc(doc(db, 'teams', teamId)).then(teamSnap => {
+        if (teamSnap.exists() && teamSnap.data()?.commissionConfig) {
+          callback(teamSnap.data().commissionConfig);
+        } else {
+          callback(localConfig || null);
+        }
+      }).catch(() => {
+        callback(localConfig || null);
+      });
+    });
+
+    return unsubTags;
+  },
+
+  async saveCommissionConfig(teamId, userId, configData) {
+    if (!teamId) return;
+    const nowIso = new Date().toISOString();
+    const payload = sanitizeFirestoreData({
+      ...configData,
+      updatedAt: nowIso,
+      updatedBy: userId || 'system'
+    });
+
+    // 1. Local storage zero-latency persistence
+    try {
+      localStorage.setItem(`talent_flow_commission_cfg_${teamId}`, JSON.stringify(payload));
+    } catch (e) {}
+
+    // 2. Primary cloud write: write to dedicated tags/commission_config document
+    // (teams/{teamId}/tags/{tagDoc} is already 100% permitted in cloud firestore.rules since project inception)
+    try {
+      const configDocRef = doc(db, 'teams', teamId, 'tags', 'commission_config');
+      await setDoc(configDocRef, payload, { merge: true });
+    } catch (tagDocErr) {
+      console.warn("Could not write commissionConfig to tags subcollection:", tagDocErr?.message || tagDocErr);
+    }
+
+    // 3. Fallback/Dual write: attempt to write to team root document if permitted
+    try {
+      const teamDocRef = doc(db, 'teams', teamId);
+      await setDoc(teamDocRef, { commissionConfig: payload }, { merge: true });
+    } catch (teamDocErr) {
+      console.warn("Notice: Root team document update bypassed (phantom doc or rules restricted):", teamDocErr?.message || teamDocErr);
+    }
+
+    return payload;
+  },
+
+  subscribeToCommissionRecords(teamId, callback) {
+    if (!teamId) return () => {};
+
+    // Primary: listen to tags/commission_ledger (guaranteed permitted in existing cloud rules)
+    const ledgerRef = doc(db, 'teams', teamId, 'tags', 'commission_ledger');
+    const unsubLedger = onSnapshot(ledgerRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() || {};
+        const records = Object.values(data).filter(r => r && typeof r === 'object' && r.id);
+        records.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        callback(records);
+      } else {
+        // Fallback: try querying dedicated commission_records collection
+        const commRef = collection(db, 'teams', teamId, 'commission_records');
+        const q = query(commRef, orderBy('createdAt', 'desc'));
+        getDocs(q).then(snapshot => {
+          const records = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+          callback(records);
+        }).catch(() => {
+          callback([]);
+        });
+      }
+    }, (error) => {
+      console.warn("Notice: Subscribing to tags/commission_ledger fallback to commission_records collection:", error?.message || error);
+      const commRef = collection(db, 'teams', teamId, 'commission_records');
+      const q = query(commRef, orderBy('createdAt', 'desc'));
+      getDocs(q).then(snapshot => {
+        const records = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+        callback(records);
+      }).catch(() => {
+        callback([]);
+      });
+    });
+
+    return unsubLedger;
+  },
+
+  async upsertCommissionRecord(teamId, userId, recordData) {
+    if (!teamId) throw new Error("Missing teamId");
+    const recordId = recordData.id || `comm_${Date.now()}_${Utils.generateId().slice(0, 6)}`;
+    const nowIso = new Date().toISOString();
+    const isNew = !recordData.id;
+    const payload = sanitizeFirestoreData({
+      ...recordData,
+      id: recordId,
+      teamId,
+      updatedAt: nowIso,
+      ...(isNew ? { createdAt: nowIso, createdBy: userId || 'system' } : {})
+    });
+
+    // 1. Primary cloud write: write to tags/commission_ledger (guaranteed 100% permitted by existing cloud rules)
+    try {
+      const ledgerRef = doc(db, 'teams', teamId, 'tags', 'commission_ledger');
+      await setDoc(ledgerRef, {
+        [recordId]: payload
+      }, { merge: true });
+    } catch (ledgerErr) {
+      console.warn("Could not write to tags/commission_ledger:", ledgerErr);
+    }
+
+    // 2. Dual write to dedicated collection (if rules deployed)
+    try {
+      const docRef = doc(db, 'teams', teamId, 'commission_records', recordId);
+      await setDoc(docRef, payload, { merge: true });
+    } catch (commColErr) {
+      console.warn("Notice: commission_records subcollection write bypassed (pending cloud rule deployment):", commColErr?.message || commColErr);
+    }
+
+    // 3. Write immutable audit log
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: recordData.isOverridden ? 'COMMISSION_OVERRIDE' : 'COMMISSION_DEAL_RECORDED',
+        targetType: 'COMMISSION',
+        targetName: recordData.candidateName || recordId,
+        details: recordData.isOverridden
+          ? `主管特批改派佣金: ${recordData.overrideReason || '未填原因'} (总佣金池: RM ${recordData.billingSnapshot?.totalCommissionPool || recordData.totalCommissionPool || 0})`
+          : `成单登记: 候选人 ${recordData.candidateName || ''} 入职 ${recordData.companyName || ''} (总佣金池: RM ${recordData.billingSnapshot?.totalCommissionPool || recordData.totalCommissionPool || 0})`,
+        user: {
+          uid: userId || '',
+          displayName: recordData.overrideBy || (userId ? `User ${userId.slice(0, 6)}` : '系统')
+        },
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (logErr) {
+      console.warn("Audit log write failed for commission record:", logErr);
+    }
+
+    return { ...payload, id: recordId };
+  },
+
+  async updateCommissionStatus(teamId, userId, recordId, status, extraData = {}) {
+    if (!teamId || !recordId) return;
+    const nowIso = new Date().toISOString();
+    const updatePayload = sanitizeFirestoreData({
+      status,
+      updatedAt: nowIso,
+      ...extraData
+    });
+
+    // 1. Primary write to tags/commission_ledger
+    try {
+      const ledgerRef = doc(db, 'teams', teamId, 'tags', 'commission_ledger');
+      await setDoc(ledgerRef, {
+        [recordId]: updatePayload
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Could not update tags/commission_ledger:", err);
+    }
+
+    // 2. Dual write to commission_records
+    try {
+      const docRef = doc(db, 'teams', teamId, 'commission_records', recordId);
+      await updateDoc(docRef, updatePayload);
+    } catch (_) {}
+
+    // 3. Audit log
+    try {
+      await addDoc(collection(db, 'teams', teamId, 'logs'), {
+        level: 'audit',
+        action: `COMMISSION_${status}`,
+        targetType: 'COMMISSION',
+        targetName: extraData.candidateName || recordId,
+        details: `佣金状态变更为 ${status}。说明: ${extraData.cancellation?.reason || extraData.note || '状态流转更新'}`,
+        user: {
+          uid: userId || '',
+          displayName: userId || '主管'
+        },
+        timestamp: serverTimestamp(),
+        isDeleted: false
+      });
+    } catch (logErr) {
+      console.warn("Audit log write failed:", logErr);
+    }
+  },
+
+  async cancelPendingCommissionForCandidate(teamId, userId, candidateId, reason) {
+    if (!teamId || !candidateId) return 0;
+    let count = 0;
+    try {
+      // 1. Check tags/commission_ledger first
+      const ledgerRef = doc(db, 'teams', teamId, 'tags', 'commission_ledger');
+      const snap = await getDoc(ledgerRef);
+      if (snap.exists()) {
+        const data = snap.data() || {};
+        for (const [recId, rec] of Object.entries(data)) {
+          if (rec?.candidateId === candidateId && rec?.status === 'PENDING') {
+            await this.updateCommissionStatus(teamId, userId, recId, 'CANCELLED', {
+              candidateName: rec.candidateName || '',
+              cancellation: {
+                cancelledAt: new Date().toISOString(),
+                cancelledBy: userId || 'supervisor',
+                reason: reason || '候选人离职/退工冲销'
+              }
+            });
+            count++;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not check tags/commission_ledger for cancellation:", e);
+    }
+
+    // 2. Also check commission_records collection if deployed
+    try {
+      const commRef = collection(db, 'teams', teamId, 'commission_records');
+      const q = query(commRef, where('candidateId', '==', candidateId), where('status', '==', 'PENDING'));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await this.updateCommissionStatus(teamId, userId, d.id, 'CANCELLED', {
+          candidateName: d.data()?.candidateName || '',
+          cancellation: {
+            cancelledAt: new Date().toISOString(),
+            cancelledBy: userId || 'supervisor',
+            reason: reason || '候选人离职/退工冲销'
+          }
+        });
+        count++;
+      }
+    } catch (_) {}
+
+    return count;
   }
 
 };

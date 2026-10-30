@@ -137,11 +137,11 @@ export default function OverviewPage() {
       {/* 2. 双侧对称 6-6 黄金核心看板 (移动端自适应堆叠) */}
       <div className="overview-boards-grid">
         {/* 左侧: 近期排期 (Upcoming) */}
-        <div className="bezel-shell overview-board-column" style={upcomingInterviews.length === 0 ? { height: 'auto', minHeight: 0 } : undefined}>
-          <div className="bezel-core" style={{ height: upcomingInterviews.length === 0 ? 'auto' : '100%', minHeight: 0, display: 'flex', flexDirection: 'column', padding: 'var(--space-3) var(--space-4)' }}>
+        <div className="bezel-shell overview-board-column">
+          <div className="bezel-core" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 'var(--space-4) var(--space-5)' }}>
             
             {/* 卡片头部 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: upcomingInterviews.length === 0 ? 'var(--space-2)' : 'var(--space-3)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--border-hairline)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--border-hairline)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <i className="ph-fill ph-calendar-check" style={{ color: 'var(--accent-amber)', fontSize: '1.15rem' }}></i>
                 <h3 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('overview.upcomingTitle', '近期排期')}</h3>
@@ -158,10 +158,20 @@ export default function OverviewPage() {
             </div>
 
             {/* 列表区域 (独立顺畅滚动) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: upcomingInterviews.length === 0 ? '0 1 auto' : 1, overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
               {upcomingInterviews.length === 0 ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.8125rem', padding: 'var(--space-2) 0' }}>
-                  <i className="ph-light ph-calendar-check" style={{ fontSize: '1.25rem', color: 'var(--accent-amber)', opacity: 0.8 }}></i>
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  margin: 'auto',
+                  gap: '8px', 
+                  color: 'var(--text-muted)', 
+                  fontSize: '0.8125rem', 
+                  padding: 'var(--space-4) 0' 
+                }}>
+                  <i className="ph-light ph-calendar-check" style={{ fontSize: '1.75rem', color: 'var(--accent-amber)', opacity: 0.75, marginBottom: '2px' }}></i>
                   <span>{t('overview.noUpcoming', '暂无近期排期的面试')}</span>
                 </div>
               ) : (

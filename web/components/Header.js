@@ -6,6 +6,7 @@ import { useNotifications } from '../lib/notification-context';
 import { useI18n } from '../lib/i18n-context';
 import { useAuth } from '../lib/auth-context';
 import SectionTitleWithHelp from './SectionTitleWithHelp';
+import CommissionWalletBadge from './CommissionWalletBadge';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../lib/version';
 
 const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL || '/docs';
@@ -421,6 +422,9 @@ export default function Header({ toggleSidebar }) {
           />
           <span>{APP_VERSION}</span>
         </div>
+
+        {/* Dual-State Commission Wallet Badge (Phase 6) */}
+        <CommissionWalletBadge />
 
         {/* Quick Refresh Data Action Button */}
         <button

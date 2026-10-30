@@ -5,6 +5,7 @@
 
 import { CascadeShiftEngine } from './cascade-shift-engine.js';
 import { resolveCanonicalPic } from './identity.mjs';
+import { getGuaranteeRemainingDays } from './commission-engine.js';
 
 /**
  * 纯原生浏览器文件下载触发器（彻底规避 file-saver 在 Turbopack/Webpack 下的 UMD 导出兼容崩溃）
@@ -60,6 +61,8 @@ export const EXCEL_I18N = {
     methodWfh: '居家办公 (WFH)',
     methodWifi: '公司 Wi-Fi',
     methodGps: '100m 地理围栏',
+    methodAdminManual: '管理员补录',
+    manualAuditNoteText: (name, reason) => `[管理员补录: 由 ${name || '管理员'} 补录${reason ? ' - ' + reason : ''}]`,
     methodRegular: '日常打卡',
     weekendRest: '休',
     absentDash: '—',
@@ -72,7 +75,28 @@ export const EXCEL_I18N = {
     punchLunchInLabel: '午休回',
     allPunchesPrefix: '全部打卡',
     weekdays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
-    emptySheetErr: '导出内容为空，无有效 Sheet'
+    emptySheetErr: '导出内容为空，无有效 Sheet',
+    sheetCommSummary: (m) => `${m} 顾问佣金结算总账`,
+    sheetCommDetail: '成单分成与保证期风控明细',
+    colDealsCount: '成单数量 (单)',
+    colPendingComm: '保证期待解锁 (RM)',
+    colUnlockedComm: '可结算佣金 (RM)',
+    colTotalGrossComm: '实得分成总额 (RM)',
+    colCandidateName: '候选人姓名',
+    colCompanyName: '录用企业客户',
+    colPosition: '录用职位',
+    colOnboardDate: '到岗入职日期',
+    colGuaranteeDays: '保证期 (天)',
+    colUnlockDate: '保证期到期日',
+    colBillingMode: '计费模式',
+    colTotalPool: '总佣金池 (RM)',
+    colSplitsDetail: '顾问分成明细',
+    colDealStatus: '账单状态',
+    colOverrideReason: '主管特批原因',
+    colCancelReason: '退工离职冲销原因',
+    statusCancelled: '已冲销',
+    statusUnlocked: '可结算',
+    statusPending: '保证期内'
   },
   en: {
     sheetSummary: (m) => `${m} Attendance Summary`,
@@ -107,6 +131,8 @@ export const EXCEL_I18N = {
     methodWfh: 'Work From Home (WFH)',
     methodWifi: 'Office Wi-Fi',
     methodGps: '100m Geofence',
+    methodAdminManual: 'Admin Manual Entry',
+    manualAuditNoteText: (name, reason) => `[Admin Manual Entry: Added by ${name || 'Admin'}${reason ? ' - ' + reason : ''}]`,
     methodRegular: 'Standard Check-in',
     weekendRest: 'OFF',
     absentDash: '—',
@@ -119,7 +145,28 @@ export const EXCEL_I18N = {
     punchLunchInLabel: 'LunchIn',
     allPunchesPrefix: 'All Punches',
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    emptySheetErr: 'Export content is empty — no valid sheet found'
+    emptySheetErr: 'Export content is empty — no valid sheet found',
+    sheetCommSummary: (m) => `${m} Commission Summary`,
+    sheetCommDetail: 'Deals & Guarantee Risk Details',
+    colDealsCount: 'Deals Count',
+    colPendingComm: 'In Guarantee (RM)',
+    colUnlockedComm: 'Ready for Payout (RM)',
+    colTotalGrossComm: 'Total Commission (RM)',
+    colCandidateName: 'Candidate Name',
+    colCompanyName: 'Client Company',
+    colPosition: 'Position',
+    colOnboardDate: 'Onboard Date',
+    colGuaranteeDays: 'Guarantee Days',
+    colUnlockDate: 'Unlock Date',
+    colBillingMode: 'Billing Mode',
+    colTotalPool: 'Total Pool (RM)',
+    colSplitsDetail: 'Splits Breakdown',
+    colDealStatus: 'Deal Status',
+    colOverrideReason: 'Supervisor Override Reason',
+    colCancelReason: 'Clawback / Cancellation Reason',
+    statusCancelled: 'Cancelled',
+    statusUnlocked: 'Unlocked',
+    statusPending: 'In Guarantee'
   }
 };
 
@@ -525,6 +572,12 @@ export const ExcelExporter = {
         dateObj,
         type: evt.type || evt.action || 'CLOCK_IN'
       });
+      if (evt.manualEntry) {
+        dailyMap[key].manualEntry = evt.manualEntry;
+      }
+      if (evt.isManualEntry) {
+        dailyMap[key].isManualEntry = true;
+      }
       if (evt.verifyMethod && !dailyMap[key].verifyMethod) {
         dailyMap[key].verifyMethod = evt.verifyMethod;
         dailyMap[key].verifySnapshot = evt.verifySnapshot;
@@ -762,19 +815,28 @@ export const ExcelExporter = {
 
     const dailyRows = dailyLogs.map(log => {
       const a = log.analysis;
-      const methodLabel = log.verifyMethod === 'WFH'
-        ? labels.methodWfh
-        : log.verifyMethod === 'WIFI_IP'
-          ? labels.methodWifi
-          : log.verifyMethod === 'GPS_GEOFENCE'
-            ? labels.methodGps
-            : log.verifyMethod || labels.methodRegular;
+      const isManual = log.verifyMethod === 'ADMIN_MANUAL' || log.isManualEntry || (Array.isArray(log.events) && log.events.some(e => e.verifyMethod === 'ADMIN_MANUAL' || e.isManualEntry));
+      const methodLabel = isManual
+        ? labels.methodAdminManual
+        : log.verifyMethod === 'WFH'
+          ? labels.methodWfh
+          : log.verifyMethod === 'WIFI_IP'
+            ? labels.methodWifi
+            : log.verifyMethod === 'GPS_GEOFENCE'
+              ? labels.methodGps
+              : log.verifyMethod || labels.methodRegular;
+
+      const manualEntryData = log.manualEntry || (Array.isArray(log.events) && log.events.find(e => e.manualEntry)?.manualEntry);
+      const manualAuditNote = manualEntryData
+        ? (labels.manualAuditNoteText ? labels.manualAuditNoteText(manualEntryData.addedByName, manualEntryData.reason) : `[管理员补录: 由 ${manualEntryData.addedByName || '管理员'} 补录${manualEntryData.reason ? ' - ' + manualEntryData.reason : ''}]`)
+        : (log.verifySnapshot?.method === 'ADMIN_MANUAL' ? `[${labels.methodAdminManual}: ${log.verifySnapshot.reason || log.verifySnapshot.adminName || ''}]` : null);
 
       const punchFlow = Array.isArray(log.events) && log.events.length > 2
-        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}`).join(' -> ')}]`
+        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}${e.verifyMethod === 'ADMIN_MANUAL' ? ' (补录)' : ''}`).join(' -> ')}]`
         : null;
 
       const verifyDetails = [
+        manualAuditNote,
         log.verifySnapshot?.ip ? `IP: ${log.verifySnapshot.ip}` : null,
         a.note ? a.note : null,
         punchFlow
@@ -816,5 +878,155 @@ export const ExcelExporter = {
         rows: dailyRows
       }
     ];
+  },
+
+  /**
+   * 导出顾问月度佣金结算与成单风控审计明细双 Sheet 报表 (Phase 6)
+   * @param {object} params
+   * @param {Array} params.records - 佣金流水台账记录
+   * @param {Array} params.teamMembers - 团队成员列表
+   * @param {string} params.monthStr - 目标月份 'YYYY-MM'
+   * @param {string} params.locale - 'zh' | 'en'
+   */
+  async exportCommissionReport({
+    records = [],
+    teamMembers = [],
+    monthStr = '',
+    locale = 'zh'
+  }) {
+    const labels = EXCEL_I18N[locale] || EXCEL_I18N.zh;
+    const formattedMonth = monthStr || new Date().toISOString().slice(0, 7);
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Filter records by month if monthStr is provided
+    const monthRecords = records.filter(r => {
+      const d = r.onboardDate || (typeof r.createdAt === 'string' ? r.createdAt : '');
+      if (!d) return true;
+      return !monthStr || d.slice(0, 7) === monthStr;
+    });
+
+    // -------------------------------------------------------------
+    // Sheet 1: 顾问月度提成总账 (Advisor Commission Summary)
+    // -------------------------------------------------------------
+    const summaryMap = {};
+    (teamMembers || []).forEach(m => {
+      const cleanName = m.displayName || m.name || m.email?.split('@')[0] || 'Advisor';
+      summaryMap[m.uid || m.id] = {
+        name: cleanName,
+        email: m.email || '',
+        dealsCount: 0,
+        pendingComm: 0,
+        unlockedComm: 0,
+        totalComm: 0
+      };
+    });
+
+    monthRecords.forEach(rec => {
+      if (rec.status === 'CANCELLED') return;
+      const remainingDays = getGuaranteeRemainingDays(rec.unlockDate, todayStr);
+      const isUnlocked = rec.status === 'UNLOCKED' || rec.status === 'SETTLED' || (Number(rec.guaranteeDays) <= 0) || (remainingDays === 0);
+
+      (rec.splits || []).forEach(split => {
+        const uid = split.uid || split.displayName;
+        if (!summaryMap[uid]) {
+          summaryMap[uid] = {
+            name: split.displayName || 'Advisor',
+            email: '',
+            dealsCount: 0,
+            pendingComm: 0,
+            unlockedComm: 0,
+            totalComm: 0
+          };
+        }
+        const amt = Number(split.amount) || 0;
+        summaryMap[uid].dealsCount += 1;
+        summaryMap[uid].totalComm += amt;
+        if (isUnlocked) {
+          summaryMap[uid].unlockedComm += amt;
+        } else {
+          summaryMap[uid].pendingComm += amt;
+        }
+      });
+    });
+
+    const summaryHeaders = [
+      labels.colPicName,
+      labels.colEmail,
+      labels.colDealsCount,
+      labels.colPendingComm,
+      labels.colUnlockedComm,
+      labels.colTotalGrossComm
+    ];
+
+    const summaryRows = Object.values(summaryMap)
+      .filter(item => item.totalComm > 0 || item.dealsCount > 0)
+      .sort((a, b) => b.totalComm - a.totalComm)
+      .map(item => [
+        item.name,
+        item.email,
+        item.dealsCount,
+        Math.round(item.pendingComm * 100) / 100,
+        Math.round(item.unlockedComm * 100) / 100,
+        Math.round(item.totalComm * 100) / 100
+      ]);
+
+    // -------------------------------------------------------------
+    // Sheet 2: 成单分成与保证期风控明细 (Deals & Split Details)
+    // -------------------------------------------------------------
+    const detailHeaders = [
+      labels.colCandidateName,
+      labels.colCompanyName,
+      labels.colPosition,
+      labels.colOnboardDate,
+      labels.colGuaranteeDays,
+      labels.colUnlockDate,
+      labels.colBillingMode,
+      labels.colTotalPool,
+      labels.colSplitsDetail,
+      labels.colDealStatus,
+      labels.colOverrideReason,
+      labels.colCancelReason
+    ];
+
+    const detailRows = monthRecords.map(rec => {
+      const splitsText = (rec.splits || []).map(s => `${s.displayName}(${s.role} ${s.ratio}%): RM ${s.amount}`).join('; ');
+      const statusText = rec.status === 'CANCELLED'
+        ? (labels.statusCancelled || '已冲销')
+        : (rec.status === 'UNLOCKED' ? (labels.statusUnlocked || '已解锁') : (labels.statusPending || '保证期内'));
+
+      return [
+        rec.candidateName || '-',
+        rec.companyName || '-',
+        rec.position || '-',
+        rec.onboardDate || '-',
+        rec.guaranteeDays ?? 90,
+        rec.unlockDate || '-',
+        rec.billingSnapshot?.billingMode || 'DIRECT_FLAT',
+        rec.billingSnapshot?.totalCommissionPool || rec.totalCommissionPool || 0,
+        splitsText,
+        statusText,
+        rec.isOverridden ? (rec.overrideReason || '主管特批') : '-',
+        rec.cancellation?.reason || '-'
+      ];
+    });
+
+    const sheets = [
+      {
+        name: labels.sheetCommSummary(formattedMonth),
+        headers: summaryHeaders,
+        rows: summaryRows
+      },
+      {
+        name: labels.sheetCommDetail,
+        headers: detailHeaders,
+        rows: detailRows
+      }
+    ];
+
+    await this.exportWorkbook({
+      filename: `TalentFlow_Commission_${formattedMonth}.xlsx`,
+      sheets,
+      locale
+    });
   }
 };

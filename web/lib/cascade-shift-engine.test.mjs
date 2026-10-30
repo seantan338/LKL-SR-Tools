@@ -156,3 +156,14 @@ test('11. 主管人工改派班次验证：原本 8:31 打卡被改派为 Shift 
   assert.ok(res.complianceLabel.includes('[主管调整]'), '标签应包含主管调整标记');
   assert.equal(res.isViolation, false, '不应计为违规迟到');
 });
+
+test('12. toShortTime 格式化与远古/负数时间戳防御：合法时间输出 HH:mm，负数/1970远古时间戳安全降级返回 -', () => {
+  assert.equal(CascadeShiftEngine.toShortTime(makeDate('08:30:15')), '08:30');
+  assert.equal(CascadeShiftEngine.toShortTime(makeDate('18:05:00')), '18:05');
+  assert.equal(CascadeShiftEngine.toShortTime(null), '-');
+  assert.equal(CascadeShiftEngine.toShortTime(undefined), '-');
+  assert.equal(CascadeShiftEngine.toShortTime(''), '-');
+  assert.equal(CascadeShiftEngine.toShortTime(-1), '-', '负数时间戳必须过滤返回 -');
+  assert.equal(CascadeShiftEngine.toShortTime(0), '-', '0 Epoch 必须过滤返回 -');
+  assert.equal(CascadeShiftEngine.toShortTime('1970-01-01T08:00:00Z'), '-', '1970年远古时间戳必须过滤返回 -');
+});
