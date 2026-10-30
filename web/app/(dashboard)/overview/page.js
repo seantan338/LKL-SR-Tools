@@ -161,7 +161,7 @@ export default function OverviewPage() {
       {isHqTeam && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: (isOwner || isManager) ? 'repeat(auto-fit, minmax(320px, 1fr))' : '1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: 'var(--space-4)'
         }}>
           {/* Card 1: 考勤与出席直达 (Attendance Hub) */}
@@ -272,115 +272,113 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Card 2: 报销与费用审批直达 (Claims Hub - Admin/Manager only during testing) */}
-          {(isOwner || isManager) && (
+          {/* Card 2: 报销与费用直达 (Claims Hub - HQ Team) */}
+          <div 
+            className="bezel-shell" 
+            style={{ 
+              padding: '4px',
+              cursor: 'pointer',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+            }}
+            onClick={handleGoClaims}
+            title={t('overview.quickClaimsSub', '我的报销进度 · 智能票据识别 · 审批与批次放款')}
+          >
             <div 
-              className="bezel-shell" 
+              className="bezel-core" 
               style={{ 
-                padding: '4px',
-                cursor: 'pointer',
-                transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+                padding: '0.85rem 1.15rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
               }}
-              onClick={handleGoClaims}
-              title={t('overview.quickClaimsSub', '我的报销进度 · 智能票据识别 · 审批与批次放款')}
             >
-              <div 
-                className="bezel-core" 
-                style={{ 
-                  padding: '0.85rem 1.15rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: '12px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
-                  <div 
-                    style={{ 
-                      width: '42px', 
-                      height: '42px', 
-                      borderRadius: 'var(--radius-md)', 
-                      background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.35) 100%)', 
-                      color: '#34d399', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      fontSize: '1.4rem',
-                      boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)',
-                      flexShrink: 0
-                    }}
-                  >
-                    <i className="ph-fill ph-receipt"></i>
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                      <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                        {t('overview.quickClaimsTitle', '费用与报销')}
-                      </span>
-                      <span style={{ 
-                        fontSize: '0.68rem', 
-                        padding: '1px 7px', 
-                        borderRadius: '999px', 
-                        background: 'rgba(16, 185, 129, 0.12)', 
-                        color: '#34d399',
-                        border: '1px solid rgba(16, 185, 129, 0.25)',
-                        fontWeight: 600
-                      }}>
-                        {t('overview.adminBadge', '管理专享')}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t('overview.quickClaimsSub', '我的报销进度 · 智能票据识别 · 审批与批次放款')}
-                    </div>
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                <div 
+                  style={{ 
+                    width: '42px', 
+                    height: '42px', 
+                    borderRadius: 'var(--radius-md)', 
+                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.35) 100%)', 
+                    color: '#34d399', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontSize: '1.4rem',
+                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)',
+                    flexShrink: 0
+                  }}
+                >
+                  <i className="ph-fill ph-receipt"></i>
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost"
-                    style={{
-                      height: '32px',
-                      fontSize: '12px',
-                      gap: '5px',
-                      padding: '0 10px',
-                      borderColor: 'rgba(16, 185, 129, 0.3)',
-                      color: 'var(--text-primary)'
-                    }}
-                    onClick={handleOpenNewClaim}
-                    title={t('overview.quickSubmitClaimBtn', '发起报销')}
-                  >
-                    <i className="ph-bold ph-plus" style={{ color: '#34d399' }}></i>
-                    <span>{t('overview.quickSubmitClaimBtn', '发起报销')}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    style={{
-                      height: '32px',
-                      fontSize: '12px',
-                      gap: '5px',
-                      padding: '0 12px',
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      border: 'none',
-                      color: '#fff',
-                      fontWeight: '600',
-                      boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleGoClaims();
-                    }}
-                  >
-                    <span>{t('overview.quickClaimsBtn', '进入报销中心')}</span>
-                    <i className="ph-bold ph-arrow-up-right"></i>
-                  </button>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                      {t('overview.quickClaimsTitle', '费用与报销')}
+                    </span>
+                    <span style={{ 
+                      fontSize: '0.68rem', 
+                      padding: '1px 7px', 
+                      borderRadius: '999px', 
+                      background: 'rgba(16, 185, 129, 0.12)', 
+                      color: '#34d399',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      fontWeight: 600
+                    }}>
+                      HQ
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t('overview.quickClaimsSub', '我的报销进度 · 智能票据识别 · 审批与批次放款')}
+                  </div>
                 </div>
               </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{
+                    height: '32px',
+                    fontSize: '12px',
+                    gap: '5px',
+                    padding: '0 10px',
+                    borderColor: 'rgba(16, 185, 129, 0.3)',
+                    color: 'var(--text-primary)'
+                  }}
+                  onClick={handleOpenNewClaim}
+                  title={t('overview.quickSubmitClaimBtn', '发起报销')}
+                >
+                  <i className="ph-bold ph-plus" style={{ color: '#34d399' }}></i>
+                  <span>{t('overview.quickSubmitClaimBtn', '发起报销')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{
+                    height: '32px',
+                    fontSize: '12px',
+                    gap: '5px',
+                    padding: '0 12px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: '600',
+                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleGoClaims();
+                  }}
+                >
+                  <span>{t('overview.quickClaimsBtn', '进入报销中心')}</span>
+                  <i className="ph-bold ph-arrow-up-right"></i>
+                </button>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -676,8 +674,8 @@ export default function OverviewPage() {
         />
       )}
 
-      {/* 3. Expense Claim Modal (HQ Admin / Manager Quick Access) */}
-      {isHqTeam && (isOwner || isManager) && (
+      {/* 3. Expense Claim Modal (HQ Team Quick Access) */}
+      {isHqTeam && (
         <ExpenseClaimModal
           isOpen={isClaimModalOpen}
           onClose={() => setIsClaimModalOpen(false)}

@@ -30,8 +30,8 @@ export default function GlobalQuickFab() {
   const { t } = useI18n();
   const fabRef = useRef(null);
 
-  // 测试期间报销功能仅对管理员/主管 (Owner/Manager) 开放
-  const canAccessClaims = isHqTeam && (isOwner || isManager);
+  // 报销功能对公司本部 (HQ) 全员开放
+  const canAccessClaims = Boolean(isHqTeam);
 
   // Close menus on Escape key press
   useEffect(() => {

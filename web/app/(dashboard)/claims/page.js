@@ -46,13 +46,6 @@ export default function ClaimsPage() {
     return list;
   }, []);
 
-  // 测试期间仅管理层可访问；非管理层即刻返回主页
-  useEffect(() => {
-    if (userProfile && userProfile.role !== 'pending' && !isAdmin) {
-      router.replace('/overview');
-    }
-  }, [userProfile, isAdmin, router]);
-
   // URL 深链接：?tab=team / ?action=new
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -63,7 +56,7 @@ export default function ClaimsPage() {
 
   // 订阅报销单（管理层返回全团队，普通员工仅返回本人）
   useEffect(() => {
-    if (!isHqTeam || !user?.uid || !isAdmin) {
+    if (!isHqTeam || !user?.uid) {
       setClaimsLoading(false);
       return;
     }
@@ -73,7 +66,7 @@ export default function ClaimsPage() {
       setClaimsLoading(false);
     });
     return () => unsub();
-  }, [isHqTeam, isAdmin, role, user?.uid]);
+  }, [isHqTeam, role, user?.uid]);
 
   const myClaims = useMemo(
     () => claims.filter((c) => c.userId === user?.uid),
@@ -223,8 +216,6 @@ export default function ClaimsPage() {
     );
   }
 
-  if (!isAdmin) return null;
-
   const statCards = [
     { icon: 'ph-calendar-check', color: 'var(--accent-blue)', label: t('claims.myStatMonthApplied', '本月已申请'), value: `MYR ${myStats.monthApplied.toFixed(2)}`, mono: true },
     { icon: 'ph-hourglass-simple', color: 'var(--accent-amber)', label: t('claims.myStatPending', '审批中'), value: myStats.pendingCount, unit: t('claims.myStatUnit', '笔') },
@@ -253,19 +244,21 @@ export default function ClaimsPage() {
             <i className="ph-bold ph-receipt"></i>
             {t('claims.tabMine', '我的报销单')}
           </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${activeTab === 'team' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ border: 'none', gap: '6px' }}
-            onClick={() => setActiveTab('team')}
-          >
-            <i className="ph-bold ph-bank"></i>
-            {t('claims.tabTeam', '审批与放款总台')}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`btn btn-sm ${activeTab === 'team' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ border: 'none', gap: '6px' }}
+              onClick={() => setActiveTab('team')}
+            >
+              <i className="ph-bold ph-bank"></i>
+              {t('claims.tabTeam', '审批与放款总台')}
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {activeTab === 'team' && (
+          {isAdmin && activeTab === 'team' && (
             <>
               <select
                 value={exportMonth}
@@ -501,7 +494,7 @@ export default function ClaimsPage() {
       )}
 
       {/* ============ Tab: Team Approvals & Payouts ============ */}
-      {activeTab === 'team' && (
+      {isAdmin && activeTab === 'team' && (
         <ExpenseClaimsAnalyticsTab
           expenseClaims={claims}
           teamMembers={[]}

@@ -1915,7 +1915,7 @@ export default function LeaderboardPage() {
                           {dateText}
                         </span>
                         <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
-                          {leave.leaveType} · {durationLabel} ({leave.daysCount}天)
+                          {leave.leaveType} · {durationLabel} ({leave.daysCount} {t('analytics.unitDays', '天')})
                         </span>
                         {leave.reason && (
                           <span style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
