@@ -72,6 +72,10 @@ export default function AnalyticsPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const exportMonthOptions = useMemo(() => {
     const list = [];
     const now = new Date();
@@ -151,10 +155,6 @@ export default function AnalyticsPage() {
   const [manualPunchModalOpen, setManualPunchModalOpen] = useState(false);
   const [manualPunchAppealToReview, setManualPunchAppealToReview] = useState(null);
   const [manualPunchPrefillTarget, setManualPunchPrefillTarget] = useState(null);
-  const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
 
   // URL search query handler for deep-links like /analytics?tab=attendance&view=my
   useEffect(() => {
