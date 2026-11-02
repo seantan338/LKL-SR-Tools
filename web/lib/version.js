@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.50';
+export const APP_VERSION = 'v1.7.51';
 export const BUILD_DATE = '2026-11-02';
-export const RELEASE_CODENAME = 'Fix TDZ ReferenceError in Analytics Page on Initial Render';
+export const RELEASE_CODENAME = 'Attendance Matrix Unifies Absent Code to MIA';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

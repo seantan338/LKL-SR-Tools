@@ -87,15 +87,15 @@ export const EXCEL_I18N = {
     lblMonth: '月份:',
     lblYear: '年份:',
     legendLabel: '图例:',
-    legendFullText: '图例: ✔ 正常 | 迟 迟到 | 早 早退 | 迟早 迟退 | 漏 漏卡 | 假 获批休假 | ✖ 缺卡 | 旷 旷工/MIA | 休 周末',
+    legendFullText: '图例: ✔ 正常 | 迟 迟到 | 早 早退 | 迟早 迟退 | 漏 漏卡 | 假 获批休假 | MIA 缺勤 | 休 周末',
     legendNormal: '✔ 正常',
     legendLate: '迟 迟到',
     legendEarly: '早 早退',
     legendLateEarly: '迟早 迟退',
     legendMissed: '漏 漏卡',
     legendLeave: '假 休假',
-    legendUnpunched: '✖ 缺卡',
-    legendMia: '旷 旷工',
+    legendUnpunched: 'MIA 缺勤',
+    legendMia: 'MIA 缺勤',
     legendWeekend: '休 周末',
     colEmpId: '员工编号',
     colEmpName: '员工姓名',
@@ -111,8 +111,8 @@ export const EXCEL_I18N = {
     statusEarlyCode: '早',
     statusLateEarlyCode: '迟早',
     statusMissedCode: '漏',
-    statusUnpunchedCode: '✖',
-    statusMiaCode: '旷',
+    statusUnpunchedCode: 'MIA',
+    statusMiaCode: 'MIA',
     statusWeekendCode: '休',
     commentIn: '上班签到',
     commentOut: '下班签退',
@@ -243,14 +243,14 @@ export const EXCEL_I18N = {
     lblMonth: 'Month:',
     lblYear: 'Year:',
     legendLabel: 'Legend:',
-    legendFullText: 'Legend: ✔ Normal | L Late | E Early | LE Late & Early | ? Missed | AL/MC Leave | ✖ Absent | MIA Absent | OFF Weekend',
+    legendFullText: 'Legend: ✔ Normal | L Late | E Early | LE Late & Early | ? Missed | AL/MC Leave | MIA Absent | OFF Weekend',
     legendNormal: '✔ Normal',
     legendLate: 'L Late',
     legendEarly: 'E Early',
     legendLateEarly: 'LE Late & Early',
     legendMissed: '? Missed',
     legendLeave: 'AL/MC Leave',
-    legendUnpunched: '✖ Absent',
+    legendUnpunched: 'MIA Absent',
     legendMia: 'MIA Absent',
     legendWeekend: 'OFF Weekend',
     colEmpId: 'Employee ID',
@@ -267,7 +267,7 @@ export const EXCEL_I18N = {
     statusEarlyCode: 'E',
     statusLateEarlyCode: 'LE',
     statusMissedCode: '?',
-    statusUnpunchedCode: '✖',
+    statusUnpunchedCode: 'MIA',
     statusMiaCode: 'MIA',
     statusWeekendCode: 'OFF',
     commentIn: 'Clock-In',
@@ -744,7 +744,7 @@ export function mapAttendanceVisualState({
   // 5. 过去工作日，零打卡且无请假单
   if (dayMeta?.dateStr && todayStr && dayMeta.dateStr <= todayStr && !dayMeta?.isWeekend) {
     return {
-      code: labels.statusUnpunchedCode || '✖',
+      code: labels.statusUnpunchedCode || 'MIA',
       category: 'UNPUNCHED',
       bgHex: 'FEE2E2',
       textHex: '991B1B',
@@ -1437,8 +1437,8 @@ export const ExcelExporter = {
 
     // Row 3: 考勤周期元数据与单行整洁横向图例 (格式化单字符串大跨列合并，杜绝列位挤压与###显示截断)
     const legendFullText = labels.legendFullText || (isEn
-      ? 'Legend: ✔ Normal | L Late | E Early | LE Late & Early | ? Missed | AL/MC Leave | ✖ Absent | MIA Absent | OFF Weekend'
-      : '图例: ✔ 正常 | 迟 迟到 | 早 早退 | 迟早 迟退 | 漏 漏卡 | 假 获批休假 | ✖ 缺卡 | 旷 旷工/MIA | 休 周末');
+      ? 'Legend: ✔ Normal | L Late | E Early | LE Late & Early | ? Missed | AL/MC Leave | MIA Absent | OFF Weekend'
+      : '图例: ✔ 正常 | 迟 迟到 | 早 早退 | 迟早 迟退 | 漏 漏卡 | 假 获批休假 | MIA 缺勤 | 休 周末');
 
     const row3MetaAndLegend = [
       { val: isEn ? 'Period:' : '考勤月份:', styleId: 'MetaLabel' },

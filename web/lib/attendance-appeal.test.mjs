@@ -224,7 +224,7 @@ test('ExcelExporter formats title, legends and hidden comments cleanly', () => {
     todayStr: '2026-11-02',
     locale: 'en'
   });
-  assert.equal(unpunchedVisual.code, '✖');
+  assert.equal(unpunchedVisual.code, 'MIA');
   assert.equal(unpunchedVisual.commentText, '');
 });
 
