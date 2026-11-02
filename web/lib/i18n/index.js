@@ -2296,7 +2296,11 @@ export const zh = {
     statusManualClockedIn: '管理员补录 · 已签到 ({time})',
     statusManualClockedOut: '今日已下班签退 (管理员补录: {time})',
     btnApplyLeave: '申请请假',
-    linkMyAttendance: '查看我的考勤出席明细与异常申诉 →'
+    linkMyAttendance: '查看我的考勤出席明细与异常申诉 →',
+    leaveActiveTitle: '今日处于获批休假状态',
+    leaveFullDayDesc: '全天休假，系统自动豁免全天打卡与工时考核',
+    leaveHalfAmDesc: '上午休假，13:30 前签到即可正常达标',
+    leaveHalfPmDesc: '下午休假，12:30 后签退即可正常达标'
   },
   attendanceAppeal: {
     title: '考勤异常申诉与补录申请',
@@ -5220,7 +5224,11 @@ export const en = {
     statusManualClockedIn: 'Admin Manual Entry · Clocked in ({time})',
     statusManualClockedOut: 'Clocked out today (Admin Manual: {time})',
     btnApplyLeave: 'Apply Leave',
-    linkMyAttendance: 'View my attendance history & submit appeals →'
+    linkMyAttendance: 'View my attendance history & submit appeals →',
+    leaveActiveTitle: 'Approved Leave Active Today',
+    leaveFullDayDesc: 'Full day on leave: daily clock-in requirements and shift hours are automatically waived.',
+    leaveHalfAmDesc: 'Morning half-day leave: check in before 13:30 to meet shift requirements.',
+    leaveHalfPmDesc: 'Afternoon half-day leave: clock out after 12:30 to meet shift requirements.'
   },
   attendanceAppeal: {
     title: 'Attendance Appeal & Manual Punch Request',

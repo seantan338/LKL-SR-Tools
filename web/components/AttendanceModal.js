@@ -781,17 +781,29 @@ export default function AttendanceModal() {
               </div>
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div style={{ fontWeight: '700', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>{t('attendanceModal.leaveActiveTitle', '今日处于获批休假状态')}</span>
+                  <span>{t('attendanceModal.leaveActiveTitle', isEn ? 'Approved Leave Active Today' : '今日处于获批休假状态')}</span>
                   <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', fontWeight: '600' }}>
-                    {todayLeave.leaveType} · {todayLeave.durationType === 'FULL_DAY' ? t('attendanceLeave.fullDay', '全天') : (todayLeave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', '上午') : t('attendanceLeave.halfPm', '下午'))}
+                    {(() => {
+                      const leaveTypeLabel = {
+                        ANNUAL: t('attendanceLeave.typeAnnual', isEn ? 'Annual Leave (AL)' : '年假 (Annual Leave - AL)'),
+                        SICK: t('attendanceLeave.typeSick', isEn ? 'Medical Leave (MC)' : '病假 (Medical Leave - MC)'),
+                        EMERGENCY: t('attendanceLeave.typeEmergency', isEn ? 'Emergency Leave (EL)' : '紧急事假 (Emergency Leave - EL)'),
+                        UNPAID: t('attendanceLeave.typeUnpaid', isEn ? 'Unpaid Leave (UL)' : '无薪假 (Unpaid Leave - UL)'),
+                        OTHER: t('attendanceLeave.typeOther', isEn ? 'Other / Special Leave' : '其他 / 特别假')
+                      }[todayLeave.leaveType] || todayLeave.leaveType;
+                      const durationLabel = todayLeave.durationType === 'FULL_DAY'
+                        ? t('attendanceLeave.fullDay', isEn ? 'Full Day' : '全天')
+                        : (todayLeave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', isEn ? 'Half Day (AM)' : '上午') : t('attendanceLeave.halfPm', isEn ? 'Half Day (PM)' : '下午'));
+                      return `${leaveTypeLabel} · ${durationLabel}`;
+                    })()}
                   </span>
                 </div>
                 <div style={{ color: 'var(--text-secondary)', marginTop: '2px', fontSize: '11px', lineHeight: 1.3 }}>
                   {todayLeave.durationType === 'FULL_DAY'
-                    ? t('attendanceModal.leaveFullDayDesc', '全天休假，系统自动豁免全天打卡与工时考核')
+                    ? t('attendanceModal.leaveFullDayDesc', isEn ? 'Full day on leave: daily clock-in requirements and shift hours are automatically waived.' : '全天休假，系统自动豁免全天打卡与工时考核')
                     : todayLeave.durationType === 'HALF_AM'
-                      ? t('attendanceModal.leaveHalfAmDesc', '上午休假，13:30 前签到即可正常达标')
-                      : t('attendanceModal.leaveHalfPmDesc', '下午休假，12:30 后签退即可正常达标')}
+                      ? t('attendanceModal.leaveHalfAmDesc', isEn ? 'Morning half-day leave: check in before 13:30 to meet shift requirements.' : '上午休假，13:30 前签到即可正常达标')
+                      : t('attendanceModal.leaveHalfPmDesc', isEn ? 'Afternoon half-day leave: clock out after 12:30 to meet shift requirements.' : '下午休假，12:30 后签退即可正常达标')}
                 </div>
               </div>
             </div>
