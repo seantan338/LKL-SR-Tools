@@ -186,6 +186,10 @@ test('mapAttendanceVisualState correctly outputs Zero-Emoji codes and high-contr
 
 test('getMonthCalendarMeta returns accurate metadata and full working days for past months', () => {
   const meta = getMonthCalendarMeta(2026, 10);
+  assert.equal(meta.year, 2026);
+  assert.equal(meta.month, 10);
+  assert.equal(meta.monthNameEn, 'October');
+  assert.equal(meta.shortMonthNameEn, 'Oct');
   assert.equal(meta.days.length, 31);
   assert.equal(meta.days[0].year, 2026);
   assert.equal(meta.days[0].month, 10);
@@ -193,6 +197,35 @@ test('getMonthCalendarMeta returns accurate metadata and full working days for p
   assert.equal(meta.totalWorkingDays, 22);
   // 对于过去月份，elapsedWorkingDays 应该等于 totalWorkingDays (22)
   assert.equal(meta.elapsedWorkingDays, 22);
+});
+
+test('ExcelExporter formats title, legends and hidden comments cleanly', () => {
+  const sheets = ExcelExporter.buildAttendanceReportData({
+    monthStr: '2026-10',
+    attendanceEvents: [],
+    hqMembers: [{ uid: 'u1', displayName: 'Tester', email: 'test@example.com' }],
+    shiftConfig: DEFAULT_SHIFT_CONFIG,
+    locale: 'en'
+  });
+
+  const matrix = sheets[0];
+  // 1. 大标题不再包含 undefined - undefined
+  assert.equal(matrix.rows[0][0].val, 'Attendance Sheet for October - 2026');
+  // 2. Row 3 周期与整洁横向图例
+  assert.equal(matrix.rows[2][0].val, 'Period:');
+  assert.equal(matrix.rows[2][1].val, '2026-10 (October)');
+  assert.ok(matrix.rows[2][3].val.includes('Legend: ✔ Normal'));
+  // 3. Row 5 日期列头格式为 1-Oct, 2-Oct ...
+  assert.equal(matrix.rows[4][3].val, '1-Oct');
+  assert.equal(matrix.rows[4][4].val, '2-Oct');
+  // 4. 普通未打卡工作日 commentText 为空，绝不生成满屏绿色弹窗
+  const unpunchedVisual = mapAttendanceVisualState({
+    dayMeta: { isWeekend: false, dateStr: '2026-10-02' },
+    todayStr: '2026-11-02',
+    locale: 'en'
+  });
+  assert.equal(unpunchedVisual.code, '✖');
+  assert.equal(unpunchedVisual.commentText, '');
 });
 
 test('ExcelExporter builds attendance report correctly for cross-month leaves', () => {

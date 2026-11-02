@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.48';
+export const APP_VERSION = 'v1.7.49';
 export const BUILD_DATE = '2026-11-02';
-export const RELEASE_CODENAME = 'Historical Monthly Attendance Cloud Query & Cross-Month Leave Alignment';
+export const RELEASE_CODENAME = 'Attendance Excel Clean Layout, Hidden Comments & Row 3 Merging';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',
