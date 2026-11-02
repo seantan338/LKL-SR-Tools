@@ -383,7 +383,7 @@ export default function ClaimsPage() {
                             <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>{claim.title}</span>
                             <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{claim.claimMonth}</span>
                             <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                              {claim.payoutChannel === 'PAYROLL' ? t('claims.channelPayroll', '随薪') : t('claims.channelBatch', '批次')}
+                              {claim.payoutChannel === 'PAYROLL' ? t('claims.channelPayrollShort', '随薪') : t('claims.channelBatchShort', '批次')}
                             </span>
                             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                               {t('claims.itemsCount', { count: (claim.items || []).length }, `${(claim.items || []).length} 项明细`)}

@@ -75,7 +75,7 @@ export default function ExpenseClaimsAnalyticsTab({
   const handleConfirmReject = async () => {
     if (!claimToReject) return;
     if (!claimRejectReason.trim()) {
-      showToast('请输入明确的驳回原因 / Rejection reason required');
+      showToast(t('claims.toastRejectionReasonRequired', '请输入明确的驳回原因'));
       return;
     }
 
@@ -92,7 +92,7 @@ export default function ExpenseClaimsAnalyticsTab({
       setClaimToReject(null);
       setClaimRejectReason('');
     } catch (err) {
-      showToast(`驳回失败: ${err.message}`);
+      showToast(`${t('claims.toastManagerRejectFailed', '驳回失败')}: ${err.message}`);
     } finally {
       setIsRejecting(false);
     }
@@ -108,7 +108,7 @@ export default function ExpenseClaimsAnalyticsTab({
       }
       setSelectedClaimIdsForBatch([]);
     } catch (err) {
-      showToast(`放款操作失败: ${err.message}`);
+      showToast(`${t('claims.toastPayoutFailed', '放款操作失败')}: ${err.message}`);
     } finally {
       setIsBatchProcessing(false);
     }
@@ -128,7 +128,7 @@ export default function ExpenseClaimsAnalyticsTab({
               <span>{t('claims.bentoPendingManager', '待初审报销单')}</span>
             </div>
             <div style={{ fontSize: '26px', fontWeight: '800', fontFamily: 'monospace', color: metrics.pendingManagerCount > 0 ? 'var(--accent-amber)' : 'var(--text-primary)' }}>
-              {metrics.pendingManagerCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>笔</span>
+              {metrics.pendingManagerCount} {t('claims.unitItems', '笔') && <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>{t('claims.unitItems', '笔')}</span>}
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function ExpenseClaimsAnalyticsTab({
               <span>{t('claims.bentoPendingFinance', '待终审报销单')}</span>
             </div>
             <div style={{ fontSize: '26px', fontWeight: '800', fontFamily: 'monospace', color: metrics.pendingFinanceCount > 0 ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
-              {metrics.pendingFinanceCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>笔</span>
+              {metrics.pendingFinanceCount} {t('claims.unitItems', '笔') && <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>{t('claims.unitItems', '笔')}</span>}
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function ExpenseClaimsAnalyticsTab({
                 <span>{t('claims.bentoWarnings', '风控合规预警')}</span>
               </div>
               <div style={{ fontSize: '26px', fontWeight: '800', fontFamily: 'monospace', color: 'var(--accent-red)' }}>
-                {metrics.warningCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>单含异常</span>
+                {metrics.warningCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-muted)' }}>{t('claims.warningWithIssues', '单含异常')}</span>
               </div>
             </div>
           </div>
@@ -208,7 +208,7 @@ export default function ExpenseClaimsAnalyticsTab({
                 className="select"
                 style={{ height: '32px', fontSize: '12px' }}
               >
-                <option value="all">全部月份 (All Months)</option>
+                <option value="all">{t('claims.allMonths', '全部月份')}</option>
                 {exportMonthOptions.map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
@@ -220,7 +220,7 @@ export default function ExpenseClaimsAnalyticsTab({
                 className="select"
                 style={{ height: '32px', fontSize: '12px' }}
               >
-                <option value="ALL">全部状态 (All Status)</option>
+                <option value="ALL">{t('claims.allStatus', '全部状态')}</option>
                 <option value="SUBMITTED">{t('claims.statusSubmitted', '待主管初审')}</option>
                 <option value="MANAGER_APPROVED">{t('claims.statusManagerApproved', '待财务终审')}</option>
                 <option value="APPROVED_PENDING_PAYOUT">{t('claims.statusApprovedPendingPayout', '已批准 · 待放款')}</option>
@@ -234,7 +234,7 @@ export default function ExpenseClaimsAnalyticsTab({
             {isOwner && selectedClaimIdsForBatch.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(59, 130, 246, 0.1)', padding: '4px 12px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                 <span style={{ fontSize: '12px', color: 'var(--accent-blue)', fontWeight: '700' }}>
-                  已选 {selectedClaimIdsForBatch.length} 笔 (MYR {
+                  {t('claims.selectedCount', { count: selectedClaimIdsForBatch.length }, `已选 ${selectedClaimIdsForBatch.length} 笔`)} (MYR {
                     expenseClaims
                       .filter(c => selectedClaimIdsForBatch.includes(c.id))
                       .reduce((acc, c) => acc + (Number(c.totalAmount) || 0), 0)
@@ -292,19 +292,19 @@ export default function ExpenseClaimsAnalyticsTab({
                               setSelectedClaimIdsForBatch([]);
                             }
                           }}
-                          title="全选可放款单据"
+                          title={t('claims.selectAllPayable', '全选可放款单据')}
                         />
                       </th>
                     )}
                     <th style={{ textAlign: 'left', padding: '10px' }}>{t('claims.titleField', '报销单标题')}</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>申请顾问 (PIC)</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>月份</th>
-                    <th style={{ textAlign: 'right', padding: '10px' }}>明细数</th>
-                    <th style={{ textAlign: 'right', padding: '10px' }}>总金额 (MYR)</th>
-                    <th style={{ textAlign: 'center', padding: '10px' }}>放款轨道</th>
-                    <th style={{ textAlign: 'center', padding: '10px' }}>审批状态</th>
-                    <th style={{ textAlign: 'center', padding: '10px' }}>风控</th>
-                    <th style={{ textAlign: 'right', padding: '10px' }}>操作</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>{t('claims.colRecruiter', '申请顾问 (PIC)')}</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>{t('claims.colMonth', '月份')}</th>
+                    <th style={{ textAlign: 'right', padding: '10px' }}>{t('claims.colItemsCount', '明细数')}</th>
+                    <th style={{ textAlign: 'right', padding: '10px' }}>{t('claims.colTotalAmount', '总金额 (MYR)')}</th>
+                    <th style={{ textAlign: 'center', padding: '10px' }}>{t('claims.colPayoutChannel', '放款轨道')}</th>
+                    <th style={{ textAlign: 'center', padding: '10px' }}>{t('claims.colApprovalStatus', '审批状态')}</th>
+                    <th style={{ textAlign: 'center', padding: '10px' }}>{t('claims.colRiskAudit', '风控')}</th>
+                    <th style={{ textAlign: 'right', padding: '10px' }}>{t('common.actions', '操作')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -368,7 +368,7 @@ export default function ExpenseClaimsAnalyticsTab({
                           </td>
 
                           <td style={{ padding: '10px', textAlign: 'right', color: 'var(--text-secondary)' }}>
-                            {(claim.items || []).length} 项
+                            {(claim.items || []).length} {t('claims.unitItem', '项')}
                           </td>
 
                           <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontFamily: 'monospace', color: 'var(--accent-emerald)' }}>
@@ -377,7 +377,7 @@ export default function ExpenseClaimsAnalyticsTab({
 
                           <td style={{ padding: '10px', textAlign: 'center' }}>
                             <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
-                              {claim.payoutChannel === 'PAYROLL' ? '随薪' : '批次'}
+                              {claim.payoutChannel === 'PAYROLL' ? t('claims.channelPayrollShort', '随薪') : t('claims.channelBatchShort', '批次')}
                             </span>
                           </td>
 
@@ -396,11 +396,11 @@ export default function ExpenseClaimsAnalyticsTab({
 
                           <td style={{ padding: '10px', textAlign: 'center' }}>
                             {hasWarning ? (
-                              <span style={{ color: 'var(--accent-red)', fontSize: '14px' }} title="该单据存在疑似重复或超额警告">
+                              <span style={{ color: 'var(--accent-red)', fontSize: '14px' }} title={t('claims.tipWarning', '该单据存在疑似重复或超额警告')}>
                                 <i className="ph-bold ph-warning-circle"></i>
                               </span>
                             ) : (
-                              <span style={{ color: 'var(--accent-emerald)', fontSize: '14px' }} title="合规">
+                              <span style={{ color: 'var(--accent-emerald)', fontSize: '14px' }} title={t('claims.tipCompliant', '合规')}>
                                 <i className="ph-bold ph-check"></i>
                               </span>
                             )}
@@ -466,13 +466,13 @@ export default function ExpenseClaimsAnalyticsTab({
 
                               {claim.status === 'PAID' && (
                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                  {claim.payoutBatchId ? `批次: ${claim.payoutBatchId.slice(-6)}` : '已结清'}
+                                  {claim.payoutBatchId ? `${t('claims.batchPrefix', '批次')}: ${claim.payoutBatchId.slice(-6)}` : t('claims.statusSettledShort', '已结清')}
                                 </span>
                               )}
 
                               {claim.status === 'LOCKED_IN_PAYROLL' && (
                                 <span style={{ fontSize: '11px', color: '#a78bfa' }}>
-                                  {claim.payrollPeriod ? `锁定: ${claim.payrollPeriod}` : '已入薪'}
+                                  {claim.payrollPeriod ? `${t('claims.lockPrefix', '锁定')}: ${claim.payrollPeriod}` : t('claims.statusLockedShort', '已入薪')}
                                 </span>
                               )}
                             </div>
@@ -485,7 +485,7 @@ export default function ExpenseClaimsAnalyticsTab({
                             <td colSpan={isOwner ? 10 : 9} style={{ padding: '12px 16px' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>
-                                  费用明细行列表 ({claim.items?.length || 0}):
+                                  {t('claims.lineItemsTitle', '费用明细行列表')} ({claim.items?.length || 0}):
                                 </div>
                                 {(claim.items || []).map((it, idx) => (
                                   <div
@@ -508,7 +508,7 @@ export default function ExpenseClaimsAnalyticsTab({
                                         {it.category}
                                       </span>
                                       {it.invoiceNo && (
-                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>单号: {it.invoiceNo}</span>
+                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('claims.invoiceNoLabel', '单号')}: {it.invoiceNo}</span>
                                       )}
                                       {it.ocrExtracted && (
                                         <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><i className="ph-bold ph-scan"></i>AI OCR</span>
@@ -534,7 +534,7 @@ export default function ExpenseClaimsAnalyticsTab({
 
                                 {claim.rejection && (
                                   <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', fontSize: '12px' }}>
-                                    <strong>驳回记录:</strong> 由 {claim.rejection.rejectedByName} 在 {claim.rejection.rejectedAt?.slice(0, 16)} 驳回。理由: {claim.rejection.reason}
+                                    <strong>{t('claims.rejectionRecord', '驳回记录')}:</strong> {t('claims.rejectedByPrefix', '由')} {claim.rejection.rejectedByName} {t('claims.rejectedAtPrefix', '在')} {claim.rejection.rejectedAt?.slice(0, 16)} {t('claims.rejectedReasonPrefix', '驳回。理由:')} {claim.rejection.reason}
                                   </div>
                                 )}
                               </div>
@@ -579,7 +579,7 @@ export default function ExpenseClaimsAnalyticsTab({
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                  驳回原因与修改指示 <span style={{ color: 'var(--accent-red)' }}>*</span>
+                  {t('claims.rejectReasonRequired', '驳回原因与修改指示')} <span style={{ color: 'var(--accent-red)' }}>*</span>
                 </label>
                 <textarea
                   rows={3}
