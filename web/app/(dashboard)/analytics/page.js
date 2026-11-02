@@ -2978,12 +2978,12 @@ export default function AnalyticsPage() {
                                   padding: '1px 6px',
                                   borderRadius: '4px'
                                 }}>
-                                  {leave.leaveType} · {durationLabel} ({leave.daysCount}天)
+                                  {leave.leaveType} · {durationLabel} ({leave.daysCount} {t('attendanceLeave.unitDaysLabel', '天')})
                                 </span>
                               </div>
                               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                                 <strong style={{ color: 'var(--text-muted)' }}>{t('attendanceLeave.colReason', '事由')}: </strong>
-                                {leave.reason || '无'}
+                                {leave.reason || t('common.none', '无')}
                               </div>
                             </div>
 

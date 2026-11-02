@@ -1505,6 +1505,7 @@ export const zh = {
   common: {
     redirecting: '正在为您平滑跳转...',
     all: '全部',
+    none: '无',
     confirm: '确认',
     unassigned: '未分配顾问',
     selectPic: '-- 请选择经办顾问 (PIC) --',
@@ -2660,7 +2661,8 @@ export const zh = {
     attributionRepairedToast: '已按顾问姓名校准该笔佣金的归属账号',
     attributionRepairFailed: '校准归属失败: ',
     defaultClawbackReason: '退工或测试单据冲销',
-    clawbackReasonPlaceholder: '例如：候选人试用期离职或测试单据冲销'
+    clawbackReasonPlaceholder: '例如：候选人试用期离职或测试单据冲销',
+    tabCommission: '成单佣金流水账'
   },
   attendanceLeave: {
     applyLeave: '申请请假',
@@ -2709,7 +2711,20 @@ export const zh = {
     confirmCancelTitle: '确认撤回请假申请？',
     confirmCancelMsg: '撤回后该申请将作废，如需请假请重新提交。',
     reviewApprovedToast: '已批准该请假申请',
-    reviewRejectedToast: '已驳回该请假申请'
+    reviewRejectedToast: '已驳回该请假申请',
+    btnAdminQuickAdd: '登记/录入员工休假',
+    adminPendingTitle: '待审批员工请假申请 ({count} 条待办)',
+    adminReviewTip: '批准后系统自动对该员工当天排班实施打卡豁免',
+    colReason: '事由',
+    btnApprove: '批准休假',
+    btnReject: '驳回',
+    unitDaysLabel: '天',
+    rejectTitle: '驳回员工请假申请',
+    lblRejectReason: '驳回理由/说明 (Reject Reason)',
+    placeholderRejectReason: '例如：当日有重要客户面试安排，建议调整休假日期',
+    btnConfirmReject: '确认驳回',
+    toastApproveSuccess: '已批准员工休假申请',
+    toastRejectSuccess: '已驳回员工请假申请'
   },
   claims: {
     searchPlaceholder: '搜索顾问姓名、商户名或标题...',
@@ -4349,6 +4364,7 @@ export const en = {
   common: {
     redirecting: 'Redirecting smoothly...',
     all: 'All',
+    none: 'None',
     confirm: 'Confirm',
     unassigned: 'Unassigned',
     selectPic: '-- Select PIC --',
@@ -5504,7 +5520,8 @@ export const en = {
     attributionRepairedToast: 'Commission attribution recalibrated to the consultant account',
     attributionRepairFailed: 'Failed to recalibrate attribution: ',
     defaultClawbackReason: 'Probation dropout or test deal cancellation',
-    clawbackReasonPlaceholder: 'e.g. Candidate resigned during probation or test deal cancellation'
+    clawbackReasonPlaceholder: 'e.g. Candidate resigned during probation or test deal cancellation',
+    tabCommission: 'Commission Ledger'
   },
   attendanceLeave: {
     applyLeave: 'Apply Leave',
@@ -5553,7 +5570,20 @@ export const en = {
     confirmCancelTitle: 'Cancel Leave Request?',
     confirmCancelMsg: 'This request will be cancelled. You will need to reapply if needed.',
     reviewApprovedToast: 'Leave request approved',
-    reviewRejectedToast: 'Leave request rejected'
+    reviewRejectedToast: 'Leave request rejected',
+    btnAdminQuickAdd: 'Record Staff Leave',
+    adminPendingTitle: 'Pending Staff Leave Requests ({count} Pending)',
+    adminReviewTip: 'Approved leaves automatically waive daily attendance requirements',
+    colReason: 'Reason',
+    btnApprove: 'Approve Leave',
+    btnReject: 'Reject',
+    unitDaysLabel: 'Day(s)',
+    rejectTitle: 'Reject Staff Leave Request',
+    lblRejectReason: 'Reason for Rejection',
+    placeholderRejectReason: 'e.g. Critical client interviews scheduled on this day, please reschedule',
+    btnConfirmReject: 'Confirm Rejection',
+    toastApproveSuccess: 'Staff leave request approved successfully',
+    toastRejectSuccess: 'Staff leave request rejected'
   },
   claims: {
     searchPlaceholder: 'Search by recruiter, merchant or title...',
