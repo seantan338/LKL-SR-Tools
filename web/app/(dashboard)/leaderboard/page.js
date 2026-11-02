@@ -55,6 +55,11 @@ export default function LeaderboardPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [exportMonth, setExportMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [monthlyAttendanceEvents, setMonthlyAttendanceEvents] = useState([]);
 
   const exportMonthOptions = useMemo(() => {
     const list = [];
@@ -66,6 +71,25 @@ export default function LeaderboardPage() {
     }
     return list;
   }, []);
+
+  // Proactively fetch complete monthly attendance data for selected month
+  useEffect(() => {
+    if (!isHqTeam) return;
+    const targetMonth = exportMonth || myAttendanceMonth;
+    if (!targetMonth) return;
+
+    let isMounted = true;
+    FirestoreStore.fetchMonthlyAttendanceRecords('default_team', targetMonth).then(res => {
+      if (!isMounted) return;
+      if (res && Array.isArray(res.attendanceEvents)) {
+        setMonthlyAttendanceEvents(res.attendanceEvents);
+      }
+    }).catch(err => {
+      console.warn('Auto fetch leaderboard monthly attendance error:', err);
+    });
+
+    return () => { isMounted = false; };
+  }, [isHqTeam, exportMonth, myAttendanceMonth]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -198,17 +222,25 @@ export default function LeaderboardPage() {
       showToast(t('leaderboard.exportNoPermission', '仅 HQ 本部管理人员可导出考勤出勤月报'));
       return;
     }
-    const combinedEvents = [...manualCheckins, ...logs];
-    if (combinedEvents.length === 0) {
-      showToast(t('leaderboard.exportNoData', '当前无可导出的考勤打卡数据'));
-      return;
-    }
 
     setIsExporting(true);
     try {
       const now = new Date();
-      const activeMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const fallbackMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const activeMonthStr = exportMonth || fallbackMonth;
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
+
+      // 从云端精准拉取目标月份全量考勤流水与获批休假（严格左闭右开区间，彻底解决 limit(500) 历史截断）
+      const currentTeam = 'default_team';
+      const monthlyData = await FirestoreStore.fetchMonthlyAttendanceRecords(currentTeam, activeMonthStr);
+      const combinedEvents = [...monthlyData.attendanceEvents, ...manualCheckins, ...logs];
+      const combinedLeaves = [...(monthlyData.attendanceLeaves || []), ...(attendanceLeaves || [])];
+
+      if (combinedEvents.length === 0 && combinedLeaves.length === 0) {
+        showToast(t('leaderboard.exportNoData', '当前无可导出的考勤打卡数据'));
+        setIsExporting(false);
+        return;
+      }
 
       const sheets = ExcelExporter.buildAttendanceReportData({
         monthStr: activeMonthStr,
@@ -218,7 +250,7 @@ export default function LeaderboardPage() {
         shiftOverrides: attendanceRules?.shiftOverrides || {},
         excludedAccounts: attendanceRules?.excludedAccounts || [],
         hideZeroAttendance: Boolean(attendanceRules?.hideZeroAttendanceInReport),
-        attendanceLeaves: attendanceLeaves || [],
+        attendanceLeaves: combinedLeaves,
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -679,7 +711,7 @@ export default function LeaderboardPage() {
     const myName = currentPic?.displayName?.toLowerCase();
 
     const dailyMap = {};
-    const combinedEvents = [...manualCheckins, ...logs];
+    const combinedEvents = [...monthlyAttendanceEvents, ...manualCheckins, ...logs];
     const shiftConfig = attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG;
     const shiftOverrides = attendanceRules?.shiftOverrides || {};
     const now = new Date();
@@ -814,7 +846,7 @@ export default function LeaderboardPage() {
     });
 
     return list.sort((a, b) => b.date.localeCompare(a.date));
-  }, [user, currentPic, manualCheckins, logs, myAttendanceMonth, attendanceRules, attendanceLeaves, isEn]);
+  }, [user, currentPic, manualCheckins, logs, monthlyAttendanceEvents, myAttendanceMonth, attendanceRules, attendanceLeaves, isEn]);
 
   const myAppealsByDate = useMemo(() => {
     const map = {};
@@ -1156,7 +1188,28 @@ export default function LeaderboardPage() {
 
       {/* Attendance Tab Action Bar */}
       {activeTab === 'attendance' && isHqTeam && (isOwner || isManager) && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)', position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: 'var(--space-2)', position: 'relative', zIndex: 60, pointerEvents: 'auto' }}>
+          <select
+            value={exportMonth}
+            onChange={(e) => setExportMonth(e.target.value)}
+            style={{
+              background: 'rgba(15, 23, 42, 0.85)',
+              border: '1px solid rgba(139, 92, 246, 0.35)',
+              color: 'var(--text-primary)',
+              fontSize: '12px',
+              padding: '5px 8px',
+              borderRadius: 'var(--radius-md)',
+              outline: 'none',
+              cursor: 'pointer',
+              position: 'relative',
+              zIndex: 61
+            }}
+            title={t('analytics.selectExportMonth', '选择导出考勤报表的月份')}
+          >
+            {exportMonthOptions.map(ym => (
+              <option key={ym} value={ym} style={{ background: '#0f172a', color: '#fff' }}>{ym}</option>
+            ))}
+          </select>
           <button
             type="button"
             className="btn btn-sm btn-outline"
@@ -1182,7 +1235,7 @@ export default function LeaderboardPage() {
               handleExportAttendanceExcel();
             }}
             disabled={isExporting}
-            title={t('leaderboard.exportAttendanceTitle', '导出当月内部员工考勤 3-Sheet Excel 报表')}
+            title={t('analytics.exportBtnTitle', '导出指定月份内部员工考勤 3-Sheet Excel 报表（总账/日历矩阵/流水）')}
           >
             <i className={`ph-bold ${isExporting ? 'ph-spinner-gap ph-spin' : 'ph-file-xls'}`} style={{ pointerEvents: 'none' }}></i>
             <span style={{ pointerEvents: 'none' }}>{isExporting ? t('leaderboard.exporting', '正在导出报表...') : t('leaderboard.exportExcel', '导出考勤月报 (Excel)')}</span>

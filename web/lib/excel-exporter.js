@@ -415,6 +415,8 @@ export function getMonthCalendarMeta(year, month) {
       }
     }
     days.push({
+      year,
+      month,
       day: d,
       dateStr,
       dayOfWeek,

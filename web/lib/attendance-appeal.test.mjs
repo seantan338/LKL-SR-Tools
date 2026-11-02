@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ExcelExporter, mapAttendanceVisualState } from './excel-exporter.js';
+import { ExcelExporter, mapAttendanceVisualState, getMonthCalendarMeta } from './excel-exporter.js';
 import { DEFAULT_SHIFT_CONFIG } from './cascade-shift-engine.js';
 
 test('ExcelExporter formats ADMIN_MANUAL punch record with audit note in dual-sheet architecture', () => {
@@ -182,4 +182,51 @@ test('mapAttendanceVisualState correctly outputs Zero-Emoji codes and high-contr
   });
   assert.equal(futureState.code, '');
   assert.equal(futureState.category, 'FUTURE');
+});
+
+test('getMonthCalendarMeta returns accurate metadata and full working days for past months', () => {
+  const meta = getMonthCalendarMeta(2026, 10);
+  assert.equal(meta.days.length, 31);
+  assert.equal(meta.days[0].year, 2026);
+  assert.equal(meta.days[0].month, 10);
+  assert.equal(meta.days[0].day, 1);
+  assert.equal(meta.totalWorkingDays, 22);
+  // 对于过去月份，elapsedWorkingDays 应该等于 totalWorkingDays (22)
+  assert.equal(meta.elapsedWorkingDays, 22);
+});
+
+test('ExcelExporter builds attendance report correctly for cross-month leaves', () => {
+  const hqMembers = [{ uid: 'user_cross', displayName: 'Cross Leave Staff', email: 'cross@example.com' }];
+  // 跨月请假单：9月28日至10月5日获批年假
+  const leaves = [
+    {
+      id: 'leave_1',
+      userId: 'user_cross',
+      status: 'APPROVED',
+      leaveType: 'ANNUAL',
+      durationType: 'FULL_DAY',
+      startDate: '2026-09-28',
+      endDate: '2026-10-05',
+      reason: 'Golden week'
+    }
+  ];
+
+  const sheets = ExcelExporter.buildAttendanceReportData({
+    monthStr: '2026-10',
+    attendanceEvents: [],
+    hqMembers,
+    attendanceLeaves: leaves,
+    shiftConfig: DEFAULT_SHIFT_CONFIG,
+    locale: 'zh'
+  });
+
+  assert.equal(sheets.length, 2);
+  const matrixSheet = sheets[0];
+  // 第一位员工的数据行位于 row index 5 (前5行为大标题、留白、图例、留白、表头)
+  const memberRow = matrixSheet.rows[5];
+  assert.ok(memberRow, 'Should have member row at index 5');
+  // 10月1日 (Thursday) 在索引 3
+  const oct1Cell = memberRow[3];
+  assert.equal(oct1Cell.val, '休(AL)');
+  assert.equal(oct1Cell.styleId, 'CellLeave');
 });
