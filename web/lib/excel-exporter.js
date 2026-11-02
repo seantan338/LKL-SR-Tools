@@ -77,6 +77,9 @@ export const EXCEL_I18N = {
     punchLunchOutLabel: '午休出',
     punchLunchInLabel: '午休回',
     allPunchesPrefix: '全部打卡',
+    geofenceTag: '地理围栏',
+    manualPunchTag: ' (补录)',
+    defaultAdminName: '管理员',
     weekdays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
     emptySheetErr: '导出内容为空，无有效 Sheet',
     sheetCommSummary: (m) => `${m} 顾问佣金结算总账`,
@@ -189,6 +192,9 @@ export const EXCEL_I18N = {
     punchLunchOutLabel: 'LunchOut',
     punchLunchInLabel: 'LunchIn',
     allPunchesPrefix: 'All Punches',
+    geofenceTag: 'Geofence',
+    manualPunchTag: ' (Manual)',
+    defaultAdminName: 'Admin',
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     emptySheetErr: 'Export content is empty — no valid sheet found',
     sheetCommSummary: (m) => `${m} Commission Summary`,
@@ -689,7 +695,8 @@ export const ExcelExporter = {
 
       meta.days.forEach(dayMeta => {
         const dStr = dayMeta.dateStr;
-        if (dStr >= sDate && dStr <= eDate) {
+        // 严格过滤大于今天的未来预批休假，避免预批假单提前进入当期实际流水
+        if (dStr <= meta.todayStr && dStr >= sDate && dStr <= eDate) {
           const key = `${dStr}__${userId}`;
           if (!dailyMap[key]) {
             dailyMap[key] = {
@@ -698,6 +705,7 @@ export const ExcelExporter = {
               userId,
               picName,
               userEmail,
+              isWeekend: Boolean(dayMeta.isWeekend),
               events: [],
               verifyMethod: 'LEAVE',
               verifySnapshot: null
@@ -812,7 +820,9 @@ export const ExcelExporter = {
         const isFull = log.leaveRecord.durationType === 'FULL_DAY';
         const addDays = isFull ? 1 : 0.5;
         target.leaveDays = (target.leaveDays || 0) + addDays;
-        if (isFull && log.dateStr <= meta.todayStr) {
+        const dayMeta = meta.days.find(d => d.dateStr === log.dateStr);
+        const isWeekend = dayMeta ? dayMeta.isWeekend : (log.dateObj ? (log.dateObj.getDay() === 0 || log.dateObj.getDay() === 6) : false);
+        if (isFull && log.dateStr <= meta.todayStr && !isWeekend) {
           target.fullLeaveDaysElapsed = (target.fullLeaveDaysElapsed || 0) + 1;
         }
       }
@@ -874,7 +884,7 @@ export const ExcelExporter = {
       // 出勤率 = 实际出勤天数 / (截止目前应出勤 - 获批全天休假天数)；有效分子分母均大于等于1，避免合法请假拉低出勤率
       const fullLeaveDays = m.fullLeaveDaysElapsed || 0;
       const effectiveExpectedDays = Math.max(1, meta.elapsedWorkingDays - fullLeaveDays);
-      const attendanceRate = meta.elapsedWorkingDays > 0 ? ((m.daysPresent / effectiveExpectedDays) * 100).toFixed(1) + '%' : '0.0%';
+      const attendanceRate = meta.elapsedWorkingDays > 0 ? (Math.min(100, (m.daysPresent / effectiveExpectedDays) * 100)).toFixed(1) + '%' : '0.0%';
       // 班次合规率 = 达标天数 / 实际已结出勤天数（剔除今日尚未下班在岗中未决状态，避免白天未下班拉低合规率）
       const evalDays = m.evaluatedDays !== undefined ? m.evaluatedDays : m.daysPresent;
       const complianceRate = evalDays > 0 ? ((m.compliantDays / evalDays) * 100).toFixed(1) + '%' : '0.0%';
@@ -1002,12 +1012,12 @@ export const ExcelExporter = {
             : log.verifyMethod === 'WIFI_IP'
               ? labels.methodWifi
               : log.verifyMethod === 'GPS_GEOFENCE'
-                ? (log.verifySnapshot?.allowedRadius ? `${log.verifySnapshot.allowedRadius}m ${locale === 'en' ? 'Geofence' : '地理围栏'}` : labels.methodGps)
+                ? (log.verifySnapshot?.allowedRadius ? `${log.verifySnapshot.allowedRadius}m ${labels.geofenceTag || 'Geofence'}` : labels.methodGps)
                 : log.verifyMethod || labels.methodRegular;
 
       const manualEntryData = log.manualEntry || (Array.isArray(log.events) && log.events.find(e => e.manualEntry)?.manualEntry);
       const manualAuditNote = manualEntryData
-        ? (labels.manualAuditNoteText ? labels.manualAuditNoteText(manualEntryData.addedByName, manualEntryData.reason) : `[管理员补录: 由 ${manualEntryData.addedByName || '管理员'} 补录${manualEntryData.reason ? ' - ' + manualEntryData.reason : ''}]`)
+        ? (labels.manualAuditNoteText ? labels.manualAuditNoteText(manualEntryData.addedByName, manualEntryData.reason) : `[${labels.methodAdminManual}: ${manualEntryData.addedByName || labels.defaultAdminName || 'Admin'}${manualEntryData.reason ? ' - ' + manualEntryData.reason : ''}]`)
         : (log.verifySnapshot?.method === 'ADMIN_MANUAL' ? `[${labels.methodAdminManual}: ${log.verifySnapshot.reason || log.verifySnapshot.adminName || ''}]` : null);
 
       const leaveAuditNote = isLeave
@@ -1015,7 +1025,7 @@ export const ExcelExporter = {
         : null;
 
       const punchFlow = Array.isArray(log.events) && log.events.length > 2
-        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}${e.verifyMethod === 'ADMIN_MANUAL' ? ' (补录)' : ''}`).join(' -> ')}]`
+        ? `[${labels.allPunchesPrefix}: ${log.events.map(e => `${formatPunchType(e.type)} ${e.dateObj ? toShortTimeStr(e.dateObj) : ''}${e.verifyMethod === 'ADMIN_MANUAL' ? (labels.manualPunchTag || ' (Manual)') : ''}`).join(' -> ')}]`
         : null;
 
       const verifyDetails = [

@@ -14,7 +14,7 @@ import Chart from 'chart.js/auto';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { useI18n } from '../../../lib/i18n-context';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
-import { ExcelExporter, isAccountExcluded } from '../../../lib/excel-exporter';
+import { ExcelExporter, isAccountExcluded, parseTargetYearMonth, getMonthCalendarMeta } from '../../../lib/excel-exporter';
 import {
   getGuaranteeRemainingDays,
   evaluateGuaranteeStatus,
@@ -693,6 +693,63 @@ export default function AnalyticsPage() {
       );
     });
 
+    // 3. 注入经审批通过的请假记录（确保全天休假且无打卡的人员日期被建档）
+    const approvedLeaves = (attendanceLeaves || []).filter(l => l && l.status === 'APPROVED');
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    approvedLeaves.forEach(leave => {
+      const sDate = String(leave.startDate || '').trim();
+      const eDate = String(leave.endDate || sDate).trim();
+      if (!sDate) return;
+
+      const rawPic = leave.picName || leave.userName || (leave.userEmail ? leave.userEmail.split('@')[0] : t('analytics.defaultEmployeeName', '内部员工'));
+      const rawUid = leave.userId || '';
+      const canonical = resolveCanonicalPic(rawPic, rawUid, teamMembers);
+      const picName = canonical.displayName || rawPic;
+      const userId = canonical.uid || rawUid || canonical.key || picName;
+      const userEmail = leave.userEmail || '';
+
+      if (isAccountExcluded({ uid: userId, email: userEmail, name: picName }, attendanceRules?.excludedAccounts)) {
+        return;
+      }
+
+      const cur = new Date(sDate + 'T00:00:00');
+      const end = new Date(eDate + 'T00:00:00');
+      while (cur <= end) {
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        // CRITICAL (Requirement 2): 严格过滤大于今天的未来预批假单，避免预批假单提前进入当期流水
+        if (dStr <= todayIso) {
+          const recKey = `${dStr}__${picName}`;
+          if (!recordMap[recKey]) {
+            recordMap[recKey] = {
+              date: dStr,
+              firstActionTime: new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 9, 0, 0),
+              picName,
+              userEmail,
+              userId,
+              manualClockIn: null,
+              manualClockOut: null,
+              manualLunchOut: null,
+              manualLunchIn: null,
+              allClockIns: [],
+              allClockOuts: [],
+              allLunchOuts: [],
+              allLunchIns: [],
+              allPunches: [],
+              actions: [],
+              verifyMethod: 'LEAVE',
+              isLeaveOnly: true,
+              leaveRecord: leave
+            };
+          } else {
+            recordMap[recKey].leaveRecord = leave;
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
     // Format & finalize records
     const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
     const nowTime = new Date().getTime();
@@ -877,14 +934,14 @@ export default function AnalyticsPage() {
       setIsProcessingLeave(true);
       await FirestoreStore.reviewAttendanceLeave(teamId, leave.id, {
         status: 'APPROVED',
-        reviewNote: '主管核准',
+        reviewNote: t('attendanceLeave.defaultApproveNote', '主管核准'),
         adminUser: user,
         originalLeave: leave
       });
       showToast(t('attendanceLeave.toastApproveSuccess', '已批准员工休假申请'));
     } catch (err) {
       console.error('Failed to approve leave:', err);
-      showToast(err.message || '审批失败');
+      showToast(err.message || t('attendanceLeave.toastApproveFailed', '审批失败'));
     } finally {
       setIsProcessingLeave(false);
     }
@@ -902,7 +959,7 @@ export default function AnalyticsPage() {
       setIsProcessingLeave(true);
       await FirestoreStore.reviewAttendanceLeave(teamId, leaveTargetToReject.id, {
         status: 'REJECTED',
-        reviewNote: leaveRejectReason.trim() || '主管驳回',
+        reviewNote: leaveRejectReason.trim() || t('attendanceLeave.defaultRejectNote', '主管驳回'),
         adminUser: user,
         originalLeave: leaveTargetToReject
       });
@@ -911,7 +968,7 @@ export default function AnalyticsPage() {
       setLeaveTargetToReject(null);
     } catch (err) {
       console.error('Failed to reject leave:', err);
-      showToast(err.message || '驳回失败');
+      showToast(err.message || t('attendanceLeave.toastRejectFailed', '驳回失败'));
     } finally {
       setIsProcessingLeave(false);
     }
@@ -959,8 +1016,22 @@ export default function AnalyticsPage() {
     let missingPunchDays = 0;
     let wfhDays = 0;
     let manualAddedDays = 0;
+    let approvedLeaveDays = 0;
+    let fullLeaveDaysElapsed = 0;
 
     myMonthlyAttendance.forEach(item => {
+      if (item.shiftAnalysis?.isOnFullLeave || (item.shiftAnalysis?.isOnLeave && !item.manualClockIn && !item.manualClockOut)) {
+        approvedLeaveDays += 1;
+        const dObj = item.date ? new Date(item.date + 'T00:00:00') : null;
+        const isWk = dObj ? (dObj.getDay() === 0 || dObj.getDay() === 6) : false;
+        if (!isWk) {
+          fullLeaveDaysElapsed += 1;
+        }
+        return;
+      }
+      if (item.shiftAnalysis?.isHalfAm || item.shiftAnalysis?.isHalfPm) {
+        approvedLeaveDays += 0.5;
+      }
       daysPresent += 1;
       const isWfh = item.verifyMethod === 'WFH' || (item.allPunches && item.allPunches.some(p => p.verifyMethod === 'WFH'));
       if (isWfh) wfhDays += 1;
@@ -978,6 +1049,19 @@ export default function AnalyticsPage() {
       return isMe && a.status === 'PENDING' && (!myAttendanceMonth || a.date?.startsWith(myAttendanceMonth));
     }).length;
 
+    const pendingLeaveCount = attendanceLeaves.filter(l => {
+      const isMe = l.userId === user?.uid || (user?.email && l.userEmail?.toLowerCase() === user.email.toLowerCase());
+      return isMe && l.status === 'PENDING';
+    }).length;
+
+    // Requirement 3: 前端页面 UI 面板出勤率统计与 Excel 导出完全一致
+    const { year, month } = parseTargetYearMonth(myAttendanceMonth);
+    const calMeta = getMonthCalendarMeta(year, month);
+    const effectiveExpectedDays = Math.max(1, calMeta.elapsedWorkingDays - fullLeaveDaysElapsed);
+    const attendanceRate = calMeta.elapsedWorkingDays > 0
+      ? Math.min(100, Number(((daysPresent / effectiveExpectedDays) * 100).toFixed(1)))
+      : 0;
+
     return {
       daysPresent,
       fullShiftDays,
@@ -985,9 +1069,16 @@ export default function AnalyticsPage() {
       missingPunchDays,
       wfhDays,
       manualAddedDays,
-      pendingCount
+      approvedLeaveDays,
+      fullLeaveDaysElapsed,
+      elapsedWorkingDays: calMeta.elapsedWorkingDays,
+      totalWorkingDays: calMeta.totalWorkingDays,
+      effectiveExpectedDays,
+      attendanceRate,
+      pendingCount,
+      pendingLeaveCount
     };
-  }, [myMonthlyAttendance, attendanceAppeals, user, myAttendanceMonth]);
+  }, [myMonthlyAttendance, attendanceAppeals, attendanceLeaves, user, myAttendanceMonth]);
 
   // Modal Handlers
   const handleOpenAppealModal = (record) => {
@@ -1736,7 +1827,11 @@ export default function AnalyticsPage() {
             action: 'SHIFT_OVERRIDE_RESET',
             targetType: 'ATTENDANCE',
             targetName: overrideTargetRecord.picName,
-            details: `主管 ${user?.email || '管理员'} 清除了 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的人工改派班次，恢复系统自动核定。`
+            details: t('attendanceAudit.logClearOverride', {
+              actor: user?.email || t('attendanceAudit.roleAdmin', '管理员'),
+              pic: overrideTargetRecord.picName,
+              date: overrideTargetRecord.date
+            }, `主管 ${user?.email || '管理员'} 清除了 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的人工改派班次，恢复系统自动核定。`)
           });
         } catch (_) {}
         showToast(t('analytics.overrideResetToast', '已恢复系统自动核定班次'));
@@ -1755,7 +1850,7 @@ export default function AnalyticsPage() {
           startTime: targetShift.startTime,
           endTime: targetShift.endTime,
           reason: overrideReasonInput.trim() || t('analytics.defaultOverrideReason', '主管特批调整'),
-          overrideBy: user?.email || userProfile?.displayName || '主管',
+          overrideBy: user?.email || userProfile?.displayName || t('attendanceAudit.roleManager', '主管'),
           overrideAt: new Date().toISOString()
         };
 
@@ -1766,7 +1861,13 @@ export default function AnalyticsPage() {
             action: 'SHIFT_OVERRIDE',
             targetType: 'ATTENDANCE',
             targetName: overrideTargetRecord.picName,
-            details: `主管 ${user?.email || '管理员'} 将 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的班次调整为【${targetShift.name}】。原因：${overrideReasonInput.trim() || '主管特批'}`
+            details: t('attendanceAudit.logSetOverride', {
+              actor: user?.email || t('attendanceAudit.roleAdmin', '管理员'),
+              pic: overrideTargetRecord.picName,
+              date: overrideTargetRecord.date,
+              shift: targetShift.name,
+              reason: overrideReasonInput.trim() || t('attendanceAudit.defaultOverrideReason', '主管特批')
+            }, `主管 ${user?.email || '管理员'} 将 ${overrideTargetRecord.picName} 在 ${overrideTargetRecord.date} 的班次调整为【${targetShift.name}】。原因：${overrideReasonInput.trim() || '主管特批'}`)
           });
         } catch (_) {}
 
@@ -2432,6 +2533,22 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
+                {/* 1.5. Monthly Attendance Rate (Synced with Excel Export) */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-chart-pie-slice" style={{ color: '#c084fc', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statAttendanceRate', '月度出勤率')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: '#c084fc', fontFamily: 'monospace' }}>
+                      {myStats.attendanceRate}%
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      {t('analytics.statAttendanceRateSub', { expected: myStats.effectiveExpectedDays, leaves: myStats.fullLeaveDaysElapsed }, `计准应出勤 ${myStats.effectiveExpectedDays} 天 (已扣减休假 ${myStats.fullLeaveDaysElapsed} 天)`)}
+                    </div>
+                  </div>
+                </div>
+
                 {/* 2. Full Shift Compliant */}
                 <div className="bezel-shell">
                   <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
@@ -2511,6 +2628,24 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* 7. Approved Leaves */}
+                <div className="bezel-shell">
+                  <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <i className="ph-bold ph-calendar-minus" style={{ color: 'var(--accent-emerald)', fontSize: '18px' }}></i>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statLeavesCount', '休假天数')}</span>
+                    </div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                      {myStats.approvedLeaveDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                      {myStats.pendingLeaveCount > 0
+                        ? t('analytics.statLeavesPendingCount', { count: myStats.pendingLeaveCount }, `${myStats.pendingLeaveCount} 件休假待审核`)
+                        : t('analytics.statLeavesApprovedDesc', '获批自动免打卡')}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* My Attendance Daily Records Table */}
@@ -2584,9 +2719,15 @@ export default function AnalyticsPage() {
                                 {/* Clock In */}
                                 <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                      {firstTimeStr}
-                                    </span>
+                                    {item.shiftAnalysis?.isOnFullLeave && !item.manualClockIn ? (
+                                      <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                        {t('analytics.leaveExemptedIn', '休假免签到')}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                        {firstTimeStr}
+                                      </span>
+                                    )}
                                     {isInManual && (
                                       <span
                                         style={{
@@ -2602,7 +2743,7 @@ export default function AnalyticsPage() {
                                           alignItems: 'center',
                                           gap: '2px'
                                         }}
-                                        title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                        title={item.clockInPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockInPunch.manualEntry.addedByName, email: item.clockInPunch.manualEntry.addedByEmail, time: item.clockInPunch.manualEntry.addedAt || '', reason: item.clockInPunch.manualEntry.reason || t('common.none', '无') }, `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                       >
                                         <i className="ph-bold ph-wrench"></i>
                                         {t('analytics.badgeAdminManual', '补录')}
@@ -2638,13 +2779,17 @@ export default function AnalyticsPage() {
                                             alignItems: 'center',
                                             gap: '2px'
                                           }}
-                                          title={item.clockOutPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                          title={item.clockOutPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockOutPunch.manualEntry.addedByName, email: item.clockOutPunch.manualEntry.addedByEmail, time: item.clockOutPunch.manualEntry.addedAt || '', reason: item.clockOutPunch.manualEntry.reason || t('common.none', '无') }, `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                         >
                                           <i className="ph-bold ph-wrench"></i>
                                           {t('analytics.badgeAdminManual', '补录')}
                                         </span>
                                       )}
                                     </div>
+                                  ) : item.shiftAnalysis?.isOnFullLeave ? (
+                                    <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                      {t('analytics.leaveExemptedOut', '休假免签退')}
+                                    </span>
                                   ) : (
                                     <span style={{ color: item.isToday ? 'var(--accent-amber)' : '#f87171', fontSize: '12px' }}>
                                       {item.isToday ? t('attendanceModal.pendingClockOut', '待签退') : t('analytics.statusMissedOutShort', '未签退(缺卡)')}
@@ -2695,7 +2840,23 @@ export default function AnalyticsPage() {
 
                                 {/* Appeal / Action */}
                                 <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
-                                  {appeal ? (
+                                  {item.shiftAnalysis?.isOnFullLeave ? (
+                                    <span style={{
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      color: 'var(--accent-emerald)',
+                                      background: 'rgba(16, 185, 129, 0.12)',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}>
+                                      <i className="ph-bold ph-calendar-minus"></i>
+                                      {t('attendanceLeave.badgeOnLeave', '休假免考勤')}
+                                    </span>
+                                  ) : appeal ? (
                                     appeal.status === 'PENDING' ? (
                                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                         <span style={{
@@ -2744,7 +2905,7 @@ export default function AnalyticsPage() {
                                             borderRadius: '4px',
                                             cursor: 'help'
                                           }}
-                                          title={`驳回原因: ${appeal.reviewNote || '无'}`}
+                                          title={t('attendanceAudit.rejectionReasonTooltip', { reason: appeal.reviewNote || t('common.none', '无') }, `驳回原因: ${appeal.reviewNote || '无'}`)}
                                         >
                                           🔴 {t('attendanceAppeal.statusRejectedBadge', '已驳回')}
                                         </span>
@@ -3318,9 +3479,15 @@ export default function AnalyticsPage() {
                                   </td>
                                   <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                        {firstTimeStr}
-                                      </span>
+                                      {item.shiftAnalysis?.isOnFullLeave && !item.manualClockIn ? (
+                                        <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                          {t('analytics.leaveExemptedIn', '休假免签到')}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                          {firstTimeStr}
+                                        </span>
+                                      )}
                                       {isClockInManual && (
                                         <span
                                           style={{
@@ -3336,7 +3503,7 @@ export default function AnalyticsPage() {
                                             alignItems: 'center',
                                             gap: '2px'
                                           }}
-                                          title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                          title={item.clockInPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockInPunch.manualEntry.addedByName, email: item.clockInPunch.manualEntry.addedByEmail, time: item.clockInPunch.manualEntry.addedAt || '', reason: item.clockInPunch.manualEntry.reason || t('common.none', '无') }, `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                         >
                                           <i className="ph-bold ph-wrench"></i>
                                           {t('analytics.badgeAdminManual', '补录')}
@@ -3402,6 +3569,10 @@ export default function AnalyticsPage() {
                                           </span>
                                         )}
                                       </div>
+                                    ) : item.shiftAnalysis?.isOnFullLeave ? (
+                                      <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                        {t('analytics.leaveExemptedOut', '休假免签退')}
+                                      </span>
                                     ) : (
                                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                                     )}
@@ -3409,12 +3580,32 @@ export default function AnalyticsPage() {
                                   <td style={{ padding: 'var(--space-3) var(--space-3)', color: 'var(--text-secondary)' }}>
                                     {item.manualClockOut && item.durationHours !== null && item.durationHours !== undefined ? (
                                       item.durationHours > 0 ? `${item.durationHours} ${t('analytics.unitHours', '小时')}` : t('analytics.unitJustNow', '< 0.1 小时 (刚签到)')
+                                    ) : item.shiftAnalysis?.isOnFullLeave ? (
+                                      <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                        {t('analytics.leaveExemptedOut', '休假免签退')}
+                                      </span>
                                     ) : (
                                       <span style={{ color: 'var(--text-muted)' }}>-</span>
                                     )}
                                   </td>
                                   <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
-                                    {item.verifyMethod === 'WFH' ? (
+                                    {item.verifyMethod === 'LEAVE' || item.shiftAnalysis?.isOnFullLeave ? (
+                                      <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        color: 'var(--accent-emerald)',
+                                        background: 'rgba(16, 185, 129, 0.15)',
+                                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}>
+                                        <i className="ph-bold ph-calendar-minus"></i>
+                                        {t('analytics.methodLeave', '获批休假 (Leave)')}
+                                      </span>
+                                    ) : item.verifyMethod === 'WFH' ? (
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',

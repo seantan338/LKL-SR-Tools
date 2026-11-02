@@ -8,7 +8,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
-import { ExcelExporter, isAccountExcluded, deduplicateDayEvents } from '../../../lib/excel-exporter';
+import { ExcelExporter, isAccountExcluded, deduplicateDayEvents, parseTargetYearMonth, getMonthCalendarMeta } from '../../../lib/excel-exporter';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
 import { SystemLogger } from '../../../lib/logger';
 import { 
@@ -218,6 +218,7 @@ export default function LeaderboardPage() {
         shiftOverrides: attendanceRules?.shiftOverrides || {},
         excludedAccounts: attendanceRules?.excludedAccounts || [],
         hideZeroAttendance: Boolean(attendanceRules?.hideZeroAttendanceInReport),
+        attendanceLeaves: attendanceLeaves || [],
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -511,6 +512,45 @@ export default function LeaderboardPage() {
       }
     });
 
+    // 注入已审批通过的休假记录（确保获批休假人员被正确识别，且过滤掉未来预批假单）
+    const approvedLeaves = (attendanceLeaves || []).filter(l => l && l.status === 'APPROVED');
+    approvedLeaves.forEach(leave => {
+      const sDate = String(leave.startDate || '').trim();
+      const eDate = String(leave.endDate || sDate).trim();
+      if (!sDate) return;
+
+      const canonical = resolveCanonicalPic(leave.picName || leave.userName || leave.userEmail, leave.userId, teamMembers);
+      if (!isHqAdvisor(canonical)) return;
+
+      if (isAccountExcluded({ uid: canonical.uid, email: canonical.email || leave.userEmail, name: canonical.displayName }, attendanceRules?.excludedAccounts)) {
+        return;
+      }
+
+      const targetKey = canonical.uid || canonical.key;
+      const rec = map[targetKey];
+      if (!rec) return;
+
+      const cur = new Date(sDate + 'T00:00:00');
+      const end = new Date(eDate + 'T00:00:00');
+      while (cur <= end) {
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        // CRITICAL (Requirement 2): 严格过滤大于今天的未来预批假单，并检查日期区间
+        if (dStr <= todayStr && isDateInRange(cur)) {
+          if (!rec.dayRecords[dStr]) {
+            rec.dayRecords[dStr] = {
+              events: [],
+              isWfh: false,
+              isLeaveOnly: true,
+              leaveRecord: leave
+            };
+          } else {
+            rec.dayRecords[dStr].leaveRecord = leave;
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
     const shiftConfig = attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG;
     const shiftOverrides = attendanceRules?.shiftOverrides || {};
 
@@ -695,7 +735,8 @@ export default function LeaderboardPage() {
       const end = new Date(eDate + 'T00:00:00');
       while (cur <= end) {
         const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
-        if (!myAttendanceMonth || dStr.startsWith(myAttendanceMonth)) {
+        // CRITICAL (Requirement 2): 严格过滤大于今天的未来预批假单，避免预批假单提前进入当期流水
+        if (dStr <= todayStr && (!myAttendanceMonth || dStr.startsWith(myAttendanceMonth))) {
           if (!dailyMap[dStr]) {
             dailyMap[dStr] = {
               date: dStr,
@@ -738,23 +779,23 @@ export default function LeaderboardPage() {
       const isWfh = cleanEvents.some(e => e.verifyMethod === 'WFH' || e.verifySnapshot?.method === 'WFH');
 
       let statusColor = 'var(--text-muted)';
-      let statusLabel = analysis.complianceLabel || (isEn ? 'Normal' : '正常');
+      let statusLabel = analysis.complianceLabel || t('attendanceAudit.statusNormal', '正常');
 
       if (analysis.isOnLeave || analysis.compliance === 'ON_LEAVE') {
         statusColor = 'var(--accent-emerald)';
-        statusLabel = analysis.complianceLabel || (isEn ? 'On Leave' : '获批休假');
+        statusLabel = analysis.complianceLabel || t('attendanceAudit.statusOnLeave', '获批休假');
       } else if (day.isToday && (analysis.isInProgress || analysis.compliance === 'IN_PROGRESS')) {
         statusColor = 'var(--accent-blue)';
-        statusLabel = isEn ? 'On Duty' : '在岗工作中';
+        statusLabel = t('attendanceAudit.statusOnDuty', '在岗工作中');
       } else if (analysis.isMissingPunch) {
         statusColor = 'var(--accent-amber)';
-        statusLabel = isEn ? 'Missing Punch' : '未签退(缺卡)';
+        statusLabel = t('attendanceAudit.statusMissedOut', '未签退(缺卡)');
       } else if (analysis.isViolation || analysis.isLate) {
         statusColor = '#f87171';
-        statusLabel = analysis.complianceLabel || (isEn ? 'Late' : '迟到违规');
+        statusLabel = analysis.complianceLabel || t('attendanceAudit.statusLate', '迟到违规');
       } else if (analysis.isCompliant) {
         statusColor = 'var(--accent-emerald)';
-        statusLabel = analysis.complianceLabel || (isEn ? 'Compliant' : '已达标');
+        statusLabel = analysis.complianceLabel || t('attendanceAudit.statusCompliant', '已达标');
       }
 
       return {
@@ -823,11 +864,20 @@ export default function LeaderboardPage() {
     let wfhDays = 0;
     let manualAddedDays = 0;
     let approvedLeaveDays = 0;
+    let fullLeaveDaysElapsed = 0;
 
     myMonthlyAttendance.forEach(item => {
-      if (item.analysis?.isOnLeave || item.analysis?.compliance === 'ON_LEAVE') {
+      if (item.analysis?.isOnFullLeave || (item.analysis?.isOnLeave && !item.clockInPunch && !item.clockOutPunch)) {
         approvedLeaveDays += 1;
+        const dObj = item.dateObj || (item.date ? new Date(item.date + 'T00:00:00') : null);
+        const isWk = dObj ? (dObj.getDay() === 0 || dObj.getDay() === 6) : false;
+        if (!isWk) {
+          fullLeaveDaysElapsed += 1;
+        }
         return;
+      }
+      if (item.analysis?.isHalfAm || item.analysis?.isHalfPm) {
+        approvedLeaveDays += 0.5;
       }
       daysPresent += 1;
       if (item.isWfh) wfhDays += 1;
@@ -840,6 +890,14 @@ export default function LeaderboardPage() {
     const pendingCount = myAppealsList.filter(a => a.status === 'PENDING' && (!myAttendanceMonth || a.date?.startsWith(myAttendanceMonth))).length;
     const pendingLeaveCount = myLeavesList.filter(l => l.status === 'PENDING').length;
 
+    // Requirement 3: 前端页面 UI 面板出勤率统计与 Excel 导出完全一致
+    const { year, month } = parseTargetYearMonth(myAttendanceMonth);
+    const calMeta = getMonthCalendarMeta(year, month);
+    const effectiveExpectedDays = Math.max(1, calMeta.elapsedWorkingDays - fullLeaveDaysElapsed);
+    const attendanceRate = calMeta.elapsedWorkingDays > 0
+      ? Math.min(100, Number(((daysPresent / effectiveExpectedDays) * 100).toFixed(1)))
+      : 0;
+
     return {
       daysPresent,
       fullShiftDays,
@@ -848,6 +906,11 @@ export default function LeaderboardPage() {
       wfhDays,
       manualAddedDays,
       approvedLeaveDays,
+      fullLeaveDaysElapsed,
+      elapsedWorkingDays: calMeta.elapsedWorkingDays,
+      totalWorkingDays: calMeta.totalWorkingDays,
+      effectiveExpectedDays,
+      attendanceRate,
       pendingCount,
       pendingLeaveCount
     };
@@ -1776,6 +1839,22 @@ export default function LeaderboardPage() {
             </div>
           </div>
 
+          {/* 1.5. Monthly Attendance Rate (Synced with Excel Export) */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-chart-pie-slice" style={{ color: '#c084fc', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statAttendanceRate', '月度出勤率')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#c084fc', fontFamily: 'monospace' }}>
+                {myStats.attendanceRate}%
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {t('analytics.statAttendanceRateSub', { expected: myStats.effectiveExpectedDays, leaves: myStats.fullLeaveDaysElapsed }, `计准应出勤 ${myStats.effectiveExpectedDays} 天 (已扣减休假 ${myStats.fullLeaveDaysElapsed} 天)`)}
+              </div>
+            </div>
+          </div>
+
           {/* 2. Full Shift Compliant */}
           <div className="bezel-shell">
             <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
@@ -2217,9 +2296,15 @@ export default function LeaderboardPage() {
                           {/* Clock In */}
                           <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                {firstTimeStr}
-                              </span>
+                              {item.analysis?.isOnFullLeave && !item.clockInPunch ? (
+                                <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                  {t('analytics.leaveExemptedIn', '休假免签到')}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                  {firstTimeStr}
+                                </span>
+                              )}
                               {isInManual && (
                                 <span
                                   style={{
@@ -2235,7 +2320,7 @@ export default function LeaderboardPage() {
                                     alignItems: 'center',
                                     gap: '2px'
                                   }}
-                                  title={item.clockInPunch?.manualEntry ? (isEn ? `[Admin manual entry]\nAdded by: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\nTime: ${item.clockInPunch.manualEntry.addedAt || ''}\nReason: ${item.clockInPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}`) : (isEn ? 'Admin manual entry' : '管理员手动补录')}
+                                  title={item.clockInPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockInPunch.manualEntry.addedByName, email: item.clockInPunch.manualEntry.addedByEmail, time: item.clockInPunch.manualEntry.addedAt || '', reason: item.clockInPunch.manualEntry.reason || t('common.none', '无') }, isEn ? `[Admin manual entry]\nAdded by: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\nTime: ${item.clockInPunch.manualEntry.addedAt || ''}\nReason: ${item.clockInPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                 >
                                   <i className="ph-bold ph-wrench"></i>
                                   {t('analytics.badgeAdminManual', '补录')}
@@ -2272,13 +2357,17 @@ export default function LeaderboardPage() {
                                       alignItems: 'center',
                                       gap: '2px'
                                     }}
-                                    title={item.clockOutPunch?.manualEntry ? (isEn ? `[Admin manual entry]\nAdded by: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\nTime: ${item.clockOutPunch.manualEntry.addedAt || ''}\nReason: ${item.clockOutPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}`) : (isEn ? 'Admin manual entry' : '管理员手动补录')}
+                                    title={item.clockOutPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockOutPunch.manualEntry.addedByName, email: item.clockOutPunch.manualEntry.addedByEmail, time: item.clockOutPunch.manualEntry.addedAt || '', reason: item.clockOutPunch.manualEntry.reason || t('common.none', '无') }, isEn ? `[Admin manual entry]\nAdded by: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\nTime: ${item.clockOutPunch.manualEntry.addedAt || ''}\nReason: ${item.clockOutPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                   >
                                     <i className="ph-bold ph-wrench"></i>
                                     {t('analytics.badgeAdminManual', '补录')}
                                   </span>
                                 )}
                               </div>
+                            ) : item.analysis?.isOnFullLeave ? (
+                              <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                {t('analytics.leaveExemptedOut', '休假免签退')}
+                              </span>
                             ) : (
                               <span style={{ color: item.isToday ? 'var(--accent-amber)' : '#f87171', fontSize: '12px' }}>
                                 {item.isToday ? t('attendanceModal.pendingClockOut', '在岗工作中') : t('analytics.statusMissedOutShort', '未签退(缺卡)')}

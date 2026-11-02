@@ -47,6 +47,15 @@ export const CASCADE_I18N = {
     onLeaveNote: (typeLabel, reason) => `已获批全天${typeLabel}${reason ? ' (' + reason + ')' : ''}`,
     halfDayAmTag: '[上午请假]',
     halfDayPmTag: '[下午请假]',
+    absentMissingPm: ' (下午缺卡)',
+    absentMissingAm: ' (上午缺卡)',
+    leaveAmMissingPmNote: (type) => `上午已获批休假 (${type})，但下午应到班次无打卡记录`,
+    leavePmMissingAmNote: (type) => `下午已获批休假 (${type})，但上午应到班次无打卡记录`,
+    leavePmMissedDepartureNote: (inTime) => `已完成上班签到(${inTime})，下午获批休假，但离岗未打下班卡`,
+    leaveAmMissedOutNote: (inTime) => `上午获批休假，下午已签到(${inTime})，下班未打卡`,
+    leavePmDutyInProgress: '今日进行中 (下午已获批休假)',
+    leaveAmMissedPmInNote: (outTime) => `上午获批休假，已记录下班签退(${outTime})，但下午上班缺卡`,
+    leavePmMissedAmInNote: (outTime) => `下午获批休假，已记录离岗签退(${outTime})，但上午上班缺卡`,
     leaveTypes: {
       ANNUAL: '年假(AL)',
       SICK: '病假(MC)',
@@ -86,6 +95,15 @@ export const CASCADE_I18N = {
     onLeaveNote: (typeLabel, reason) => `Approved Full-Day ${typeLabel}${reason ? ' (' + reason + ')' : ''}`,
     halfDayAmTag: '[AM Leave]',
     halfDayPmTag: '[PM Leave]',
+    absentMissingPm: ' (PM Missing Punch)',
+    absentMissingAm: ' (AM Missing Punch)',
+    leaveAmMissingPmNote: (type) => `Approved AM Leave (${type}), but absent for PM shift`,
+    leavePmMissingAmNote: (type) => `Approved PM Leave (${type}), but absent for AM shift`,
+    leavePmMissedDepartureNote: (inTime) => `Clock-in recorded (${inTime}), approved PM leave, but missed departure clock-out`,
+    leaveAmMissedOutNote: (inTime) => `Approved AM leave, PM clock-in recorded (${inTime}), missed clock-out`,
+    leavePmDutyInProgress: 'On duty (Approved PM Leave)',
+    leaveAmMissedPmInNote: (outTime) => `Approved AM leave, clock-out recorded (${outTime}), missed PM clock-in`,
+    leavePmMissedAmInNote: (outTime) => `Approved PM leave, departure recorded (${outTime}), missed morning clock-in`,
     leaveTypes: {
       ANNUAL: 'Annual(AL)',
       SICK: 'Sick(MC)',
@@ -343,6 +361,9 @@ export class CascadeShiftEngine {
       return {
         hasAttendance: false,
         isOnLeave: true,
+        isOnFullLeave: true,
+        isHalfAm: false,
+        isHalfPm: false,
         leaveRecord,
         leaveType: leaveRecord.leaveType,
         leaveDurationType: 'FULL_DAY',
@@ -367,9 +388,45 @@ export class CascadeShiftEngine {
       };
     }
 
+    // 获批半天休假但全天零打卡：另外半天工作时段旷工缺卡，不得掩盖
+    if (leaveRecord && leaveRecord.status === 'APPROVED' && (leaveRecord.durationType === 'HALF_AM' || leaveRecord.durationType === 'HALF_PM') && (!Array.isArray(dayEvents) || dayEvents.length === 0)) {
+      const isAm = leaveRecord.durationType === 'HALF_AM';
+      const typeLabel = labels.leaveTypes?.[leaveRecord.leaveType] || leaveRecord.leaveType || '';
+      return {
+        hasAttendance: false,
+        isOnLeave: true,
+        isOnFullLeave: false,
+        isHalfAm: isAm,
+        isHalfPm: !isAm,
+        leaveRecord,
+        leaveType: leaveRecord.leaveType,
+        leaveDurationType: leaveRecord.durationType,
+        firstIn: null,
+        lastOut: null,
+        clockInStr: labels.notClocked,
+        clockOutStr: labels.notClocked,
+        shift: manualShift || null,
+        durationHours: null,
+        compliance: 'ABSENT',
+        complianceLabel: `${labels.absent}${isAm ? labels.absentMissingPm : labels.absentMissingAm}`,
+        isCompliant: false,
+        isViolation: true,
+        isMissingPunch: true,
+        isLate: false,
+        note: isAm ? labels.leaveAmMissingPmNote(typeLabel) : labels.leavePmMissingAmNote(typeLabel)
+      };
+    }
+
     if (!Array.isArray(dayEvents) || dayEvents.length === 0) {
       return {
         hasAttendance: false,
+        isOnLeave: false,
+        isOnFullLeave: false,
+        isHalfAm: false,
+        isHalfPm: false,
+        leaveRecord: null,
+        leaveType: null,
+        leaveDurationType: null,
         firstIn: null,
         lastOut: null,
         clockInStr: labels.notClocked,
@@ -401,6 +458,9 @@ export class CascadeShiftEngine {
         return {
           hasAttendance: false,
           isOnLeave: true,
+          isOnFullLeave: true,
+          isHalfAm: false,
+          isHalfPm: false,
           leaveRecord,
           leaveType: leaveRecord.leaveType,
           leaveDurationType: 'FULL_DAY',
@@ -425,8 +485,43 @@ export class CascadeShiftEngine {
         };
       }
 
+      if (leaveRecord && leaveRecord.status === 'APPROVED' && (leaveRecord.durationType === 'HALF_AM' || leaveRecord.durationType === 'HALF_PM')) {
+        const isAm = leaveRecord.durationType === 'HALF_AM';
+        const typeLabel = labels.leaveTypes?.[leaveRecord.leaveType] || leaveRecord.leaveType || '';
+        return {
+          hasAttendance: false,
+          isOnLeave: true,
+          isOnFullLeave: false,
+          isHalfAm: isAm,
+          isHalfPm: !isAm,
+          leaveRecord,
+          leaveType: leaveRecord.leaveType,
+          leaveDurationType: leaveRecord.durationType,
+          firstIn: null,
+          lastOut: null,
+          clockInStr: labels.notClocked,
+          clockOutStr: labels.notClocked,
+          shift: manualShift || null,
+          durationHours: null,
+          compliance: 'ABSENT',
+          complianceLabel: `${labels.absent}${isAm ? labels.absentMissingPm : labels.absentMissingAm}`,
+          isCompliant: false,
+          isViolation: true,
+          isMissingPunch: true,
+          isLate: false,
+          note: isAm ? labels.leaveAmMissingPmNote(typeLabel) : labels.leavePmMissingAmNote(typeLabel)
+        };
+      }
+
       return {
         hasAttendance: false,
+        isOnLeave: false,
+        isOnFullLeave: false,
+        isHalfAm: false,
+        isHalfPm: false,
+        leaveRecord: null,
+        leaveType: null,
+        leaveDurationType: null,
         firstIn: null,
         lastOut: null,
         clockInStr: labels.notClocked,
@@ -502,9 +597,22 @@ export class CascadeShiftEngine {
     // 3. 场景 A：只有签到，无签退（解决忘记打卡痛点，严禁签退伪造成签到时间）
     if (firstIn && !lastOut) {
       const shift = resolveCurrentShift(firstIn);
+      const missedNote = isHalfPm
+        ? labels.leavePmMissedDepartureNote(this.formatTime(firstIn))
+        : isHalfAm
+          ? labels.leaveAmMissedOutNote(this.formatTime(firstIn))
+          : labels.missedOutNote(this.formatTime(firstIn));
+
       if (isToday) {
         return {
           hasAttendance: true,
+          isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+          isOnFullLeave: false,
+          isHalfAm,
+          isHalfPm,
+          leaveRecord: leaveRecord || null,
+          leaveType: leaveRecord?.leaveType || null,
+          leaveDurationType: leaveRecord?.durationType || null,
           firstIn,
           lastOut: null,
           clockInStr: this.formatTime(firstIn),
@@ -518,11 +626,18 @@ export class CascadeShiftEngine {
           isViolation: Boolean(shift.isLateArrival),
           isMissingPunch: false,
           isLate: Boolean(shift.isLateArrival),
-          note: labels.inProgressNote
+          note: isHalfPm ? labels.leavePmDutyInProgress : labels.inProgressNote
         };
       }
       return {
         hasAttendance: true,
+        isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+        isOnFullLeave: false,
+        isHalfAm,
+        isHalfPm,
+        leaveRecord: leaveRecord || null,
+        leaveType: leaveRecord?.leaveType || null,
+        leaveDurationType: leaveRecord?.durationType || null,
         firstIn,
         lastOut: null,
         clockInStr: this.formatTime(firstIn),
@@ -536,14 +651,27 @@ export class CascadeShiftEngine {
         isViolation: Boolean(shift.isLateArrival),
         isMissingPunch: true,
         isLate: Boolean(shift.isLateArrival),
-        note: labels.missedOutNote(this.formatTime(firstIn))
+        note: missedNote
       };
     }
 
     // 4. 场景 B：只有签退，无签到
     if (!firstIn && lastOut) {
+      const missedInNote = isHalfAm
+        ? labels.leaveAmMissedPmInNote(this.formatTime(lastOut))
+        : isHalfPm
+          ? labels.leavePmMissedAmInNote(this.formatTime(lastOut))
+          : labels.missedInNote(this.formatTime(lastOut));
+
       return {
         hasAttendance: true,
+        isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+        isOnFullLeave: false,
+        isHalfAm,
+        isHalfPm,
+        leaveRecord: leaveRecord || null,
+        leaveType: leaveRecord?.leaveType || null,
+        leaveDurationType: leaveRecord?.durationType || null,
         firstIn: null,
         lastOut,
         clockInStr: labels.notClockedMissed,
@@ -557,7 +685,7 @@ export class CascadeShiftEngine {
         isViolation: false,
         isMissingPunch: true,
         isLate: false,
-        note: labels.missedInNote(this.formatTime(lastOut))
+        note: missedInNote
       };
     }
 
@@ -569,6 +697,13 @@ export class CascadeShiftEngine {
     if (durationMinutes < 30) {
       return {
         hasAttendance: true,
+        isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+        isOnFullLeave: false,
+        isHalfAm,
+        isHalfPm,
+        leaveRecord: leaveRecord || null,
+        leaveType: leaveRecord?.leaveType || null,
+        leaveDurationType: leaveRecord?.durationType || null,
         firstIn,
         lastOut,
         clockInStr: this.formatTime(firstIn),
@@ -604,6 +739,13 @@ export class CascadeShiftEngine {
 
       return {
         hasAttendance: true,
+        isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+        isOnFullLeave: false,
+        isHalfAm,
+        isHalfPm,
+        leaveRecord: leaveRecord || null,
+        leaveType: leaveRecord?.leaveType || null,
+        leaveDurationType: leaveRecord?.durationType || null,
         firstIn,
         lastOut,
         clockInStr: this.formatTime(firstIn),
@@ -616,7 +758,7 @@ export class CascadeShiftEngine {
         isViolation: true,
         isMissingPunch: false,
         isLate: true, // 按老板要求统一计为迟到
-        note: labels.earlyLeaveNote(shift.endStr, earlyDesc)
+        note: labels.earlyLeaveNote(isHalfPm ? '12:30:00' : shift.endStr, earlyDesc)
       };
     }
 
@@ -624,6 +766,13 @@ export class CascadeShiftEngine {
     if (shift.isLateArrival && !shift.isOverridden) {
       return {
         hasAttendance: true,
+        isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+        isOnFullLeave: false,
+        isHalfAm,
+        isHalfPm,
+        leaveRecord: leaveRecord || null,
+        leaveType: leaveRecord?.leaveType || null,
+        leaveDurationType: leaveRecord?.durationType || null,
         firstIn,
         lastOut,
         clockInStr: this.formatTime(firstIn),
@@ -641,8 +790,16 @@ export class CascadeShiftEngine {
     }
 
     // 完美达标
+    const compliantSuffix = isHalfAm ? ` ${labels.halfDayAmTag}` : isHalfPm ? ` ${labels.halfDayPmTag}` : '';
     return {
       hasAttendance: true,
+      isOnLeave: Boolean(leaveRecord && leaveRecord.status === 'APPROVED'),
+      isOnFullLeave: false,
+      isHalfAm,
+      isHalfPm,
+      leaveRecord: leaveRecord || null,
+      leaveType: leaveRecord?.leaveType || null,
+      leaveDurationType: leaveRecord?.durationType || null,
       firstIn,
       lastOut,
       clockInStr: this.formatTime(firstIn),
@@ -650,7 +807,7 @@ export class CascadeShiftEngine {
       shift,
       durationHours,
       compliance: 'COMPLIANT',
-      complianceLabel: `${labels.compliant}${shift.isOverridden ? ` ${labels.overriddenTag}` : ''}`,
+      complianceLabel: `${labels.compliant}${shift.isOverridden ? ` ${labels.overriddenTag}` : ''}${compliantSuffix}`,
       isCompliant: true,
       isViolation: false,
       isMissingPunch: false,

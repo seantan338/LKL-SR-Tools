@@ -70,8 +70,9 @@ export default function AttendanceModal() {
 
   // 1.1 Subscribe to current user's approved attendance leaves
   useEffect(() => {
-    if (!teamId || !user?.uid) return;
-    const unsub = FirestoreStore.subscribeToAttendanceLeaves(teamId, setMyLeaves, user.uid);
+    if (!user?.uid) return;
+    const targetTeam = teamId || 'default_team';
+    const unsub = FirestoreStore.subscribeToAttendanceLeaves(targetTeam, setMyLeaves, user.uid);
     return () => unsub();
   }, [teamId, user?.uid]);
 
