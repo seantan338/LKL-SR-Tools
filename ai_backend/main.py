@@ -1063,6 +1063,7 @@ async def verify_attendance_endpoint(payload: AttendanceVerifyPayload, request: 
 
 
 
+@app.post("/api/claims/ocr")
 @app.post("/api/claims/ocr-receipt")
 async def ocr_claim_receipt(
     file: UploadFile = File(...),

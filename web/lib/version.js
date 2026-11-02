@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.30';
-export const BUILD_DATE = '2026-10-30';
-export const RELEASE_CODENAME = 'Dynamic Geofence Radius End-to-End Binding';
+export const APP_VERSION = 'v1.7.37';
+export const BUILD_DATE = '2026-11-02';
+export const RELEASE_CODENAME = 'Claims OCR Multi-Route Alias & Visual Receipt Upload Zone';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

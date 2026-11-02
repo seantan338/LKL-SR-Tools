@@ -121,6 +121,21 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
     });
   };
 
+  const handleRemoveReceiptAttachment = (index) => {
+    setItems(prev => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = {
+          ...copy[index],
+          receiptPreviewUrl: null,
+          receiptFileName: '',
+          ocrExtracted: false
+        };
+      }
+      return copy;
+    });
+  };
+
   // 触发 OCR 文件选择
   const triggerOcrUpload = (itemIndex) => {
     setActiveItemIndexForOcr(itemIndex);
@@ -139,6 +154,38 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
       return;
     }
 
+    // 生成本地预览
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        const previewUrl = loadEvt.target.result;
+        setItems(prev => {
+          const copy = [...prev];
+          if (copy[activeItemIndexForOcr]) {
+            copy[activeItemIndexForOcr] = {
+              ...copy[activeItemIndexForOcr],
+              receiptPreviewUrl: previewUrl,
+              receiptFileName: file.name
+            };
+          }
+          return copy;
+        });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setItems(prev => {
+        const copy = [...prev];
+        if (copy[activeItemIndexForOcr]) {
+          copy[activeItemIndexForOcr] = {
+            ...copy[activeItemIndexForOcr],
+            receiptPreviewUrl: null,
+            receiptFileName: file.name
+          };
+        }
+        return copy;
+      });
+    }
+
     setIsOcrLoading(true);
     try {
       const formData = new FormData();
@@ -149,9 +196,9 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
         body: formData
       });
 
-      const resJson = await res.json();
-      if (!resJson || !resJson.success || !resJson.data) {
-        throw new Error(resJson?.error || 'OCR Extraction failed');
+      const resJson = await res.json().catch(() => ({}));
+      if (!res.ok || !resJson || !resJson.success || !resJson.data) {
+        throw new Error(resJson?.error || resJson?.detail || `HTTP ${res.status}: OCR Extraction failed`);
       }
 
       const ocrData = resJson.data;
@@ -224,8 +271,11 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
           existingClaims,
           DEFAULT_CLAIMS_CONFIG
         );
+        // 剥离大体积 base64 预览图以符合 Firestore 1MB 单文档存储上限
+        const { receiptPreviewUrl, ...cleanItem } = it;
         return {
-          ...it,
+          ...cleanItem,
+          receiptFileName: it.receiptFileName || '',
           fingerprint: fp,
           warnings
         };
@@ -488,6 +538,104 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             </button>
                           )}
                         </div>
+                      </div>
+
+                      {/* Receipt Attached Card or Upload Dropzone */}
+                      <div style={{ marginBottom: '14px' }}>
+                        {item.receiptPreviewUrl || item.receiptFileName ? (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                              {item.receiptPreviewUrl ? (
+                                <img
+                                  src={item.receiptPreviewUrl}
+                                  alt="Receipt preview"
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    objectFit: 'cover',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    flexShrink: 0
+                                  }}
+                                />
+                              ) : (
+                                <div style={{
+                                  width: '38px',
+                                  height: '38px',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255, 255, 255, 0.08)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--text-secondary)',
+                                  flexShrink: 0
+                                }}>
+                                  <i className="ph-bold ph-file-text" style={{ fontSize: '20px' }}></i>
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                  {item.receiptFileName || '已关联发票图片 / Receipt attached'}
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--accent-emerald, #10b981)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <i className="ph-bold ph-check-circle"></i>
+                                  {t('claims.ocrSuccessBadge', '发票凭证已就绪 · AI 已提取字段')}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => triggerOcrUpload(idx)}
+                                className="btn btn-xs btn-ghost"
+                                style={{ fontSize: '11px', color: 'var(--accent-blue)' }}
+                              >
+                                {t('claims.reuploadBtn', '重新上传')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveReceiptAttachment(idx)}
+                                className="btn btn-xs btn-ghost"
+                                style={{ fontSize: '11px', color: 'var(--accent-red, #ef4444)' }}
+                              >
+                                {t('claims.removeAttachmentBtn', '移除')}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => triggerOcrUpload(idx)}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              border: '1px dashed rgba(255, 255, 255, 0.18)',
+                              background: 'rgba(255, 255, 255, 0.015)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <i className="ph-bold ph-receipt" style={{ color: 'var(--accent-blue)', fontSize: '16px' }}></i>
+                              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                {t('claims.uploadReceiptPrompt', '📷 点击上传发票或收据照片 · AI 自动识别并反填金额商户')}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '11px', color: 'var(--accent-blue)', fontWeight: '600' }}>
+                              {t('claims.selectFileAction', '选择文件 →')}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Item Main Form Fields */}

@@ -15,7 +15,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'No file uploaded / 未检测到上传文件' }, { status: 400 });
     }
 
-    const aiBackendBase = (process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000')
+    const aiBackendBase = (process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000')
       .trim()
       .replace(/\/+$/, '')
       .replace(/\/api$/, '');
