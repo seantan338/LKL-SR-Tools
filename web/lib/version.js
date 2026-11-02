@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.37';
+export const APP_VERSION = 'v1.7.38';
 export const BUILD_DATE = '2026-11-02';
-export const RELEASE_CODENAME = 'Claims OCR Multi-Route Alias & Visual Receipt Upload Zone';
+export const RELEASE_CODENAME = 'Fix Receipt OCR Parser Import and Alias Rollback Guard';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

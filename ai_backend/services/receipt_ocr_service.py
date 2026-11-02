@@ -9,7 +9,7 @@ try:
 except ImportError:
     from ..logger import logger
 
-from .core_llm import get_client, get_model_for_task, clean_json_response
+from .core_llm import get_client, get_model_for_task, safe_json_parse
 
 RECEIPT_OCR_PROMPT = """You are an expert OCR and financial expense analyst specializing in receipts, tax invoices, and travel vouchers across Malaysia (MYR), Singapore (SGD), and international currencies.
 
@@ -106,8 +106,7 @@ async def parse_receipt_image(file_bytes: bytes, filename: str, mime_type: str =
             max_tokens=2048
         )
         content = response.choices[0].message.content or "{}"
-        cleaned_json = clean_json_response(content)
-        data = json.loads(cleaned_json)
+        data = safe_json_parse(content)
         
         # 基础校验与补全
         data["totalAmount"] = round(float(data.get("totalAmount") or 0.0), 2)
