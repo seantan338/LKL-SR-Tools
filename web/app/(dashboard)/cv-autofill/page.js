@@ -226,6 +226,7 @@ function CvAutofillContent() {
 
   const [aiParseTab, setAiParseTab] = useState('file'); // 'file' | 'text'
   const [aiFile, setAiFile] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [aiText, setAiText] = useState('');
   const [isAiParsing, setIsAiParsing] = useState(false);
   const [aiParseError, setAiParseError] = useState('');
@@ -234,6 +235,35 @@ function CvAutofillContent() {
   const [missingAnalysis, setMissingAnalysis] = useState(null);
   const [rawParsedCv, setRawParsedCv] = useState(null);
   const fileInputRef = useRef(null);
+
+  const handleDropFile = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      setAiFile(file);
+      setAiParseError('');
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setIsDragging(false);
+  };
 
   // 人才库联动状态
   const [loadedCandidate, setLoadedCandidate] = useState(null);
@@ -251,6 +281,7 @@ function CvAutofillContent() {
     setFormData(mapped);
     setLoadedCandidate(cand);
     setAiFile(null);
+    setIsDragging(false);
     setAiText('');
     setAiParseError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -778,6 +809,7 @@ function CvAutofillContent() {
       setLoadedCandidate(null);
       router.replace('/cv-autofill');
       setAiFile(null);
+      setIsDragging(false);
       setAiText('');
       setMissingAnalysis(null);
       setRawParsedCv(null);
@@ -1044,17 +1076,53 @@ function CvAutofillContent() {
                   />
                   <div
                     onClick={() => fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDropFile}
                     style={{
-                      flex: 1, border: '2px dashed var(--border-interactive)', borderRadius: 'var(--radius-md)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      background: aiFile ? 'rgba(168, 85, 247, 0.05)' : 'rgba(0,0,0,0.15)', cursor: 'pointer',
-                      transition: 'all 0.3s', minHeight: '200px'
+                      flex: 1,
+                      border: isDragging 
+                        ? '2px dashed var(--accent-purple)' 
+                        : (aiFile ? '2px dashed var(--accent-purple)' : '2px dashed var(--border-interactive)'),
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isDragging 
+                        ? 'rgba(168, 85, 247, 0.12)' 
+                        : (aiFile ? 'rgba(168, 85, 247, 0.05)' : 'rgba(0,0,0,0.15)'),
+                      boxShadow: isDragging ? '0 0 16px rgba(168, 85, 247, 0.25)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      minHeight: '200px'
                     }}
                   >
-                    <i className="ph-light ph-upload-simple" style={{ fontSize: '3rem', color: aiFile ? 'var(--accent-purple)' : 'var(--text-muted)', marginBottom: '12px' }}></i>
-                    <span style={{ fontSize: '1rem', color: aiFile ? 'var(--accent-purple)' : 'var(--text-secondary)' }}>
-                      {aiFile ? t('cvAutofill.uploadSelected', { name: aiFile.name, size: (aiFile.size/1024).toFixed(1) }, `已选择: ${aiFile.name} (${(aiFile.size/1024).toFixed(1)} KB)`) : t('cvAutofill.uploadClickPrompt', '点击上传简历文件 (.docx/.pdf/.xlsx)')}
+                    <i
+                      className={`ph-light ${isDragging ? 'ph-tray-arrow-down' : (aiFile ? 'ph-file-doc' : 'ph-upload-simple')}`}
+                      style={{
+                        fontSize: '3rem',
+                        color: (isDragging || aiFile) ? 'var(--accent-purple)' : 'var(--text-muted)',
+                        marginBottom: '12px',
+                        transform: isDragging ? 'scale(1.1)' : 'none',
+                        transition: 'transform 0.2s ease'
+                      }}
+                    ></i>
+                    <span style={{ fontSize: '1rem', color: (isDragging || aiFile) ? 'var(--accent-purple)' : 'var(--text-secondary)', textAlign: 'center', padding: '0 12px' }}>
+                      {isDragging
+                        ? t('cvAutofill.uploadDropPrompt', '松开即可添加简历文件')
+                        : (aiFile
+                            ? t('cvAutofill.uploadSelected', { name: aiFile.name, size: (aiFile.size/1024).toFixed(1) }, `已选择: ${aiFile.name} (${(aiFile.size/1024).toFixed(1)} KB)`)
+                            : t('cvAutofill.uploadClickPrompt', '拖拽简历文件至此，或点击上传 (.docx/.pdf/.xlsx)')
+                          )
+                      }
                     </span>
+                    {!aiFile && !isDragging && (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                        {t('cvAutofill.uploadFormatsPrompt', '支持 Word (.docx/.doc)、PDF、图片或 Excel')}
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (

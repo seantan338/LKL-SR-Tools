@@ -120,13 +120,13 @@ function AttendanceLeaveModal({
 
       // 获取被请假人的信息
       let targetUserEmail = currentUser?.email || '';
-      let targetPicName = currentUserProfile?.displayName || currentUser?.displayName || '员工';
+      let targetPicName = currentUserProfile?.displayName || currentUser?.displayName || (isEn ? 'Staff' : '员工');
 
       if (isAdminMode && hqMembers.length > 0) {
         const found = hqMembers.find(m => (m.uid || m.id) === targetUid);
         if (found) {
           targetUserEmail = found.email || '';
-          targetPicName = found.displayName || found.name || targetUserEmail.split('@')[0] || '员工';
+          targetPicName = found.displayName || found.name || targetUserEmail.split('@')[0] || (isEn ? 'Staff' : '员工');
         }
       }
 
@@ -249,7 +249,7 @@ function AttendanceLeaveModal({
                 >
                   {hqMembers.map(m => {
                     const id = m.uid || m.id;
-                    const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : '员工');
+                    const name = m.displayName || m.name || (m.email ? m.email.split('@')[0] : (isEn ? 'Staff' : '员工'));
                     return (
                       <option key={id} value={id}>
                         {name} ({m.email || 'No email'})
@@ -446,7 +446,7 @@ function AttendanceLeaveModal({
                 ) : (
                   <>
                     <i className="ph-bold ph-check"></i>
-                    <span>{isAdminMode ? t('attendanceLeave.btnAdminSubmit', '直接登记生效') : t('attendanceLeave.btnSubmit', '提交请假申请')}</span>
+                    <span>{isAdminMode ? t('attendanceLeave.btnAdminSubmit', isEn ? 'Register Immediately' : '直接登记生效') : (t('attendanceLeave.btnSubmit') || t('attendanceLeave.btnEmployeeSubmit', isEn ? 'Submit Leave Request' : '提交请假申请'))}</span>
                   </>
                 )}
               </button>
