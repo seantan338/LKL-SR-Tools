@@ -3969,7 +3969,7 @@ export default function AnalyticsPage() {
                               ) : (
                                 <div>
                                   <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.3)', fontSize: '10px' }}>
-                                    {remainingDays} {t('common.days', '天到期')}
+                                    {remainingDays} {t('commission.daysToUnlock', '天到期')}
                                   </span>
                                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                                     {rec.unlockDate}
