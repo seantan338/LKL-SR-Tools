@@ -14,9 +14,9 @@
 #>
 param(
     [switch]$Apply,
-    [string]$SheetId = "1Fc3_q77r8Eph665aqqmeDqEalRjEFBDhIZ3-F2qxYt8",
-    [string]$Tab = "Database",
-    [string]$TeamId = "default_team"
+    [string]$SheetId = $(if ($env:JOB_ORDER_SHEET_ID) { $env:JOB_ORDER_SHEET_ID } else { "1Fc3_q77r8Eph665aqqmeDqEalRjEFBDhIZ3-F2qxYt8" }),
+    [string]$Tab = $(if ($env:JOB_ORDER_SHEET_TAB) { $env:JOB_ORDER_SHEET_TAB } else { "Database" }),
+    [string]$TeamId = $(if ($env:DEFAULT_TEAM_ID) { $env:DEFAULT_TEAM_ID } else { "default_team" })
 )
 
 $ErrorActionPreference = "Stop"

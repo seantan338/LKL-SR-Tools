@@ -8,6 +8,7 @@ import { SystemLogger } from '../lib/logger';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../lib/cascade-shift-engine';
+import AttendanceLeaveModal from './AttendanceLeaveModal';
 
 const getApiUrl = (path) => {
   return path;
@@ -50,6 +51,8 @@ export default function AttendanceModal() {
   const [toastMsg, setToastMsg] = useState('');
   const [appleHelpMsg, setAppleHelpMsg] = useState('');
   const [earlyClockOutWarning, setEarlyClockOutWarning] = useState(null);
+  const [myLeaves, setMyLeaves] = useState([]);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const autoPopupCheckedRef = useRef(false);
 
   const showToast = (msg) => {
@@ -57,11 +60,21 @@ export default function AttendanceModal() {
     setTimeout(() => setToastMsg(''), 3500);
   };
 
-  // 1. Digital Clock (Updates every second)
+  // 1. Digital Clock (Updates every second only when attendance modal is visible and leave form is not open)
   useEffect(() => {
+    if (!isOpen || isLeaveModalOpen) return;
+    setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isOpen, isLeaveModalOpen]);
+
+  // 1.1 Subscribe to current user's approved attendance leaves
+  useEffect(() => {
+    if (!user?.uid) return;
+    const targetTeam = teamId || 'default_team';
+    const unsub = FirestoreStore.subscribeToAttendanceLeaves(targetTeam, setMyLeaves, user.uid);
+    return () => unsub();
+  }, [teamId, user?.uid]);
 
   // 2. Subscribe to Attendance Rules
   useEffect(() => {
@@ -134,6 +147,14 @@ export default function AttendanceModal() {
   const todayDateStr = useMemo(() => {
     return new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
   }, [currentTime]);
+
+  const todayLeave = useMemo(() => {
+    if (!myLeaves.length || !todayDateStr) return null;
+    return myLeaves.find(l => {
+      if (l.status !== 'APPROVED') return false;
+      return todayDateStr >= l.startDate && todayDateStr <= l.endDate;
+    }) || null;
+  }, [myLeaves, todayDateStr]);
 
   const todayClockIn = useMemo(() => {
     const list = userRecords.filter(r => {
@@ -392,9 +413,10 @@ export default function AttendanceModal() {
         return;
       }
 
-      // Case 2: Wi-Fi not matched -> enter Stage 2 (100m GPS Geofence)
+      // Case 2: Wi-Fi not matched -> enter Stage 2 (GPS Geofence)
       if (r1?.code === 'NEED_GPS') {
-        setStatusMessage(t('attendanceModal.statusCheckingGps', '未连接公司 Wi-Fi，正在调用高精度 GPS 校验 100 米考勤围栏...'));
+        const configuredRadius = Math.round(attendanceRules?.maxDistanceMeters || 100);
+        setStatusMessage(t('attendanceModal.statusCheckingGps', { radius: configuredRadius }, `未连接公司 Wi-Fi，正在调用高精度 GPS 校验 ${configuredRadius} 米考勤围栏...`));
 
         if (typeof window === 'undefined' || !navigator.geolocation) {
           throw new Error(t('analytics.errNoGeo', '当前浏览器不支持地理定位，且未连接公司 Wi-Fi，无法完成考勤打卡。'));
@@ -439,10 +461,12 @@ export default function AttendanceModal() {
         const r2 = stage2Res?.result;
 
         if (r2?.passed) {
+          const allowedRadius = Math.round(r2.allowed_radius || attendanceRules?.maxDistanceMeters || 100);
           const verifySnapshot = {
             method: 'GPS_GEOFENCE',
-            methodName: t('analytics.methodGeofence', '100米地理围栏'),
+            methodName: `${allowedRadius}m${isEn ? ' Geofence' : '地理围栏'}`,
             officeName: r2.office_name,
+            allowedRadius: allowedRadius,
             effectiveDistance: r2.effective_distance,
             actualDistance: r2.actual_distance,
             accuracy: r2.accuracy,
@@ -459,13 +483,13 @@ export default function AttendanceModal() {
               type: punchType,
               verifyMethod: 'GPS_GEOFENCE',
               verifySnapshot,
-              note: `[100m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(punchType)}`
+              note: `[${allowedRadius}m / ${Math.round(r2.effective_distance)}m] ${getPunchTypeLabel(punchType)}`
             });
           } catch (storeErr) {
             console.warn("Attendance persistence notice:", storeErr?.message || storeErr);
           }
 
-          let successTip = t('analytics.successGpsToast', { dist: Math.round(r2.effective_distance) }, '打卡成功！已通过 100 米地理围栏核验（距公司约 {dist} 米）');
+          let successTip = t('analytics.successGpsToast', { radius: allowedRadius, dist: Math.round(r2.effective_distance) }, `打卡成功！已通过 ${allowedRadius} 米地理围栏核验（距公司约 ${Math.round(r2.effective_distance)} 米）`);
           if (punchType === 'CLOCK_IN') {
             const shift = CascadeShiftEngine.matchShift(new Date(), attendanceRules?.shiftConfig, { locale: isEn ? 'en' : 'zh' });
             successTip += t('attendanceModal.toastShiftSuffix', { name: shift.name, endStr: shift.endStr }, ` (${shift.name}，底线: ${shift.endStr})`);
@@ -476,7 +500,8 @@ export default function AttendanceModal() {
           setTimeout(() => setIsOpen(false), 1500);
           return;
         } else {
-          throw new Error(r2?.message || t('analytics.geofenceExceeded', '超出公司 100 米考勤有效范围'));
+          const limitRadius = Math.round(r2?.allowed_radius || configuredRadius);
+          throw new Error(r2?.message || t('analytics.geofenceExceeded', { radius: limitRadius }, `超出公司 ${limitRadius} 米考勤有效范围`));
         }
       }
 
@@ -726,6 +751,63 @@ export default function AttendanceModal() {
               {statusBadge.text}
             </div>
           </div>
+
+          {/* Today Approved Leave Banner (if any) */}
+          {todayLeave && (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 14px',
+              marginBottom: 'var(--space-3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '12px'
+            }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                color: 'var(--accent-emerald)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                flexShrink: 0
+              }}>
+                <i className="ph-bold ph-calendar-minus"></i>
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontWeight: '700', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{t('attendanceModal.leaveActiveTitle', isEn ? 'Approved Leave Active Today' : '今日处于获批休假状态')}</span>
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', fontWeight: '600' }}>
+                    {(() => {
+                      const leaveTypeLabel = {
+                        ANNUAL: t('attendanceLeave.typeAnnual', isEn ? 'Annual Leave (AL)' : '年假 (Annual Leave - AL)'),
+                        SICK: t('attendanceLeave.typeSick', isEn ? 'Medical Leave (MC)' : '病假 (Medical Leave - MC)'),
+                        EMERGENCY: t('attendanceLeave.typeEmergency', isEn ? 'Emergency Leave (EL)' : '紧急事假 (Emergency Leave - EL)'),
+                        UNPAID: t('attendanceLeave.typeUnpaid', isEn ? 'Unpaid Leave (UL)' : '无薪假 (Unpaid Leave - UL)'),
+                        OTHER: t('attendanceLeave.typeOther', isEn ? 'Other / Special Leave' : '其他 / 特别假')
+                      }[todayLeave.leaveType] || todayLeave.leaveType;
+                      const durationLabel = todayLeave.durationType === 'FULL_DAY'
+                        ? t('attendanceLeave.fullDay', isEn ? 'Full Day' : '全天')
+                        : (todayLeave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', isEn ? 'Half Day (AM)' : '上午') : t('attendanceLeave.halfPm', isEn ? 'Half Day (PM)' : '下午'));
+                      return `${leaveTypeLabel} · ${durationLabel}`;
+                    })()}
+                  </span>
+                </div>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '2px', fontSize: '11px', lineHeight: 1.3 }}>
+                  {todayLeave.durationType === 'FULL_DAY'
+                    ? t('attendanceModal.leaveFullDayDesc', isEn ? 'Full day on leave: daily clock-in requirements and shift hours are automatically waived.' : '全天休假，系统自动豁免全天打卡与工时考核')
+                    : todayLeave.durationType === 'HALF_AM'
+                      ? t('attendanceModal.leaveHalfAmDesc', isEn ? 'Morning half-day leave: check in before 13:30 to meet shift requirements.' : '上午休假，13:30 前签到即可正常达标')
+                      : t('attendanceModal.leaveHalfPmDesc', isEn ? 'Afternoon half-day leave: clock out after 12:30 to meet shift requirements.' : '下午休假，12:30 后签退即可正常达标')}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Real-time Dynamic Shift Preview Card */}
           <div style={{
@@ -1163,8 +1245,28 @@ export default function AttendanceModal() {
             </button>
           </div>
 
-          {/* Quick link to personal attendance records & appeals */}
-          <div style={{ marginTop: 'var(--space-3)', textAlign: 'center' }}>
+          {/* Quick link to personal attendance records & appeals & leaves */}
+          <div style={{ marginTop: 'var(--space-3)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setIsLeaveModalOpen(true)}
+              style={{
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                color: '#10b981',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 10px',
+                borderRadius: '6px'
+              }}
+            >
+              <i className="ph-bold ph-calendar-minus"></i>
+              <span>{t('attendanceModal.btnApplyLeave', '申请请假')}</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1186,7 +1288,7 @@ export default function AttendanceModal() {
               }}
             >
               <i className="ph-bold ph-calendar-check"></i>
-              <span>{t('attendanceModal.linkMyAttendance', '查看我的考勤出席明细与异常申诉 →')}</span>
+              <span>{t('attendanceModal.linkMyAttendance', '我的考勤明细与申诉 →')}</span>
             </button>
           </div>
 
@@ -1198,6 +1300,17 @@ export default function AttendanceModal() {
 
         </div>
       </div>
+
+      {isLeaveModalOpen && (
+        <AttendanceLeaveModal
+          isOpen={isLeaveModalOpen}
+          onClose={() => setIsLeaveModalOpen(false)}
+          user={user}
+          userProfile={userProfile}
+          teamId={teamId}
+          onSuccess={(msg) => showToast(msg)}
+        />
+      )}
 
       <style jsx>{`
         @keyframes scaleUp {

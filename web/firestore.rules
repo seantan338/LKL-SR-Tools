@@ -266,6 +266,29 @@ service cloud.firestore {
           && resource.data.status == 'PENDING';
       }
 
+      match /attendance_leaves/{leaveId} {
+        // 读取：本部团队已审批成员均可读取（用于考勤榜与排班协同展示）或本人/管理员读取
+        allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
+        // 发起请假：
+        // 1. 普通员工本人提交：初始状态必须为 PENDING，且严禁伪造 reviewedBy
+        // 2. 本部 Owner / Manager：可直接代员工创建已批准 (APPROVED) 的请假记录
+        allow create: if isHqTeam(teamId) && (
+          (
+            (isApprovedOnTeam(teamId) || isTeamMember(teamId))
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.get('status', 'PENDING') == 'PENDING'
+            && request.resource.data.get('reviewedBy', null) == null
+          ) || isOwnerOrManagerOnTeam(teamId)
+        );
+        // 审批与修改：仅限本部 Owner / Manager
+        allow update: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
+        // 撤回/删除：本人仅可在 PENDING 状态下撤回；本部 Owner / Manager 可删除异常请假记录
+        allow delete: if isHqTeam(teamId) && (
+          (resource.data.userId == request.auth.uid && resource.data.status == 'PENDING')
+          || isOwnerOrManagerOnTeam(teamId)
+        );
+      }
+
       match /attendance_rules/{ruleId} {
         allow read: if isApprovedOnTeam(teamId) || isTeamMember(teamId) || isLinkedParentTeamMember(teamId);
         allow write: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
@@ -274,6 +297,36 @@ service cloud.firestore {
       match /commission_records/{recordId} {
         // 现阶段为 Owner 专属功能：仅系统 Owner 具备读写权限
         allow read, write: if hasUserDoc() && userDoc().role == 'owner';
+      }
+
+      // 报销与费用子系统 (Expense Claims & Mileage Reimbursement)
+      match /expense_claims/{claimId} {
+        // 读取：本部成员可查看本人报销单；本部 Owner / Manager 可查看全员报销单
+        // 【仅管理员】报销模块仅对本部 Owner / Manager 开放，普通成员无任何读写权限
+        allow read: if isHqTeam(teamId) && isOwnerOrManagerOnTeam(teamId);
+        // 创建：仅本部 Owner / Manager 可提交属于本人的单据，初始状态锁定为 SUBMITTED
+        allow create: if isHqTeam(teamId)
+          && isOwnerOrManagerOnTeam(teamId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.get('status', 'SUBMITTED') == 'SUBMITTED';
+        // 更新：
+        // 1. 本人仅可在 SUBMITTED 状态下撤回 (修改 status 为 CANCELLED)
+        // 2. 本部 Manager 可初审 (SUBMITTED -> MANAGER_APPROVED 或 REJECTED)
+        // 3. 本部 Owner 可终审 (MANAGER_APPROVED -> APPROVED_PENDING_PAYOUT 或 REJECTED)、批次放款 (PAID) 或锁定入薪资 (LOCKED_IN_PAYROLL)
+        allow update: if isHqTeam(teamId) && (
+          (isOwnerOrManagerOnTeam(teamId) && resource.data.userId == request.auth.uid && resource.data.status == 'SUBMITTED' && request.resource.data.status == 'CANCELLED')
+          || isOwnerOrManagerOnTeam(teamId)
+        );
+        // 删除：仅本人(管理员)在 SUBMITTED 状态下可删除本人单据；或由本部 Owner 删除
+        allow delete: if isHqTeam(teamId) && (
+          (isOwnerOrManagerOnTeam(teamId) && resource.data.userId == request.auth.uid && resource.data.status == 'SUBMITTED')
+          || (hasUserDoc() && userDoc().role == 'owner')
+        );
+      }
+
+      // 报销批次放款单 (Payout Batches)
+      match /claim_payout_batches/{batchId} {
+        allow read, write: if isHqTeam(teamId) && (hasUserDoc() && userDoc().role == 'owner');
       }
     }
 

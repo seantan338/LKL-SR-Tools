@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.29';
-export const BUILD_DATE = '2026-10-30';
-export const RELEASE_CODENAME = 'Header Stacking & Wallet Popover Unclip Defense';
+export const APP_VERSION = 'v1.7.47';
+export const BUILD_DATE = '2026-11-02';
+export const RELEASE_CODENAME = 'Claims Subsystem, Leave Workflow & High-Contrast Attendance Matrix';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

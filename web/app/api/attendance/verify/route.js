@@ -316,6 +316,7 @@ export async function POST(request) {
             office_name: oName,
             actual_distance: actualDist,
             effective_distance: effectiveDist,
+            allowed_radius: oRadius,
             accuracy: userAccuracy,
             compensation: comp
           }

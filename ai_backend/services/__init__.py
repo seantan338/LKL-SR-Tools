@@ -21,6 +21,7 @@ from .attendance_service import (
     verify_clockin_eligibility,
     resolve_ddns_domain,
 )
+from .receipt_ocr_service import parse_receipt_image
 
 async def parse_sheet_data(raw_text: str, target_type: str, source_tab: str = "") -> list:
     """
@@ -55,5 +56,6 @@ __all__ = [
     "handle_telegram_update",
     "stop_telegram_polling",
     "send_telegram_message",
+    "parse_receipt_image",
 ]
 

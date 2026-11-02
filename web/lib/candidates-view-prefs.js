@@ -5,7 +5,7 @@ import { CANDIDATE_GROUP_FIELDS, CANDIDATE_SORT_KEYS } from './candidate-view.mj
 
 const STORAGE_KEY = 'talent_flow_candidates_view';
 
-export const CANDIDATE_VIEW_MODES = ['table', 'grouped', 'compact'];
+export const CANDIDATE_VIEW_MODES = ['table', 'grouped', 'compact', 'kanban'];
 
 export const DEFAULT_CANDIDATES_VIEW_PREFS = {
   view: 'table',

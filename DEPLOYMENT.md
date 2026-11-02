@@ -147,7 +147,7 @@ flowchart TB
 ## 3. 环境变量 (ENV) 详尽配置手册
 
 ### 3.1 Web 前端配置 (`web/.env.production` 或 `web/.env.local`)
-对应模板：[`web/.env.example`](file:///c:/Users/sean/Omni_Reruitment_Management/web/.env.example)
+对应模板：[`web/.env.example`](./web/.env.example)
 
 ```ini
 # ==============================================================================
@@ -179,7 +179,7 @@ NEXT_PUBLIC_DOCS_URL=/docs
 ---
 
 ### 3.2 AI 后端配置 (`ai_backend/.env`)
-对应模板：[`ai_backend/.env.example`](file:///c:/Users/sean/Omni_Reruitment_Management/ai_backend/.env.example)
+对应模板：[`ai_backend/.env.example`](./ai_backend/.env.example)
 
 ```ini
 # ==============================================================================
@@ -223,7 +223,7 @@ WEB_APP_BASE_URL=https://recruit.yourcompany.com
 ---
 
 ### 3.3 WhatsApp 机器人配置 (`whatsapp_bot/.env`)
-对应模板：[`whatsapp_bot/.env.example`](file:///c:/Users/sean/Omni_Reruitment_Management/whatsapp_bot/.env.example)
+对应模板：[`whatsapp_bot/.env.example`](./whatsapp_bot/.env.example)
 
 ```ini
 # ==============================================================================
@@ -261,7 +261,7 @@ FIREBASE_SERVICE_ACCOUNT_PATH=../ai_backend/firebase-service-account.json
 
 ### 第 3 步：发布安全规则 (Security Rules)
 1. 进入 Firestore Database -> **Rules** 选项卡；
-2. 打开本项目中的 [`web/firestore.rules`](file:///c:/Users/sean/Omni_Reruitment_Management/web/firestore.rules) 文件，全选复制内容；
+2. 打开本项目中的 [`web/firestore.rules`](./web/firestore.rules) 文件，全选复制内容；
 3. 粘贴到控制台规则编辑器中，点击 **Publish (发布)**。
 > **说明**：该规则实现了基于角色 (Owner/Manager/Recruiter) 的行级数据隔离，确保招聘专员只能读写分配给自己名下的候选人。
 

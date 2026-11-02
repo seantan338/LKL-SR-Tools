@@ -213,3 +213,6 @@ def safe_json_parse(content: str, fallback_start='{', fallback_end='}'):
 
     raise ValueError("未能从模型返回内容中解析出有效的 JSON 结构 / Failed to parse valid JSON from AI response")
 
+# 向下兼容别名 (Backward-compatible alias)
+clean_json_response = safe_json_parse
+

@@ -8,7 +8,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
-import { ExcelExporter, isAccountExcluded, deduplicateDayEvents } from '../../../lib/excel-exporter';
+import { ExcelExporter, isAccountExcluded, deduplicateDayEvents, parseTargetYearMonth, getMonthCalendarMeta } from '../../../lib/excel-exporter';
 import { CascadeShiftEngine, DEFAULT_SHIFT_CONFIG } from '../../../lib/cascade-shift-engine';
 import { SystemLogger } from '../../../lib/logger';
 import { 
@@ -17,6 +17,7 @@ import {
   formatCommissionCurrency 
 } from '../../../lib/commission-engine';
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
+import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
 
 export default function LeaderboardPage() {
   const { teamId, isHqTeam, role, user, userProfile, isOwner, isManager } = useAuth();
@@ -41,11 +42,13 @@ export default function LeaderboardPage() {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [attendanceRules, setAttendanceRules] = useState(null);
   const [attendanceAppeals, setAttendanceAppeals] = useState([]);
+  const [attendanceLeaves, setAttendanceLeaves] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
   // My Attendance View States
   const [appealModalOpen, setAppealModalOpen] = useState(false);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [appealTargetDate, setAppealTargetDate] = useState('');
   const [appealTargetPunchType, setAppealTargetPunchType] = useState('CLOCK_OUT');
   const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
@@ -80,6 +83,16 @@ export default function LeaderboardPage() {
     const filterUid = (!isOwner && !isManager) ? user.uid : null;
     const unsub = FirestoreStore.subscribeToAttendanceAppeals('default_team', (appeals) => {
       setAttendanceAppeals(appeals || []);
+    }, filterUid);
+    return () => unsub();
+  }, [isHqTeam, isOwner, isManager, user?.uid]);
+
+  // Subscribe to Attendance Leaves (HQ leaves)
+  useEffect(() => {
+    if (!isHqTeam || !user?.uid) return;
+    const filterUid = (!isOwner && !isManager) ? user.uid : null;
+    const unsub = FirestoreStore.subscribeToAttendanceLeaves('default_team', (leaves) => {
+      setAttendanceLeaves(leaves || []);
     }, filterUid);
     return () => unsub();
   }, [isHqTeam, isOwner, isManager, user?.uid]);
@@ -205,6 +218,7 @@ export default function LeaderboardPage() {
         shiftOverrides: attendanceRules?.shiftOverrides || {},
         excludedAccounts: attendanceRules?.excludedAccounts || [],
         hideZeroAttendance: Boolean(attendanceRules?.hideZeroAttendanceInReport),
+        attendanceLeaves: attendanceLeaves || [],
         locale: isEn ? 'en' : 'zh'
       });
 
@@ -498,6 +512,45 @@ export default function LeaderboardPage() {
       }
     });
 
+    // 注入已审批通过的休假记录（确保获批休假人员被正确识别，且过滤掉未来预批假单）
+    const approvedLeaves = (attendanceLeaves || []).filter(l => l && l.status === 'APPROVED');
+    approvedLeaves.forEach(leave => {
+      const sDate = String(leave.startDate || '').trim();
+      const eDate = String(leave.endDate || sDate).trim();
+      if (!sDate) return;
+
+      const canonical = resolveCanonicalPic(leave.picName || leave.userName || leave.userEmail, leave.userId, teamMembers);
+      if (!isHqAdvisor(canonical)) return;
+
+      if (isAccountExcluded({ uid: canonical.uid, email: canonical.email || leave.userEmail, name: canonical.displayName }, attendanceRules?.excludedAccounts)) {
+        return;
+      }
+
+      const targetKey = canonical.uid || canonical.key;
+      const rec = map[targetKey];
+      if (!rec) return;
+
+      const cur = new Date(sDate + 'T00:00:00');
+      const end = new Date(eDate + 'T00:00:00');
+      while (cur <= end) {
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        // CRITICAL (Requirement 2): 严格过滤大于今天的未来预批假单，并检查日期区间
+        if (dStr <= todayStr && isDateInRange(cur)) {
+          if (!rec.dayRecords[dStr]) {
+            rec.dayRecords[dStr] = {
+              events: [],
+              isWfh: false,
+              isLeaveOnly: true,
+              leaveRecord: leave
+            };
+          } else {
+            rec.dayRecords[dStr].leaveRecord = leave;
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
     const shiftConfig = attendanceRules?.shiftConfig || DEFAULT_SHIFT_CONFIG;
     const shiftOverrides = attendanceRules?.shiftOverrides || {};
 
@@ -513,10 +566,17 @@ export default function LeaderboardPage() {
         const isToday = dateStr === todayStr;
 
         const cleanEvents = deduplicateDayEvents(dayData.events);
+        const leaveRecord = CascadeShiftEngine.findActiveLeaveForDate(
+          attendanceLeaves,
+          member.uid,
+          member.email,
+          member.name,
+          dateStr
+        );
         const res = CascadeShiftEngine.resolveDailyShift(
           cleanEvents,
           shiftConfig,
-          { locale: isEn ? 'en' : 'zh', overrideShift, isToday }
+          { locale: isEn ? 'en' : 'zh', overrideShift, isToday, leaveRecord }
         );
 
         // 今日在岗进行中（已打上班卡但尚未打下班卡）：暂不计入已结考勤与准点率结算，避免白天未下班前将准点率拉低
@@ -585,7 +645,7 @@ export default function LeaderboardPage() {
       b.compliantDays - a.compliantDays ||
       b.daysPresent - a.daysPresent
     );
-  }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, isEn]);
+  }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, attendanceLeaves, isEn]);
 
   // -------------------------------------------------------------
   // Track 3: Personal Attendance & Anomaly Appeals (My Attendance)
@@ -659,16 +719,55 @@ export default function LeaderboardPage() {
       });
     });
 
+    // Also include dates for approved leaves falling into this month
+    attendanceLeaves.forEach(l => {
+      if (l.status !== 'APPROVED') return;
+      const matchUid = l.userId && l.userId === myUid;
+      const matchEmail = myEmail && l.userEmail && l.userEmail.toLowerCase() === myEmail;
+      const matchName = myName && l.picName && l.picName.toLowerCase() === myName;
+      if (!matchUid && !matchEmail && !matchName) return;
+
+      const sDate = String(l.startDate || '');
+      const eDate = String(l.endDate || sDate);
+      if (!sDate) return;
+
+      const cur = new Date(sDate + 'T00:00:00');
+      const end = new Date(eDate + 'T00:00:00');
+      while (cur <= end) {
+        const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        // CRITICAL (Requirement 2): 严格过滤大于今天的未来预批假单，避免预批假单提前进入当期流水
+        if (dStr <= todayStr && (!myAttendanceMonth || dStr.startsWith(myAttendanceMonth))) {
+          if (!dailyMap[dStr]) {
+            dailyMap[dStr] = {
+              date: dStr,
+              dateObj: new Date(cur),
+              events: [],
+              isToday: dStr === todayStr
+            };
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
     const list = Object.values(dailyMap).map(day => {
       const cleanEvents = deduplicateDayEvents(day.events);
       const overrideKey = `${day.date}__${currentPic?.displayName}`;
       const overrideKeyUid = `${day.date}__${myUid}`;
       const overrideShift = shiftOverrides[overrideKey] || shiftOverrides[overrideKeyUid] || null;
 
+      const leaveRecord = CascadeShiftEngine.findActiveLeaveForDate(
+        attendanceLeaves,
+        myUid,
+        myEmail,
+        currentPic?.displayName,
+        day.date
+      );
+
       const analysis = CascadeShiftEngine.resolveDailyShift(
         cleanEvents,
         shiftConfig,
-        { locale: isEn ? 'en' : 'zh', overrideShift, isToday: day.isToday }
+        { locale: isEn ? 'en' : 'zh', overrideShift, isToday: day.isToday, leaveRecord }
       );
 
       const clockInPunch = cleanEvents.find(e => e.type === 'CLOCK_IN' || e.type === 'CHECK_IN') || cleanEvents[0];
@@ -680,20 +779,23 @@ export default function LeaderboardPage() {
       const isWfh = cleanEvents.some(e => e.verifyMethod === 'WFH' || e.verifySnapshot?.method === 'WFH');
 
       let statusColor = 'var(--text-muted)';
-      let statusLabel = analysis.complianceLabel || (isEn ? 'Normal' : '正常');
+      let statusLabel = analysis.complianceLabel || t('attendanceAudit.statusNormal', '正常');
 
-      if (day.isToday && (analysis.isInProgress || analysis.compliance === 'IN_PROGRESS')) {
+      if (analysis.isOnLeave || analysis.compliance === 'ON_LEAVE') {
+        statusColor = 'var(--accent-emerald)';
+        statusLabel = analysis.complianceLabel || t('attendanceAudit.statusOnLeave', '获批休假');
+      } else if (day.isToday && (analysis.isInProgress || analysis.compliance === 'IN_PROGRESS')) {
         statusColor = 'var(--accent-blue)';
-        statusLabel = isEn ? 'On Duty' : '在岗工作中';
+        statusLabel = t('attendanceAudit.statusOnDuty', '在岗工作中');
       } else if (analysis.isMissingPunch) {
         statusColor = 'var(--accent-amber)';
-        statusLabel = isEn ? 'Missing Punch' : '未签退(缺卡)';
+        statusLabel = t('attendanceAudit.statusMissedOut', '未签退(缺卡)');
       } else if (analysis.isViolation || analysis.isLate) {
         statusColor = '#f87171';
-        statusLabel = analysis.complianceLabel || (isEn ? 'Late' : '迟到违规');
+        statusLabel = analysis.complianceLabel || t('attendanceAudit.statusLate', '迟到违规');
       } else if (analysis.isCompliant) {
         statusColor = 'var(--accent-emerald)';
-        statusLabel = analysis.complianceLabel || (isEn ? 'Compliant' : '已达标');
+        statusLabel = analysis.complianceLabel || t('attendanceAudit.statusCompliant', '已达标');
       }
 
       return {
@@ -712,7 +814,7 @@ export default function LeaderboardPage() {
     });
 
     return list.sort((a, b) => b.date.localeCompare(a.date));
-  }, [user, currentPic, manualCheckins, logs, myAttendanceMonth, attendanceRules, isEn]);
+  }, [user, currentPic, manualCheckins, logs, myAttendanceMonth, attendanceRules, attendanceLeaves, isEn]);
 
   const myAppealsByDate = useMemo(() => {
     const map = {};
@@ -742,6 +844,18 @@ export default function LeaderboardPage() {
     }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [attendanceAppeals, user]);
 
+  const myLeavesList = useMemo(() => {
+    if (!user?.uid) return [];
+    const myUid = user.uid;
+    const myEmail = user.email?.toLowerCase();
+
+    return attendanceLeaves.filter(l => {
+      const matchUid = l.userId && l.userId === myUid;
+      const matchEmail = myEmail && l.userEmail && l.userEmail.toLowerCase() === myEmail;
+      return matchUid || matchEmail;
+    }).sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+  }, [attendanceLeaves, user]);
+
   const myStats = useMemo(() => {
     let daysPresent = 0;
     let fullShiftDays = 0;
@@ -749,8 +863,22 @@ export default function LeaderboardPage() {
     let missingPunchDays = 0;
     let wfhDays = 0;
     let manualAddedDays = 0;
+    let approvedLeaveDays = 0;
+    let fullLeaveDaysElapsed = 0;
 
     myMonthlyAttendance.forEach(item => {
+      if (item.analysis?.isOnFullLeave || (item.analysis?.isOnLeave && !item.clockInPunch && !item.clockOutPunch)) {
+        approvedLeaveDays += 1;
+        const dObj = item.dateObj || (item.date ? new Date(item.date + 'T00:00:00') : null);
+        const isWk = dObj ? (dObj.getDay() === 0 || dObj.getDay() === 6) : false;
+        if (!isWk) {
+          fullLeaveDaysElapsed += 1;
+        }
+        return;
+      }
+      if (item.analysis?.isHalfAm || item.analysis?.isHalfPm) {
+        approvedLeaveDays += 0.5;
+      }
       daysPresent += 1;
       if (item.isWfh) wfhDays += 1;
       if (item.isManual) manualAddedDays += 1;
@@ -760,6 +888,15 @@ export default function LeaderboardPage() {
     });
 
     const pendingCount = myAppealsList.filter(a => a.status === 'PENDING' && (!myAttendanceMonth || a.date?.startsWith(myAttendanceMonth))).length;
+    const pendingLeaveCount = myLeavesList.filter(l => l.status === 'PENDING').length;
+
+    // Requirement 3: 前端页面 UI 面板出勤率统计与 Excel 导出完全一致
+    const { year, month } = parseTargetYearMonth(myAttendanceMonth);
+    const calMeta = getMonthCalendarMeta(year, month);
+    const effectiveExpectedDays = Math.max(1, calMeta.elapsedWorkingDays - fullLeaveDaysElapsed);
+    const attendanceRate = calMeta.elapsedWorkingDays > 0
+      ? Math.min(100, Number(((daysPresent / effectiveExpectedDays) * 100).toFixed(1)))
+      : 0;
 
     return {
       daysPresent,
@@ -768,16 +905,32 @@ export default function LeaderboardPage() {
       missingPunchDays,
       wfhDays,
       manualAddedDays,
-      pendingCount
+      approvedLeaveDays,
+      fullLeaveDaysElapsed,
+      elapsedWorkingDays: calMeta.elapsedWorkingDays,
+      totalWorkingDays: calMeta.totalWorkingDays,
+      effectiveExpectedDays,
+      attendanceRate,
+      pendingCount,
+      pendingLeaveCount
     };
-  }, [myMonthlyAttendance, myAppealsList, myAttendanceMonth]);
+  }, [myMonthlyAttendance, myAppealsList, myLeavesList, myAttendanceMonth]);
 
   const handleCancelAppeal = async (appealId) => {
     try {
       await FirestoreStore.cancelAttendanceAppeal('default_team', appealId);
       showToast(t('attendanceAppeal.cancelSuccess', '已成功撤销申诉'));
     } catch (err) {
-      showToast(err.message || '撤销失败');
+      showToast(err.message || (isEn ? 'Cancel failed' : '撤销失败'));
+    }
+  };
+
+  const handleCancelLeave = async (leaveId) => {
+    try {
+      await FirestoreStore.cancelAttendanceLeave('default_team', leaveId);
+      showToast(t('attendanceLeave.cancelSuccess', '已成功撤销请假申请'));
+    } catch (err) {
+      showToast(err.message || (isEn ? 'Cancel failed' : '撤销失败'));
     }
   };
 
@@ -961,6 +1114,7 @@ export default function LeaderboardPage() {
               <i className="ph-bold ph-paper-plane-tilt"></i>
               <span>{t('attendanceAppeal.btnQuickAppeal', '发起考勤申诉')}</span>
             </button>
+
           </div>
         ) : (
           <div style={{
@@ -1624,6 +1778,25 @@ export default function LeaderboardPage() {
                     height: '34px',
                     fontSize: '12px',
                     gap: '6px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: '700',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  }}
+                  onClick={() => setLeaveModalOpen(true)}
+                >
+                  <i className="ph-bold ph-calendar-minus"></i>
+                  <span>{t('attendanceLeave.btnQuickApply', '申请请假')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{
+                    height: '34px',
+                    fontSize: '12px',
+                    gap: '6px',
                     background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                     border: 'none',
                     color: '#fff',
@@ -1662,6 +1835,22 @@ export default function LeaderboardPage() {
               </div>
               <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '4px' }}>
                 {t('analytics.statFullShiftNote', { count: myStats.fullShiftDays }, `达标工时 ${myStats.fullShiftDays} 天`)}
+              </div>
+            </div>
+          </div>
+
+          {/* 1.5. Monthly Attendance Rate (Synced with Excel Export) */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-chart-pie-slice" style={{ color: '#c084fc', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statAttendanceRate', '月度出勤率')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#c084fc', fontFamily: 'monospace' }}>
+                {myStats.attendanceRate}%
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {t('analytics.statAttendanceRateSub', { expected: myStats.effectiveExpectedDays, leaves: myStats.fullLeaveDaysElapsed }, `计准应出勤 ${myStats.effectiveExpectedDays} 天 (已扣减休假 ${myStats.fullLeaveDaysElapsed} 天)`)}
               </div>
             </div>
           </div>
@@ -1745,7 +1934,161 @@ export default function LeaderboardPage() {
               </div>
             </div>
           </div>
+
+          {/* 7. Approved Leaves */}
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <i className="ph-bold ph-calendar-minus" style={{ color: 'var(--accent-emerald)', fontSize: '18px' }}></i>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('analytics.statLeavesCount', '休假天数')}</span>
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
+                {myStats.approvedLeaveDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                {myStats.pendingLeaveCount > 0
+                  ? t('analytics.statLeavesPendingCount', { count: myStats.pendingLeaveCount }, `${myStats.pendingLeaveCount} 件休假待审核`)
+                  : t('analytics.statLeavesApprovedDesc', '获批自动免打卡')}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* My Leaves Records Stream (If Any Exist) */}
+        {myLeavesList.length > 0 && (
+          <div className="bezel-shell">
+            <div className="bezel-core" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-3)' }}>
+                <i className="ph-bold ph-calendar-minus" style={{ color: 'var(--accent-emerald)', fontSize: '16px' }}></i>
+                <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                  {t('attendanceLeave.myLeavesTitle', '我的请假记录与状态')}
+                </h4>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                  {myLeavesList.length}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {myLeavesList.slice(0, 5).map(leave => {
+                  const dateText = leave.startDate === leave.endDate ? leave.startDate : `${leave.startDate} ~ ${leave.endDate}`;
+                  const durationLabel = leave.durationType === 'FULL_DAY' ? t('attendanceLeave.fullDay', '全天')
+                    : leave.durationType === 'HALF_AM' ? t('attendanceLeave.halfAm', '上午半天') : t('attendanceLeave.halfPm', '下午半天');
+
+                  return (
+                    <div
+                      key={leave.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-hairline)',
+                        borderRadius: 'var(--radius-md)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
+                          {dateText}
+                        </span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
+                          {leave.leaveType} · {durationLabel} ({leave.daysCount} {t('analytics.unitDays', '天')})
+                        </span>
+                        {leave.reason && (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            ({leave.reason})
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {leave.status === 'PENDING' ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: 'var(--accent-amber)',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <i className="ph-bold ph-hourglass-simple"></i>
+                              {t('attendanceLeave.statusPending', '待审核')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelLeave(leave.id)}
+                              title={t('attendanceLeave.btnCancel', '撤回申请')}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#f87171',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                fontSize: '11px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px'
+                              }}
+                            >
+                              <i className="ph-bold ph-x"></i>
+                              <span>{t('attendanceLeave.btnCancel', '撤回')}</span>
+                            </button>
+                          </div>
+                        ) : leave.status === 'APPROVED' ? (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: 'var(--accent-emerald)',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <i className="ph-bold ph-check-circle"></i>
+                            {t('attendanceLeave.statusApproved', '已批准 (免打卡)')}
+                          </span>
+                        ) : (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: '#f87171',
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }} title={leave.reviewNote || ''}>
+                              <i className="ph-bold ph-x-circle"></i>
+                              {t('attendanceLeave.statusRejected', '未批准')}
+                            </span>
+                            {leave.reviewNote && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                ({leave.reviewNote})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* My Appeals Records Stream (If Any Exist) */}
         {myAppealsList.length > 0 && (
@@ -1953,9 +2296,15 @@ export default function LeaderboardPage() {
                           {/* Clock In */}
                           <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
-                                {firstTimeStr}
-                              </span>
+                              {item.analysis?.isOnFullLeave && !item.clockInPunch ? (
+                                <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                  {t('analytics.leaveExemptedIn', '休假免签到')}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--accent-emerald)', fontFamily: 'monospace', fontWeight: '600' }}>
+                                  {firstTimeStr}
+                                </span>
+                              )}
                               {isInManual && (
                                 <span
                                   style={{
@@ -1971,7 +2320,7 @@ export default function LeaderboardPage() {
                                     alignItems: 'center',
                                     gap: '2px'
                                   }}
-                                  title={item.clockInPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                  title={item.clockInPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockInPunch.manualEntry.addedByName, email: item.clockInPunch.manualEntry.addedByEmail, time: item.clockInPunch.manualEntry.addedAt || '', reason: item.clockInPunch.manualEntry.reason || t('common.none', '无') }, isEn ? `[Admin manual entry]\nAdded by: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\nTime: ${item.clockInPunch.manualEntry.addedAt || ''}\nReason: ${item.clockInPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockInPunch.manualEntry.addedByName} (${item.clockInPunch.manualEntry.addedByEmail})\n时间: ${item.clockInPunch.manualEntry.addedAt || ''}\n原因: ${item.clockInPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                 >
                                   <i className="ph-bold ph-wrench"></i>
                                   {t('analytics.badgeAdminManual', '补录')}
@@ -2008,13 +2357,17 @@ export default function LeaderboardPage() {
                                       alignItems: 'center',
                                       gap: '2px'
                                     }}
-                                    title={item.clockOutPunch?.manualEntry ? `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}` : '管理员手动补录'}
+                                    title={item.clockOutPunch?.manualEntry ? t('attendanceAudit.manualEntryTooltip', { name: item.clockOutPunch.manualEntry.addedByName, email: item.clockOutPunch.manualEntry.addedByEmail, time: item.clockOutPunch.manualEntry.addedAt || '', reason: item.clockOutPunch.manualEntry.reason || t('common.none', '无') }, isEn ? `[Admin manual entry]\nAdded by: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\nTime: ${item.clockOutPunch.manualEntry.addedAt || ''}\nReason: ${item.clockOutPunch.manualEntry.reason || 'None'}` : `【管理员补录】\n补录人: ${item.clockOutPunch.manualEntry.addedByName} (${item.clockOutPunch.manualEntry.addedByEmail})\n时间: ${item.clockOutPunch.manualEntry.addedAt || ''}\n原因: ${item.clockOutPunch.manualEntry.reason || '无'}`) : t('attendanceAudit.manualEntryTitle', '管理员手动补录')}
                                   >
                                     <i className="ph-bold ph-wrench"></i>
                                     {t('analytics.badgeAdminManual', '补录')}
                                   </span>
                                 )}
                               </div>
+                            ) : item.analysis?.isOnFullLeave ? (
+                              <span style={{ color: 'var(--accent-emerald)', fontSize: '12px', fontWeight: '600' }}>
+                                {t('analytics.leaveExemptedOut', '休假免签退')}
+                              </span>
                             ) : (
                               <span style={{ color: item.isToday ? 'var(--accent-amber)' : '#f87171', fontSize: '12px' }}>
                                 {item.isToday ? t('attendanceModal.pendingClockOut', '在岗工作中') : t('analytics.statusMissedOutShort', '未签退(缺卡)')}
@@ -2065,7 +2418,23 @@ export default function LeaderboardPage() {
 
                           {/* Appeal / Action */}
                           <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
-                            {appeal ? (
+                            {item.analysis?.isOnLeave ? (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: 'var(--accent-emerald)',
+                                background: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <i className="ph-bold ph-calendar-minus"></i>
+                                {t('attendanceLeave.badgeOnLeave', '休假免考勤')}
+                              </span>
+                            ) : appeal ? (
                               appeal.status === 'PENDING' ? (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                   <span style={{
@@ -2197,6 +2566,20 @@ export default function LeaderboardPage() {
         userProfile={userProfile}
         targetDate={appealTargetDate}
         defaultPunchType={appealTargetPunchType}
+        onSuccess={(msg) => showToast(msg)}
+      />
+    )}
+
+    {/* Attendance Leave Modal */}
+    {leaveModalOpen && (
+      <AttendanceLeaveModal
+        isOpen={leaveModalOpen}
+        onClose={() => setLeaveModalOpen(false)}
+        teamId={teamId || 'default_team'}
+        user={user}
+        userProfile={userProfile}
+        hqMembers={hqMembers}
+        isAdminMode={false}
         onSuccess={(msg) => showToast(msg)}
       />
     )}

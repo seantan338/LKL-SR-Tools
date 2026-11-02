@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
 import { useAuth } from '../../../lib/auth-context';
 import { useNotifications } from '../../../lib/notification-context';
 import { useFeedback } from '../../../lib/feedback-context';
@@ -12,7 +14,11 @@ import { SystemLogger } from '../../../lib/logger';
 import { Utils } from '../../../lib/utils';
 import CandidateDrawer from '../../../components/CandidateDrawer';
 import CvImportModal from '../../../components/CvImportModal';
+import CommissionDealModal from '../../../components/CommissionDealModal';
 import WhatsAppButton from '../../../components/WhatsAppButton';
+import { DragDropContext, Draggable } from '@hello-pangea/dnd';
+import { StrictModeDroppable } from '../../../components/StrictModeDroppable';
+import ScrollContainer from 'react-indiana-drag-scroll';
 import { useCandidatesViewPrefs } from '../../../lib/candidates-view-prefs';
 import {
   NONE,
@@ -226,9 +232,10 @@ const DEFAULT_VISIBLE_COLUMNS = {
   updatedAt: false
 };
 
-export default function CandidatesPage() {
+function CandidatesContent() {
   const router = useRouter();
-  const { teamId, role, user, isReadOnlyView } = useAuth();
+  const searchParams = useSearchParams();
+  const { teamId, role, user, isOwner, isReadOnlyView } = useAuth();
   const { candidates, candidatesLoading: loading } = useNotifications();
   const { confirm } = useFeedback();
   const { t } = useI18n();
@@ -236,6 +243,8 @@ export default function CandidatesPage() {
   const [stageFilter, setStageFilter] = useState('all');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [picFilter, setPicFilter] = useState('all');
+  const [poolTab, setPoolTab] = useState('active'); // 'active' | 'reserved' | 'all'
+  const [reasonFilter, setReasonFilter] = useState('all');
   const [viewPrefs, updateViewPrefs] = useCandidatesViewPrefs();
   const [collapsedGroups, setCollapsedGroups] = useState({});
   const [mounted, setMounted] = useState(false);
@@ -243,6 +252,13 @@ export default function CandidatesPage() {
   // Visible Columns state
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE_COLUMNS);
   const [isColumnChooserOpen, setIsColumnChooserOpen] = useState(false);
+
+  // Kanban Deal Modal & Interview States
+  const [dealCandidate, setDealCandidate] = useState(null);
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+  const [jobOrders, setJobOrders] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [focusInterview, setFocusInterview] = useState(false);
 
   useEffect(() => {
     try {
@@ -255,6 +271,42 @@ export default function CandidatesPage() {
       // ignore
     }
   }, []);
+
+  // Listen to Job Orders and Team Members for Kanban Onboarding Commission
+  useEffect(() => {
+    if (!teamId) return;
+    const unsubOrders = FirestoreStore.subscribeToJobOrders(teamId, role, user?.uid, (orders) => {
+      setJobOrders(orders || []);
+    });
+    const usersRef = collection(db, 'users');
+    const unsubUsers = onSnapshot(usersRef, (snap) => {
+      const activeMembers = snap.docs
+        .map(d => ({ ...d.data(), uid: d.id }))
+        .filter(u => u.teamId === teamId && u.role && u.role !== 'pending' && u.role !== 'revoked');
+      setTeamMembers(activeMembers);
+    }, (err) => {
+      console.warn("Could not fetch team members for commission split:", err);
+    });
+    return () => {
+      unsubOrders();
+      unsubUsers();
+    };
+  }, [teamId, role, user?.uid]);
+
+  // Synchronize URL query params (e.g. ?view=kanban, ?pool=reserved)
+  useEffect(() => {
+    const urlView = searchParams?.get('view');
+    const urlPool = searchParams?.get('pool');
+    const urlTab = searchParams?.get('tab');
+    if (urlView && ['table', 'grouped', 'compact', 'kanban'].includes(urlView)) {
+      updateViewPrefs({ view: urlView });
+    }
+    if (urlPool === 'reserved' || urlTab === 'talent-pool') {
+      setPoolTab('reserved');
+    } else if (urlPool === 'all') {
+      setPoolTab('all');
+    }
+  }, [searchParams]);
 
   const toggleColumn = (key) => {
     setVisibleColumns(prev => {
@@ -299,8 +351,28 @@ export default function CandidatesPage() {
   const companyOptions = buildCandidateFilterOptions(candidates, 'company');
   const picOptions = buildCandidateFilterOptions(candidates, 'pic');
 
+  const activeCount = candidates.filter(c => c.status !== 'rejected').length;
+  const reservedCount = candidates.filter(c => c.status === 'rejected').length;
+  const rejectedCandidates = candidates.filter(c => c.status === 'rejected');
+
   const filteredCandidates = sortCandidates(
     candidates.filter(c => {
+      // 1. 人才池大分类过滤
+      if (poolTab === 'active' && c.status === 'rejected') return false;
+      if (poolTab === 'reserved' && c.status !== 'rejected') return false;
+
+      // 2. 储备人才淘汰原因专属过滤
+      if (reasonFilter !== 'all') {
+        const cBase = c.rejectReason ? String(c.rejectReason).split(' · ')[0].trim() : '';
+        if (
+          c.rejectReason !== reasonFilter &&
+          cBase !== reasonFilter &&
+          Utils.getDropReasonLabel(c.rejectReason, t) !== Utils.getDropReasonLabel(reasonFilter, t) &&
+          Utils.getDropReasonLabel(cBase, t) !== Utils.getDropReasonLabel(reasonFilter, t)
+        ) return false;
+      }
+
+      // 3. 阶段过滤
       if (stageFilter === 'active') {
         if (c.status === 'rejected') return false;
       } else if (stageFilter === 'rejected') {
@@ -318,7 +390,7 @@ export default function CandidatesPage() {
         const matchText = [
           c.name, c.company, c.position, c.department, c.school, c.degree,
           c.phone, c.location, c.icNo, c.picName, c.remarks, c.notes,
-          c.rejectReason, c.rejectNote
+          c.rejectReason, c.rejectNote, Utils.getDropReasonLabel(c.rejectReason, t)
         ].filter(Boolean).join(' ').toLowerCase();
         if (!tokens.every(tk => matchText.includes(tk))) return false;
       }
@@ -337,6 +409,7 @@ export default function CandidatesPage() {
     stageFilter !== 'all' ||
     companyFilter !== 'all' ||
     picFilter !== 'all' ||
+    reasonFilter !== 'all' ||
     searchQuery.trim()
   );
 
@@ -345,6 +418,7 @@ export default function CandidatesPage() {
     setStageFilter('all');
     setCompanyFilter('all');
     setPicFilter('all');
+    setReasonFilter('all');
   };
 
   const handleColumnSort = (key) => {
@@ -372,12 +446,135 @@ export default function CandidatesPage() {
 
   const openCandidate = (candidate) => {
     setSelectedCandidate(candidate);
+    setFocusInterview(false);
+    setIsDrawerOpen(true);
+  };
+
+  const openInterviewScheduling = (candidate) => {
+    setSelectedCandidate(candidate);
+    setFocusInterview(true);
     setIsDrawerOpen(true);
   };
 
   const closeDrawer = () => {
     setIsDrawerOpen(false);
-    setTimeout(() => setSelectedCandidate(null), 300); // Wait for transition
+    setTimeout(() => {
+      setSelectedCandidate(null);
+      setFocusInterview(false);
+    }, 300);
+  };
+
+  // Kanban Pipeline Handlers
+  const KANBAN_STAGES = [
+    Utils.STAGES.screening,
+    Utils.STAGES.phone,
+    Utils.STAGES.interview,
+    Utils.STAGES.offer,
+    Utils.STAGES.onboarding
+  ];
+
+  const handleConfirmDeal = async (dealData) => {
+    if (!dealCandidate) return;
+    const now = new Date().toISOString();
+    const newHistory = [...(dealCandidate.stageHistory || []), { stage: 'onboarding', movedAt: now }];
+
+    try {
+      await FirestoreStore.updateCandidate(teamId, dealCandidate.id, {
+        stage: 'onboarding',
+        onboardDate: dealData.onboardDate,
+        stageHistory: newHistory
+      });
+      await FirestoreStore.upsertCommissionRecord(teamId, user?.uid, dealData);
+      SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', dealCandidate.name, {
+        actionDetail: `候选人正式入职成单，已生成保证期佣金台账 (金额: RM ${dealData.billingSnapshot?.totalCommissionPool || 0})`,
+        fromStage: dealCandidate.stage || 'screening',
+        toStage: 'onboarding'
+      });
+      showToast(t('commission.dealSuccessToast', `🎉 成单成功！已为 ${dealCandidate.name} 建立佣金台账并在保证期中追踪`), 'success');
+    } catch (err) {
+      console.error('Failed to complete deal:', err);
+      showToast(t('commission.dealFailedToast', '成单处理失败，请重试: ') + (err.message || err), 'error');
+    } finally {
+      setDealCandidate(null);
+      setIsDealModalOpen(false);
+    }
+  };
+
+  const handleSkipCommission = async () => {
+    if (!dealCandidate) return;
+    const now = new Date().toISOString();
+    const newHistory = [...(dealCandidate.stageHistory || []), { stage: 'onboarding', movedAt: now }];
+
+    try {
+      await FirestoreStore.updateCandidate(teamId, dealCandidate.id, {
+        stage: 'onboarding',
+        stageHistory: newHistory
+      });
+      showToast(t('pipeline.movedToOnboarding', `已推进 ${dealCandidate.name} 至正式入职阶段`), 'info');
+    } catch (err) {
+      console.error('Failed to advance stage:', err);
+      showToast(t('pipeline.stageUpdateFailed', '推进状态失败: ') + (err.message || err), 'error');
+    } finally {
+      setDealCandidate(null);
+      setIsDealModalOpen(false);
+    }
+  };
+
+  const onDragEnd = async (result) => {
+    if (isReadOnlyView) {
+      showToast(t('pipeline.readOnlyTip', '当前为只读视察模式，无法修改其他团队的流转阶段'), 'warning');
+      return;
+    }
+    const { destination, source, draggableId } = result;
+
+    if (!destination) return;
+
+    if (destination.droppableId === 'interview' && source.droppableId === 'interview') {
+      const candidate = candidates.find(c => c.id === draggableId);
+      if (candidate) openInterviewScheduling(candidate);
+      return;
+    }
+
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    if (destination.droppableId !== source.droppableId) {
+      const candidateId = draggableId;
+      const targetStageKey = destination.droppableId;
+      
+      const candidate = candidates.find(c => c.id === candidateId);
+      if (!candidate) return;
+
+      if (targetStageKey === 'onboarding' && isOwner) {
+        setDealCandidate(candidate);
+        setIsDealModalOpen(true);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const newHistory = [...(candidate.stageHistory || []), { stage: targetStageKey, movedAt: now }];
+
+      try {
+        await FirestoreStore.updateCandidate(teamId, candidateId, {
+          stage: targetStageKey,
+          stageHistory: newHistory
+        });
+
+        const fromStageLabel = Utils.getStageMeta(candidate.stage || 'screening', t).label;
+        const toStageLabel = Utils.getStageMeta(targetStageKey, t).label;
+        SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', candidate.name, {
+          actionDetail: `看板拖拽流转阶段: ${fromStageLabel} -> ${toStageLabel}`,
+          fromStage: candidate.stage || 'screening',
+          toStage: targetStageKey
+        });
+
+        if (targetStageKey === 'interview') {
+          openInterviewScheduling({ ...candidate, stage: targetStageKey, stageHistory: newHistory });
+        }
+      } catch (error) {
+        console.error('Failed to update stage:', error);
+        showToast(t('pipeline.stageUpdateFailed', '状态更新失败，请重试: ') + error.message, 'error');
+      }
+    }
   };
 
   // Row selection helpers
@@ -509,6 +706,131 @@ export default function CandidatesPage() {
           document.body
         )}
 
+        {/* Talent Pool & Pipeline Segment Tabs */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 'var(--space-3)',
+          marginBottom: 'var(--space-4)'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            background: 'var(--bezel-shell-bg, var(--bg-surface))',
+            padding: '4px',
+            borderRadius: 'var(--radius-pill)',
+            border: '1px solid var(--border-hairline)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setPoolTab('active');
+                setStageFilter('all');
+                setReasonFilter('all');
+              }}
+              style={{
+                borderRadius: 'var(--radius-pill)',
+                padding: '6px 16px',
+                fontSize: '0.8125rem',
+                fontWeight: poolTab === 'active' ? '600' : '500',
+                background: poolTab === 'active' ? 'var(--accent-blue)' : 'transparent',
+                color: poolTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                border: 'none',
+                boxShadow: poolTab === 'active' ? '0 2px 8px rgba(59, 130, 246, 0.35)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <i className="ph-fill ph-sparkle" style={{ fontSize: '13px' }}></i>
+              <span>{t('candidates.poolActive', '在职流转中')}</span>
+              <span style={{
+                background: poolTab === 'active' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
+                borderRadius: 'var(--radius-pill)',
+                padding: '1px 7px',
+                fontSize: '0.725rem'
+              }}>
+                {activeCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setPoolTab('reserved');
+                setStageFilter('all');
+              }}
+              style={{
+                borderRadius: 'var(--radius-pill)',
+                padding: '6px 16px',
+                fontSize: '0.8125rem',
+                fontWeight: poolTab === 'reserved' ? '600' : '500',
+                background: poolTab === 'reserved' ? 'var(--accent-amber)' : 'transparent',
+                color: poolTab === 'reserved' ? '#ffffff' : 'var(--text-secondary)',
+                border: 'none',
+                boxShadow: poolTab === 'reserved' ? '0 2px 8px rgba(245, 158, 11, 0.35)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <i className="ph-fill ph-archive-tray" style={{ fontSize: '13px' }}></i>
+              <span>{t('candidates.poolReserved', '储备人才库')}</span>
+              <span style={{
+                background: poolTab === 'reserved' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
+                borderRadius: 'var(--radius-pill)',
+                padding: '1px 7px',
+                fontSize: '0.725rem'
+              }}>
+                {reservedCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setPoolTab('all');
+                setStageFilter('all');
+                setReasonFilter('all');
+              }}
+              style={{
+                borderRadius: 'var(--radius-pill)',
+                padding: '6px 16px',
+                fontSize: '0.8125rem',
+                fontWeight: poolTab === 'all' ? '600' : '500',
+                background: poolTab === 'all' ? 'var(--bg-elevated)' : 'transparent',
+                color: poolTab === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                border: poolTab === 'all' ? '1px solid var(--border-interactive)' : '1px solid transparent',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <i className="ph-bold ph-users-three" style={{ fontSize: '13px' }}></i>
+              <span>{t('candidates.poolAll', '全部档案')}</span>
+              <span style={{
+                background: poolTab === 'all' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)',
+                borderRadius: 'var(--radius-pill)',
+                padding: '1px 7px',
+                fontSize: '0.725rem'
+              }}>
+                {candidates.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Action Bar */}
         <div className="candidates-action-bar">
           <div className="candidates-filter-group">
@@ -517,7 +839,7 @@ export default function CandidatesPage() {
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder={t('candidates.searchPlaceholder', '搜索候选人、企业、岗位或手机号...')} 
+                  placeholder={poolTab === 'reserved' ? t('talentPoolPage.searchPlaceholder', '搜索储备人才(姓名、学校、淘汰原因)...') : t('candidates.searchPlaceholder', '搜索候选人、企业、岗位或手机号...')} 
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                 />
@@ -549,19 +871,43 @@ export default function CandidatesPage() {
               </select>
             </div>
 
-            {/* Stage Filter */}
-            <div className="form-group" style={{ flex: '1 1 130px', minWidth: '120px', marginBottom: 0 }}>
-              <select className="form-select" value={stageFilter} onChange={e => setStageFilter(e.target.value)}>
-                <option value="all">{t('common.all', '所有候选人')} ({candidates.length})</option>
-                <option value="active">🌟 {t('overview.filterActive', '所有进行中')} ({candidates.filter(c => c.status !== 'rejected').length})</option>
-                {Object.values(Utils.STAGES).filter(s => s.key !== 'rejected').map(stage => (
-                  <option key={stage.key} value={stage.key}>
-                    {t(`common.stages.${stage.key}`, stage.label)} ({candidates.filter(c => c.status !== 'rejected' && c.stage === stage.key).length})
+            {/* Stage Filter OR Drop Reason Filter */}
+            {poolTab === 'reserved' ? (
+              <div className="form-group" style={{ flex: '1 1 140px', minWidth: '130px', marginBottom: 0 }}>
+                <select className="form-select" value={reasonFilter} onChange={e => setReasonFilter(e.target.value)}>
+                  <option value="all">
+                    {t('talentPoolPage.allReasons', { count: reservedCount }, `所有淘汰原因 (${reservedCount})`)}
                   </option>
-                ))}
-                <option value="rejected">🛑 {t('candidates.rejected', '已淘汰')} ({candidates.filter(c => c.status === 'rejected').length})</option>
-              </select>
-            </div>
+                  {Utils.DROP_REASONS.map(reason => {
+                    const count = rejectedCandidates.filter(c => {
+                      if (!c.rejectReason) return false;
+                      const base = String(c.rejectReason).split(' · ')[0].trim();
+                      return base === reason.key || base === reason.label;
+                    }).length;
+                    if (count === 0) return null;
+                    return (
+                      <option key={reason.key} value={reason.key}>
+                        {Utils.getDropReasonLabel(reason.key, t)} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            ) : (
+              <div className="form-group" style={{ flex: '1 1 130px', minWidth: '120px', marginBottom: 0 }}>
+                <select className="form-select" value={stageFilter} onChange={e => setStageFilter(e.target.value)}>
+                  <option value="all">{t('common.all', '所有流转阶段')} ({poolTab === 'active' ? activeCount : candidates.length})</option>
+                  {Object.values(Utils.STAGES).filter(s => s.key !== 'rejected').map(stage => (
+                    <option key={stage.key} value={stage.key}>
+                      {t(`common.stages.${stage.key}`, stage.label)} ({candidates.filter(c => c.status !== 'rejected' && c.stage === stage.key).length})
+                    </option>
+                  ))}
+                  {poolTab === 'all' && (
+                    <option value="rejected">🛑 {t('candidates.rejected', '已淘汰/储备')} ({reservedCount})</option>
+                  )}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="candidates-btn-group">
@@ -607,6 +953,7 @@ export default function CandidatesPage() {
           <div className="orders-view-toggle" role="tablist">
             {[
               { key: 'table', icon: 'ph-table', label: t('candidates.viewTable', '表格') },
+              { key: 'kanban', icon: 'ph-kanban', label: t('candidates.viewKanban', '看板') },
               { key: 'grouped', icon: 'ph-stack', label: t('candidates.viewGrouped', '分组') },
               { key: 'compact', icon: 'ph-list-dashes', label: t('candidates.viewCompact', '紧凑') }
             ].map(opt => (
@@ -680,6 +1027,252 @@ export default function CandidatesPage() {
             )}
           </div>
         </div>
+
+        {/* Kanban View */}
+        {viewPrefs.view === 'kanban' && (
+          poolTab === 'reserved' ? (
+            <div className="bezel-shell" style={{ padding: 'var(--space-10) var(--space-6)', textAlign: 'center' }}>
+              <div style={{ maxWidth: '480px', margin: '0 auto' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  color: 'var(--accent-amber)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                  fontSize: '28px'
+                }}>
+                  <i className="ph-fill ph-archive-tray"></i>
+                </div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  {t('candidates.poolReservedKanbanNotice', '储备人才库档案不参与实时招聘看板流转')}
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '20px' }}>
+                  {t('candidates.poolReservedKanbanDesc', '储备人才库收纳的是当前已淘汰、待二次唤醒的优质人才档案。建议切换至「表格」或「紧凑」模式查看并重新激活候选人，或切换至「在职流转中」查查看板。')}
+                </p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => updateViewPrefs({ view: 'table' })}>
+                    <i className="ph-light ph-table"></i>
+                    <span>{t('candidates.switchToTable', '切换至表格视图')}</span>
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPoolTab('active')}>
+                    <i className="ph-fill ph-sparkle" style={{ color: 'var(--accent-blue)' }}></i>
+                    <span>{t('candidates.switchActivePipeline', '查看看板在职流转')}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: '520px' }}>
+              {isReadOnlyView && (
+                <div style={{
+                  marginBottom: 'var(--space-3)',
+                  padding: '8px 16px',
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--accent-amber)',
+                  fontSize: 'var(--text-xs)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexShrink: 0
+                }}>
+                  <i className="ph-bold ph-eye" style={{ fontSize: '14px' }}></i>
+                  <span>{t('pipeline.readOnlyBanner', '当前处于合作人团队只读视察模式，仅支持查看看板进度，禁止跨团队拖拽流转。')}</span>
+                </div>
+              )}
+
+              {mounted && (
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <ScrollContainer 
+                    className="pipeline-board" 
+                    style={{ display: 'flex', gap: 'var(--space-4)', flex: 1, overflowX: 'auto', paddingBottom: 'var(--space-4)' }}
+                    ignoreElements=".kanban-card, .bezel-core"
+                  >
+                    {KANBAN_STAGES.map(stage => {
+                      const stageCandidates = filteredCandidates.filter(c => c.stage === stage.key && c.status !== 'rejected');
+                      
+                      return (
+                        <div 
+                          key={stage.key} 
+                          className="pipeline-column bezel-shell"
+                          style={{ minWidth: '320px', display: 'flex', flexDirection: 'column', padding: '0', background: 'var(--bezel-shell-bg, var(--bg-surface))' }}
+                        >
+                          <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--border-hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: stage.color, boxShadow: `0 0 8px ${stage.color}88` }}></div>
+                              <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: '600', margin: 0 }}>
+                                {Utils.getStageMeta(stage.key, t).label}
+                              </h3>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.5rem', borderRadius: 'var(--radius-pill)' }}>
+                              {stageCandidates.length}
+                            </span>
+                          </div>
+                          
+                          <StrictModeDroppable droppableId={stage.key}>
+                            {(provided, snapshot) => (
+                              <div 
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                style={{ 
+                                  padding: 'var(--space-4)', 
+                                  flex: 1, 
+                                  overflowY: 'auto', 
+                                  display: 'flex', 
+                                  flexDirection: 'column', 
+                                  gap: 'var(--space-3)',
+                                  background: snapshot.isDraggingOver ? 'rgba(255,255,255,0.03)' : 'transparent',
+                                  transition: 'background 0.2s ease',
+                                  minHeight: '150px'
+                                }}
+                              >
+                                {stageCandidates.map((c, index) => (
+                                  <Draggable key={c.id} draggableId={c.id} index={index} isDragDisabled={isReadOnlyView}>
+                                    {(provided, snapshot) => {
+                                      const cardNode = (
+                                        <div 
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          {...provided.dragHandleProps}
+                                          onClick={() => openCandidate(c)}
+                                          className="kanban-card"
+                                          style={{ 
+                                            flexShrink: 0,
+                                            minHeight: '76px',
+                                            padding: 'var(--space-3) var(--space-4)', 
+                                            background: snapshot.isDragging ? 'var(--bg-elevated)' : 'var(--card-bg)', 
+                                            border: snapshot.isDragging ? '1px solid var(--accent-blue)' : '1px solid var(--border-hairline)',
+                                            borderRadius: 'var(--radius-lg)',
+                                            boxShadow: snapshot.isDragging ? '0 12px 32px rgba(0,0,0,0.35)' : 'var(--shadow-card)',
+                                            transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+                                            ...provided.draggableProps.style,
+                                            cursor: isReadOnlyView ? 'pointer' : (snapshot.isDragging ? 'grabbing' : 'grab')
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, marginRight: '8px' }}>
+                                              <div style={{ 
+                                                width: '26px', 
+                                                height: '26px', 
+                                                borderRadius: '50%', 
+                                                background: 'rgba(59, 130, 246, 0.15)', 
+                                                color: 'var(--accent-blue)', 
+                                                display: 'flex', 
+                                                alignItems: 'center', 
+                                                justifyContent: 'center', 
+                                                fontSize: '0.75rem', 
+                                                fontWeight: '700',
+                                                flexShrink: 0 
+                                              }}>
+                                                {c.name ? c.name.trim().charAt(0).toUpperCase() : '?'}
+                                              </div>
+                                              <span style={{ 
+                                                fontWeight: '600', 
+                                                fontSize: '0.9rem', 
+                                                color: 'var(--text-primary)',
+                                                lineHeight: 1.35,
+                                                wordBreak: 'break-word'
+                                              }}>
+                                                {c.name}
+                                              </span>
+                                            </div>
+                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                                              {Utils.formatRelativeTime(c.updatedAt?.toDate ? c.updatedAt.toDate() : c.updatedAt, t)}
+                                            </span>
+                                          </div>
+                                          
+                                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                            <i className="ph ph-buildings" style={{ color: c.company ? 'var(--accent-blue)' : 'var(--text-muted)', fontSize: '12px' }}></i>
+                                            <span style={{ color: c.company ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: c.company ? '600' : 'normal' }}>
+                                              {c.company || t('pipeline.unspecifiedCompany', '未定企业')}
+                                            </span>
+                                            {c.position && (
+                                              <>
+                                                <span style={{ color: 'var(--border-interactive)' }}>·</span>
+                                                <span style={{ color: 'var(--text-secondary)' }}>{c.position}</span>
+                                              </>
+                                            )}
+                                          </div>
+
+                                          {stage.key === 'interview' && (() => {
+                                            const parsed = Utils.parseInterviewDateTime(c.interviewDate, c.interviewTime);
+                                            const scheduled = /^\d{4}-\d{2}-\d{2}$/.test(parsed.dateStr);
+                                            const label = scheduled
+                                              ? `${parsed.dateStr}${(c.interviewTime || parsed.timeStr) ? ` ${c.interviewTime || parsed.timeStr}` : ''}`
+                                              : t('pipeline.interviewNotScheduled', '未安排面试时间');
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (isReadOnlyView) openCandidate(c);
+                                                  else openInterviewScheduling(c);
+                                                }}
+                                                title={t('pipeline.editInterviewTime', '点击调整面试日期 / 时间')}
+                                                style={{
+                                                  marginTop: '8px',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: '5px',
+                                                  padding: '3px 8px',
+                                                  fontSize: 'var(--text-xs)',
+                                                  fontWeight: 600,
+                                                  borderRadius: 'var(--radius-pill)',
+                                                  border: `1px solid ${scheduled ? 'rgba(59, 130, 246, 0.35)' : 'rgba(245, 158, 11, 0.4)'}`,
+                                                  background: scheduled ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                                  color: scheduled ? 'var(--accent-blue)' : 'var(--accent-amber)',
+                                                  cursor: 'pointer'
+                                                }}
+                                              >
+                                                <i className={scheduled ? 'ph-bold ph-calendar-check' : 'ph-bold ph-calendar-plus'}></i>
+                                                <span>{label}</span>
+                                                {!isReadOnlyView && <i className="ph ph-pencil-simple" style={{ opacity: 0.7 }}></i>}
+                                              </button>
+                                            );
+                                          })()}
+
+                                          {(c.school || c.department) && (
+                                            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginTop: '6px' }}>
+                                              {c.department && (
+                                                <span className="tag-pill" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', background: 'rgba(59, 130, 246, 0.08)', color: 'var(--accent-blue)' }}>
+                                                  {c.department}
+                                                </span>
+                                              )}
+                                              {c.school && (
+                                                <span className="tag-pill" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                                                  {c.school}
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+
+                                      if (snapshot.isDragging && typeof document !== 'undefined') {
+                                        return createPortal(cardNode, document.body);
+                                      }
+                                      return cardNode;
+                                    }}
+                                  </Draggable>
+                                ))}
+                                {provided.placeholder}
+                              </div>
+                            )}
+                          </StrictModeDroppable>
+                        </div>
+                      );
+                    })}
+                  </ScrollContainer>
+                </DragDropContext>
+              )}
+            </div>
+          )
+        )}
 
         {/* Table View */}
         {viewPrefs.view === 'table' && (
@@ -857,8 +1450,8 @@ export default function CandidatesPage() {
                       (visibleColumns.updatedAt ? 1 : 0) +
                       1
                     } style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <i className="ph-light ph-users" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block' }}></i>
-                      {t('candidates.emptyList', '暂无匹配的候选人数据')}
+                      <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`} style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block', color: poolTab === 'reserved' ? 'var(--accent-amber)' : undefined }}></i>
+                      {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
                     </td>
                   </tr>
                 ) : (
@@ -1109,10 +1702,12 @@ export default function CandidatesPage() {
             {filteredCandidates.length === 0 ? (
               <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
                 <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: 'var(--text-muted)' }}>
-                    <i className="ph-light ph-users"></i>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: poolTab === 'reserved' ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
+                    <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`}></i>
                   </div>
-                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>{t('candidates.emptyList', '暂无匹配的候选人数据')}</div>
+                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                    {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
+                  </div>
                   {hasActiveFilters && (
                     <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
                       <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
@@ -1270,10 +1865,12 @@ export default function CandidatesPage() {
             {filteredCandidates.length === 0 ? (
               <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
                 <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: 'var(--text-muted)' }}>
-                    <i className="ph-light ph-users"></i>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: poolTab === 'reserved' ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
+                    <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`}></i>
                   </div>
-                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>{t('candidates.emptyList', '暂无匹配的候选人数据')}</div>
+                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
+                    {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
+                  </div>
                   {hasActiveFilters && (
                     <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
                       <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
@@ -1371,8 +1968,8 @@ export default function CandidatesPage() {
         <div className="candidates-mobile-cards">
           {filteredCandidates.length === 0 ? (
             <div className="bezel-shell" style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <i className="ph-light ph-users" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block' }}></i>
-              {t('candidates.emptyList', '暂无匹配的候选人数据')}
+              <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`} style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block', color: poolTab === 'reserved' ? 'var(--accent-amber)' : undefined }}></i>
+              {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
             </div>
           ) : (
             filteredCandidates.map(c => {
@@ -1855,6 +2452,7 @@ export default function CandidatesPage() {
         isOpen={isDrawerOpen} 
         onClose={closeDrawer} 
         candidate={selectedCandidate} 
+        focusInterview={focusInterview}
       />
 
       <CvImportModal
@@ -1866,6 +2464,35 @@ export default function CandidatesPage() {
           }
         }}
       />
+
+      <CommissionDealModal
+        isOpen={isDealModalOpen}
+        onClose={() => {
+          setIsDealModalOpen(false);
+          setDealCandidate(null);
+        }}
+        candidate={dealCandidate}
+        jobOrders={jobOrders}
+        teamMembers={teamMembers}
+        onConfirm={handleConfirmDeal}
+        onSkip={handleSkipCommission}
+      />
     </>
+  );
+}
+
+export default function CandidatesPage() {
+  const { t } = useI18n();
+  return (
+    <Suspense fallback={
+      <div className="page-view active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+          <i className="ph-light ph-spinner-gap" style={{ fontSize: '2rem', animation: 'spin 1s linear infinite', marginBottom: '8px', display: 'block' }}></i>
+          <span>{t('candidates.loadingCandidates', '加载候选人管理...')}</span>
+        </div>
+      </div>
+    }>
+      <CandidatesContent />
+    </Suspense>
   );
 }

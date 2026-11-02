@@ -60,6 +60,7 @@ from services import (
 from sheets_service import get_sheet_values, get_spreadsheet_tabs
 
 from normalize import normalize_interview_schedule
+from services.receipt_ocr_service import parse_receipt_image
 
 from logger import logger
 
@@ -1058,6 +1059,35 @@ async def verify_attendance_endpoint(payload: AttendanceVerifyPayload, request: 
     except Exception as e:
         logger.error(f"Error in /api/attendance/verify: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
+
+
+
+
+@app.post("/api/claims/ocr")
+@app.post("/api/claims/ocr-receipt")
+async def ocr_claim_receipt(
+    file: UploadFile = File(...),
+    auth_user: dict = Depends(verify_user_or_internal_token)
+):
+    """
+    票据/发票/小票 OCR 结构化提取接口 (Vision LLM)
+    支持图片 (JPG, PNG, WEBP) 及 PDF，受 Firebase ID Token 鉴权保护
+    """
+    try:
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="文件超过 10MB 限制 / File exceeds 10MB limit")
+        
+        filename = file.filename or "receipt.jpg"
+        mime_type = file.content_type or "image/jpeg"
+        
+        result = await parse_receipt_image(content, filename=filename, mime_type=mime_type)
+        return JSONResponse(status_code=200, content={"success": True, "data": result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Receipt OCR failed: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
