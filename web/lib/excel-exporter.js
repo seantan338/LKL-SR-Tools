@@ -87,14 +87,15 @@ export const EXCEL_I18N = {
     lblMonth: '月份:',
     lblYear: '年份:',
     legendLabel: '图例:',
+    legendFullText: '图例: ✔ 正常 | 迟 迟到 | 早 早退 | 迟早 迟退 | 漏 漏卡 | 假 获批休假 | MIA 缺勤 | 休 周末',
     legendNormal: '✔ 正常',
     legendLate: '迟 迟到',
     legendEarly: '早 早退',
     legendLateEarly: '迟早 迟退',
     legendMissed: '漏 漏卡',
     legendLeave: '假 休假',
-    legendUnpunched: '✖ 缺卡',
-    legendMia: '旷 旷工',
+    legendUnpunched: 'MIA 缺勤',
+    legendMia: 'MIA 缺勤',
     legendWeekend: '休 周末',
     colEmpId: '员工编号',
     colEmpName: '员工姓名',
@@ -110,8 +111,8 @@ export const EXCEL_I18N = {
     statusEarlyCode: '早',
     statusLateEarlyCode: '迟早',
     statusMissedCode: '漏',
-    statusUnpunchedCode: '✖',
-    statusMiaCode: '旷',
+    statusUnpunchedCode: 'MIA',
+    statusMiaCode: 'MIA',
     statusWeekendCode: '休',
     commentIn: '上班签到',
     commentOut: '下班签退',
@@ -242,13 +243,14 @@ export const EXCEL_I18N = {
     lblMonth: 'Month:',
     lblYear: 'Year:',
     legendLabel: 'Legend:',
+    legendFullText: 'Legend: ✔ Normal | L Late | E Early | LE Late & Early | ? Missed | AL/MC Leave | MIA Absent | OFF Weekend',
     legendNormal: '✔ Normal',
     legendLate: 'L Late',
     legendEarly: 'E Early',
     legendLateEarly: 'LE Late & Early',
     legendMissed: '? Missed',
     legendLeave: 'AL/MC Leave',
-    legendUnpunched: '✖ Absent',
+    legendUnpunched: 'MIA Absent',
     legendMia: 'MIA Absent',
     legendWeekend: 'OFF Weekend',
     colEmpId: 'Employee ID',
@@ -265,7 +267,7 @@ export const EXCEL_I18N = {
     statusEarlyCode: 'E',
     statusLateEarlyCode: 'LE',
     statusMissedCode: '?',
-    statusUnpunchedCode: '✖',
+    statusUnpunchedCode: 'MIA',
     statusMiaCode: 'MIA',
     statusWeekendCode: 'OFF',
     commentIn: 'Clock-In',
@@ -401,6 +403,13 @@ export function getMonthCalendarMeta(year, month) {
   let totalWorkingDays = 0;
   let elapsedWorkingDays = 0;
 
+  const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const shortMonthNamesEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const mIdx = Math.max(0, Math.min(11, (month || 1) - 1));
+  const monthNameEn = monthNamesEn[mIdx];
+  const shortMonthNameEn = shortMonthNamesEn[mIdx];
+  const monthNameZh = `${month}月`;
+
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month - 1, d);
     const dateStr = toIsoDateStr(dateObj);
@@ -415,6 +424,8 @@ export function getMonthCalendarMeta(year, month) {
       }
     }
     days.push({
+      year,
+      month,
       day: d,
       dateStr,
       dayOfWeek,
@@ -424,6 +435,14 @@ export function getMonthCalendarMeta(year, month) {
   }
 
   return {
+    year,
+    month,
+    formatted: `${year}-${String(month).padStart(2, '0')}`,
+    monthNameEn,
+    shortMonthNameEn,
+    monthNameZh,
+    monthName: monthNameZh,
+    shortMonthName: shortMonthNameEn,
     days,
     totalWorkingDays,
     elapsedWorkingDays: Math.max(elapsedWorkingDays, 1),
@@ -725,13 +744,13 @@ export function mapAttendanceVisualState({
   // 5. 过去工作日，零打卡且无请假单
   if (dayMeta?.dateStr && todayStr && dayMeta.dateStr <= todayStr && !dayMeta?.isWeekend) {
     return {
-      code: labels.statusUnpunchedCode || '✖',
+      code: labels.statusUnpunchedCode || 'MIA',
       category: 'UNPUNCHED',
       bgHex: 'FEE2E2',
       textHex: '991B1B',
       isBold: true,
       styleId: 'CellUnpunched',
-      commentText: labels.commentUnpunched || (isEn ? 'No punch record' : '全天无打卡记录')
+      commentText: ''
     };
   }
 
@@ -962,7 +981,7 @@ function buildXmlSpreadsheet(sheets) {
               .replace(/>/g, '&gt;')
               .replace(/"/g, '&quot;')
               .replace(/\n/g, '&#10;');
-            commentXml = `<Comment ss:Author="TalentFlow"><ss:Data xmlns="http://www.w3.org/TR/REC-html40"><Font html:Size="9" html:Color="#1E293B">${safeComment}</Font></ss:Data></Comment>`;
+            commentXml = `<Comment ss:Author="TalentFlow" ss:ShowAlways="0"><ss:Data xmlns="http://www.w3.org/TR/REC-html40"><Font html:Size="9" html:Color="#1E293B">${safeComment}</Font></ss:Data></Comment>`;
           }
 
           const isNum = typeof val === 'number' && !isNaN(val);
@@ -1051,9 +1070,25 @@ export const ExcelExporter = {
           ws['!cols'] = autoWchs.map(wch => ({ wch }));
         }
 
-        // 应用单元格合并
-        if (sheet.merges && sheet.merges.length > 0) {
-          ws['!merges'] = sheet.merges;
+        // 应用单元格合并 (支持 sheet.merges 数组坐标与单元格内 mergeAcross 自动合流)
+        const combinedMerges = [...(sheet.merges || [])];
+        if (sheet.rows) {
+          sheet.rows.forEach((r, rIdx) => {
+            let cIdx = 0;
+            r.forEach(c => {
+              if (c && typeof c === 'object' && c.mergeAcross && c.mergeAcross > 0) {
+                const s = { r: rIdx, c: cIdx };
+                const e = { r: rIdx, c: cIdx + c.mergeAcross };
+                if (!combinedMerges.some(m => m.s.r === s.r && m.s.c === s.c)) {
+                  combinedMerges.push({ s, e });
+                }
+              }
+              cIdx += 1;
+            });
+          });
+        }
+        if (combinedMerges.length > 0) {
+          ws['!merges'] = combinedMerges;
         }
 
         // 应用冻结窗格
@@ -1066,6 +1101,7 @@ export const ExcelExporter = {
         }
 
         // 注入单元格悬浮批注 (Comments)
+        // 关键红线：批注 hidden = true 必须挂载在单元格的 .c 数组实例属性上，SheetJS 才会在生成 VML 时省略 <x:Visible/>
         if (sheet.rows) {
           sheet.rows.forEach((r, rIdx) => {
             r.forEach((c, cIdx) => {
@@ -1074,10 +1110,13 @@ export const ExcelExporter = {
                 if (!ws[cellRef]) {
                   ws[cellRef] = { t: 's', v: String(c.val || '') };
                 }
-                ws[cellRef].c = [{
+                const commentArr = [{
                   a: 'TalentFlow',
                   t: String(c.comment)
                 }];
+                commentArr.hidden = true; // 数组实例属性，确保 VML 生成时不带 <x:Visible/>
+                ws[cellRef].c = commentArr;
+                ws[cellRef].c.hidden = true; // 双保险
               }
             });
           });
@@ -1384,9 +1423,10 @@ export const ExcelExporter = {
     const totalCols = 3 + totalDays + 6;
 
     // Row 1: 主标题横幅 (深海蓝 1E40AF 白字加粗)
+    const monthDisplay = isEn ? (meta.monthNameEn || `${meta.month}`) : (meta.monthNameZh || `${meta.month}月`);
     const row1Banner = [
       {
-        val: labels.titleBannerText(meta.monthName || meta.month, meta.year),
+        val: labels.titleBannerText(monthDisplay, meta.year),
         styleId: 'BannerTitle',
         mergeAcross: totalCols - 1
       }
@@ -1395,20 +1435,16 @@ export const ExcelExporter = {
     // Row 2: 留白空行
     const row2Blank = [{ val: '', styleId: 'CellEmpty' }];
 
-    // Row 3: 元数据与横向图例条 (7 种考勤状态视觉色块与简短代号)
+    // Row 3: 考勤周期元数据与单行整洁横向图例 (格式化单字符串大跨列合并，杜绝列位挤压与###显示截断)
+    const legendFullText = labels.legendFullText || (isEn
+      ? 'Legend: ✔ Normal | L Late | E Early | LE Late & Early | ? Missed | AL/MC Leave | MIA Absent | OFF Weekend'
+      : '图例: ✔ 正常 | 迟 迟到 | 早 早退 | 迟早 迟退 | 漏 漏卡 | 假 获批休假 | MIA 缺勤 | 休 周末');
+
     const row3MetaAndLegend = [
-      { val: labels.lblMonth, styleId: 'MetaLabel' },
-      { val: meta.monthName || meta.month, styleId: 'MetaValue' },
-      { val: labels.lblYear, styleId: 'MetaLabel' },
-      { val: String(meta.year), styleId: 'MetaValue' },
-      { val: labels.legendLabel, styleId: 'MetaLabel' },
-      { val: labels.legendNormal, styleId: 'CellNormal' },
-      { val: labels.legendLate, styleId: 'CellLate' },
-      { val: labels.legendEarly, styleId: 'CellEarly' },
-      { val: labels.legendMissed, styleId: 'CellMissing' },
-      { val: labels.legendLeave, styleId: 'CellLeave' },
-      { val: labels.legendUnpunched, styleId: 'CellUnpunched' },
-      { val: labels.legendMia, styleId: 'CellMia' }
+      { val: isEn ? 'Period:' : '考勤月份:', styleId: 'MetaLabel' },
+      { val: `${formattedMonth} (${monthDisplay})`, styleId: 'MetaValue', mergeAcross: 1 },
+      { val: '', styleId: 'MetaValue' },
+      { val: legendFullText, styleId: 'MetaLabel', mergeAcross: Math.max(1, totalCols - 4) }
     ];
 
     // Row 4: 留白空行
@@ -1421,7 +1457,7 @@ export const ExcelExporter = {
       { val: labels.colShiftName, styleId: 'HeaderLeftDark' },
       // 中间动态日期列: 90度竖排旋转
       ...meta.days.map(d => ({
-        val: isEn ? `${d.day}-${meta.shortMonthName || 'M'}` : `${d.day}-${d.month}月`,
+        val: isEn ? `${d.day}-${meta.shortMonthName}` : `${d.day}-${d.month}月`,
         styleId: 'HeaderRotatedDate'
       })),
       // 右侧绿色汇总区 6 列
@@ -1499,7 +1535,9 @@ export const ExcelExporter = {
       customSheetType: 'ATTENDANCE_MATRIX',
       freezePanes: { splitHorizontal: 5, splitVertical: 3 },
       merges: [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } }
+        { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
+        { s: { r: 2, c: 1 }, e: { r: 2, c: 2 } },
+        { s: { r: 2, c: 3 }, e: { r: 2, c: totalCols - 1 } }
       ],
       customCols: [
         { wch: 14 }, // 工号

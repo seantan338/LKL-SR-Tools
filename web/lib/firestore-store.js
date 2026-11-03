@@ -810,6 +810,91 @@ export const FirestoreStore = {
   },
 
   /**
+   * 按指定月份精准拉取该月全量考勤打卡流水与请假单 (彻底解决前台 limit(300) 导致的跨月历史数据丢失)
+   * 采用左闭右开严格时间区间: [当月1日 00:00:00, 下月1日 00:00:00)
+   * @param {string} teamId
+   * @param {string} monthStr - 格式: "YYYY-MM" (如 "2026-10")
+   * @returns {Promise<{ attendanceEvents: Array, attendanceLeaves: Array }>}
+   */
+  async fetchMonthlyAttendanceRecords(teamId, monthStr) {
+    if (!teamId) return { attendanceEvents: [], attendanceLeaves: [] };
+    const cleanMonthStr = String(monthStr || '').trim();
+    const parts = cleanMonthStr.split('-');
+    const year = parseInt(parts[0], 10) || new Date().getFullYear();
+    const month = parseInt(parts[1], 10) || (new Date().getMonth() + 1);
+
+    const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const nextMonthDate = new Date(year, month, 1, 0, 0, 0, 0);
+    const startTimestamp = Timestamp.fromDate(startDate);
+    const endTimestamp = Timestamp.fromDate(nextMonthDate);
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const startMonthStr = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endMonthStr = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+    let attendanceDocs = [];
+    let logDocs = [];
+    let leaveDocs = [];
+
+    // 1. 查询专属 teams/{teamId}/attendance 集合（包含普通打卡与管理员 ADMIN_MANUAL 补录）
+    try {
+      const attCol = collection(db, 'teams', teamId, 'attendance');
+      const attQ = query(
+        attCol,
+        where('timestamp', '>=', startTimestamp),
+        where('timestamp', '<', endTimestamp),
+        orderBy('timestamp', 'desc')
+      );
+      const attSnap = await getDocs(attQ);
+      attendanceDocs = attSnap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter(d => !d.isDeleted);
+    } catch (err) {
+      console.warn('fetchMonthlyAttendanceRecords attendance query notice:', err?.message || err);
+    }
+
+    // 2. 查询 teams/{teamId}/logs 集合中的打卡记录 (targetType: ATTENDANCE)
+    try {
+      const logsCol = collection(db, 'teams', teamId, 'logs');
+      const logsQ = query(
+        logsCol,
+        where('timestamp', '>=', startTimestamp),
+        where('timestamp', '<', endTimestamp),
+        orderBy('timestamp', 'desc')
+      );
+      const logsSnap = await getDocs(logsQ);
+      logDocs = logsSnap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter(l => !l.isDeleted && l.targetType === 'ATTENDANCE' && ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'].includes(l.action || l.type));
+    } catch (err) {
+      console.warn('fetchMonthlyAttendanceRecords logs query notice:', err?.message || err);
+    }
+
+    // 3. 拉取 teams/{teamId}/attendance_leaves 获批请假单 (按区间重叠 startDate <= 月末 且 endDate >= 月初 判定)
+    try {
+      const leavesCol = collection(db, 'teams', teamId, 'attendance_leaves');
+      const leavesSnap = await getDocs(leavesCol);
+      leaveDocs = leavesSnap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter(l => {
+          if (!l || l.status !== 'APPROVED') return false;
+          const sDate = String(l.startDate || '').trim();
+          const eDate = String(l.endDate || sDate).trim();
+          if (!sDate) return false;
+          // 区间重叠核心契约: startDate <= 月末 且 endDate >= 月初
+          return sDate <= endMonthStr && eDate >= startMonthStr;
+        });
+    } catch (err) {
+      console.warn('fetchMonthlyAttendanceRecords attendance_leaves query notice:', err?.message || err);
+    }
+
+    return {
+      attendanceEvents: [...attendanceDocs, ...logDocs],
+      attendanceLeaves: leaveDocs
+    };
+  },
+
+  /**
    * 员工提交考勤异常申诉
    */
   async submitAttendanceAppeal(teamId, appealData) {

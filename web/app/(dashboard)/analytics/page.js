@@ -72,6 +72,10 @@ export default function AnalyticsPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const exportMonthOptions = useMemo(() => {
     const list = [];
     const now = new Date();
@@ -82,6 +86,26 @@ export default function AnalyticsPage() {
     }
     return list;
   }, []);
+  const [monthlyAttendanceEvents, setMonthlyAttendanceEvents] = useState([]);
+
+  // Auto-fetch full monthly attendance events when exportMonth or myAttendanceMonth changes
+  useEffect(() => {
+    if (!teamId) return;
+    const targetMonth = exportMonth || myAttendanceMonth;
+    if (!targetMonth) return;
+
+    let isSubscribed = true;
+    FirestoreStore.fetchMonthlyAttendanceRecords(teamId, targetMonth).then(res => {
+      if (!isSubscribed) return;
+      if (res && Array.isArray(res.attendanceEvents)) {
+        setMonthlyAttendanceEvents(res.attendanceEvents);
+      }
+    }).catch(err => {
+      console.warn('Auto fetch monthly attendance error:', err);
+    });
+
+    return () => { isSubscribed = false; };
+  }, [teamId, exportMonth, myAttendanceMonth]);
 
   // Attendance Rules & Settings Modal State
   const [attendanceRules, setAttendanceRules] = useState({
@@ -131,10 +155,6 @@ export default function AnalyticsPage() {
   const [manualPunchModalOpen, setManualPunchModalOpen] = useState(false);
   const [manualPunchAppealToReview, setManualPunchAppealToReview] = useState(null);
   const [manualPunchPrefillTarget, setManualPunchPrefillTarget] = useState(null);
-  const [myAttendanceMonth, setMyAttendanceMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
 
   // URL search query handler for deep-links like /analytics?tab=attendance&view=my
   useEffect(() => {
@@ -667,6 +687,26 @@ export default function AnalyticsPage() {
       );
     });
 
+    // 1.5 Process on-demand full monthly attendance events (un-truncated by limit(300))
+    monthlyAttendanceEvents.forEach(chk => {
+      const punchAction = chk.type || chk.action || 'CLOCK_IN';
+      if (!VALID_PUNCH_ACTIONS.includes(punchAction)) return;
+      addEvent(
+        chk.picName || chk.userName || chk.user?.displayName,
+        chk.userEmail || chk.user?.email,
+        chk.timestamp,
+        punchAction,
+        chk.note || chk.details || t('analytics.defaultProgressNote', '员工考勤打卡'),
+        {
+          verifyMethod: chk.verifyMethod,
+          verifySnapshot: chk.verifySnapshot,
+          isManualEntry: chk.isManualEntry || chk.verifyMethod === 'ADMIN_MANUAL',
+          manualEntry: chk.manualEntry,
+          uid: chk.userId || chk.uid || chk.user?.uid
+        }
+      );
+    });
+
     // 2. Process authentic punch records from logs collection (strictly targetType === 'ATTENDANCE')
     // All system activities (candidate operations, stage movements, audit records) are strictly excluded!
     logs.forEach(l => {
@@ -851,7 +891,7 @@ export default function AnalyticsPage() {
 
     // Sort by date desc, then by first action time desc
     return result.sort((a, b) => b.firstActionTime.getTime() - a.firstActionTime.getTime());
-  }, [logs, manualCheckins, teamMembers, attendanceRules, attendanceLeaves, lang, t]);
+  }, [logs, manualCheckins, monthlyAttendanceEvents, teamMembers, attendanceRules, attendanceLeaves, lang, t]);
 
   // Filtered attendance list
   const filteredAttendance = useMemo(() => {
@@ -1618,10 +1658,6 @@ export default function AnalyticsPage() {
       showToast(t('analytics.exportNoPermission', '仅 HQ 本部管理人员具备全员考勤月报导出权限'), 'error');
       return;
     }
-    if (picAttendanceRecords.length === 0) {
-      showToast(t('analytics.exportNoData', '当前时间段内暂无可导出的考勤打卡数据'), 'warning');
-      return;
-    }
 
     setIsExportingExcel(true);
     try {
@@ -1630,8 +1666,17 @@ export default function AnalyticsPage() {
       const activeMonthStr = exportMonth || fallbackMonth;
       const hqAdvisors = teamMembers.filter(m => (!m.teamId || m.teamId === 'default_team') && m.role !== 'pending');
 
+      // 从云端精准拉取目标月份全量考勤流水与获批休假（严格左闭右开区间，彻底解决 limit(300) 历史截断）
+      const monthlyData = await FirestoreStore.fetchMonthlyAttendanceRecords(teamId, activeMonthStr);
       const attendanceLogs = logs.filter(l => !l.isDeleted && l.targetType === 'ATTENDANCE' && ['CLOCK_IN', 'CLOCK_OUT', 'LUNCH_OUT', 'LUNCH_IN', 'CHECK_IN', 'CHECK_OUT'].includes(l.action || l.type));
-      const combinedAttendance = [...manualCheckins, ...attendanceLogs];
+      const combinedAttendance = [...monthlyData.attendanceEvents, ...manualCheckins, ...attendanceLogs];
+      const combinedLeaves = [...(monthlyData.attendanceLeaves || []), ...(attendanceLeaves || [])];
+
+      if (combinedAttendance.length === 0 && combinedLeaves.length === 0) {
+        showToast(t('analytics.exportNoData', '当前时间段内暂无可导出的考勤打卡数据'), 'warning');
+        setIsExportingExcel(false);
+        return;
+      }
 
       const sheets = ExcelExporter.buildAttendanceReportData({
         monthStr: activeMonthStr,
@@ -1641,7 +1686,7 @@ export default function AnalyticsPage() {
         shiftOverrides: attendanceRules.shiftOverrides || {},
         excludedAccounts: attendanceRules.excludedAccounts || [],
         hideZeroAttendance: Boolean(attendanceRules.hideZeroAttendanceInReport),
-        attendanceLeaves: attendanceLeaves || [],
+        attendanceLeaves: combinedLeaves,
         locale: isEn ? 'en' : 'zh'
       });
 

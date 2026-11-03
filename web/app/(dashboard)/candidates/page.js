@@ -510,7 +510,7 @@ function CandidatesContent() {
         stage: 'onboarding',
         stageHistory: newHistory
       });
-      showToast(t('pipeline.movedToOnboarding', `已推进 ${dealCandidate.name} 至正式入职阶段`), 'info');
+      showToast(t('pipeline.movedToOnboarding', { name: dealCandidate.name }, `已推进 ${dealCandidate.name} 至正式入职阶段`), 'info');
     } catch (err) {
       console.error('Failed to advance stage:', err);
       showToast(t('pipeline.stageUpdateFailed', '推进状态失败: ') + (err.message || err), 'error');

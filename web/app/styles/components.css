@@ -815,12 +815,22 @@ select option {
   position: fixed;
   top: 24px;
   right: 24px;
-  z-index: 99999;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   pointer-events: none;
   max-width: calc(100vw - 48px);
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+}
+
+/* 模态冲突规避：当考勤打卡弹窗或 P0 紧急公告处于激活状态时，临时挂起并隐藏浮动跟进提醒 */
+body.attendance-modal-open .reminder-alert-container,
+body.p0-notice-open .reminder-alert-container {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(-20px) scale(0.95) !important;
+  visibility: hidden !important;
 }
 
 .reminder-alert-card {
@@ -889,6 +899,48 @@ select option {
   justify-content: flex-end;
   gap: var(--space-2);
   margin-top: var(--space-1);
+}
+
+@media (max-width: 640px) {
+  .reminder-alert-container {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    gap: var(--space-2);
+  }
+
+  .reminder-alert-card {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .reminder-alert-header {
+    gap: 8px;
+  }
+
+  .reminder-alert-body {
+    font-size: 0.8rem;
+    padding: 8px 10px;
+  }
+
+  .reminder-alert-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .reminder-alert-actions .btn {
+    flex: 1 1 auto;
+    min-width: calc(33.333% - 6px);
+    padding: 6px 6px;
+    font-size: 0.75rem;
+    justify-content: center;
+    white-space: nowrap;
+  }
 }
 
 /* ==========================================================================
