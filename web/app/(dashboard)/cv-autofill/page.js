@@ -987,10 +987,10 @@ function CvAutofillContent() {
 
   return (
     <div className="page-view active">
-      <div style={{ display: 'flex', gap: 'var(--space-6)', maxWidth: '1500px', margin: '0 auto', width: '100%', height: 'calc(100dvh - 140px)', minHeight: '580px' }}>
+      <div className="cv-autofill-container">
         
         {/* Left Side: Upload & Parse */}
-        <div style={{ width: '38%', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', height: '100%', minHeight: 0, flexShrink: 0 }}>
+        <div className="cv-autofill-left">
           <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
             <div>
               <h1 className="page-title" style={{ color: 'var(--accent-purple)' }}>
@@ -1002,18 +1002,18 @@ function CvAutofillContent() {
 
           <div className="bezel-shell" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div className="bezel-core" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <div className="bento-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="bento-header cv-step1-header">
                 <h3>{t('cvAutofill.step1Title', '1. 提供简历内容')}</h3>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-xs"
+                  className="btn btn-secondary btn-xs cv-pick-candidate-btn"
                   onClick={() => setIsCandidatePickerOpen(true)}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '5px',
                     fontSize: '11px',
-                    padding: '3px 8px',
+                    padding: '4px 10px',
                     color: 'var(--accent-purple)',
                     borderColor: 'rgba(168, 85, 247, 0.4)',
                     background: 'rgba(168, 85, 247, 0.08)'
@@ -1031,32 +1031,28 @@ function CvAutofillContent() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '8px', marginBottom: 'var(--space-4)' }}>
+              <div className="cv-tabs-container">
                 <button
                   type="button"
+                  className="cv-tab-btn"
                   onClick={() => { setAiParseTab('file'); setAiParseError(''); }}
                   style={{
-                    padding: '6px 14px', borderRadius: 'var(--radius-pill)', border: 'none',
                     background: aiParseTab === 'file' ? 'var(--accent-purple)' : 'rgba(255,255,255,0.05)',
-                    color: aiParseTab === 'file' ? '#fff' : 'var(--text-muted)',
-                    fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                    transition: 'all 0.2s'
+                    color: aiParseTab === 'file' ? '#fff' : 'var(--text-muted)'
                   }}
                 >
-                  <i className="ph-light ph-file-pdf"></i> {t('cvAutofill.tabFile', '文件解析 (MarkItDown 支持)')}
+                  <i className="ph-light ph-file-pdf"></i> <span>{t('cvAutofill.tabFile', '文件解析 (MarkItDown 支持)')}</span>
                 </button>
                 <button
                   type="button"
+                  className="cv-tab-btn"
                   onClick={() => { setAiParseTab('text'); setAiParseError(''); }}
                   style={{
-                    padding: '6px 14px', borderRadius: 'var(--radius-pill)', border: 'none',
                     background: aiParseTab === 'text' ? 'var(--accent-purple)' : 'rgba(255,255,255,0.05)',
-                    color: aiParseTab === 'text' ? '#fff' : 'var(--text-muted)',
-                    fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                    transition: 'all 0.2s'
+                    color: aiParseTab === 'text' ? '#fff' : 'var(--text-muted)'
                   }}
                 >
-                  <i className="ph-light ph-textbox"></i> {t('cvAutofill.tabText', '文本解析')}
+                  <i className="ph-light ph-textbox"></i> <span>{t('cvAutofill.tabText', '文本解析')}</span>
                 </button>
               </div>
 
@@ -1157,9 +1153,9 @@ function CvAutofillContent() {
         </div>
 
         {/* Right Side: Form Review & Submission - 1:1 Mirroring Sunrise CV Template */}
-        <div style={{ width: '62%', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-          <div className="bezel-shell" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div className="bezel-core" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: 'var(--space-5)' }}>
+        <div className="cv-autofill-right">
+          <div className="bezel-shell" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div className="bezel-core cv-autofill-scroll-core">
               
               <div className="bento-header" style={{ borderBottom: '1px solid var(--border-hairline)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -1254,7 +1250,7 @@ function CvAutofillContent() {
                   <i className="ph-bold ph-user-circle"></i> {t('cvAutofill.secPersonalInfo', '个人基本信息 (Personal Information)')}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px' }}>
+                <div className="cv-form-grid cv-grid-name-contact">
                   <div className="form-group">
                     <label className="form-label">{t('cvAutofill.labelName', '姓名 (Name)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></label>
                     <input type="text" name="name" className="form-input" value={formData.name} onChange={handleChange} placeholder={t('cvAutofill.placeholderName', 'Full Name')} />
@@ -1269,7 +1265,7 @@ function CvAutofillContent() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                <div className="cv-form-grid cv-grid-address-position">
                   <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>{t('cvAutofill.labelAddress', '居住地址 (Address)')}</span>
@@ -1312,7 +1308,7 @@ function CvAutofillContent() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginTop: '10px' }}>
+                <div className="cv-form-grid cv-grid-demographics">
                   <div className="form-group">
                     <label className="form-label">{t('cvAutofill.labelAge', '年龄 (Age)')}</label>
                     <input type="text" name="age" className="form-input" value={formData.age} onChange={handleChange} placeholder={t('cvAutofill.placeholderAge', '例如: 28')} />
@@ -1349,7 +1345,7 @@ function CvAutofillContent() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                <div className="cv-form-grid cv-grid-salaries">
                   <div className="form-group">
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>{t('cvAutofill.labelLastDrawn', '上一份薪水 (Last Drawn)')}</span>
@@ -1438,7 +1434,7 @@ function CvAutofillContent() {
                         )}
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '10px' }}>
+                      <div className="cv-form-grid cv-grid-job-header">
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelCompany', '任职单位 (Company)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></label>
                           <input 
@@ -1471,7 +1467,7 @@ function CvAutofillContent() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginTop: '10px' }}>
+                      <div className="cv-form-grid cv-grid-job-salary-reason">
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label className="form-label" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span>{t('cvAutofill.labelExpSalary', '薪资 (Last Drawn Salary)')}</span>
@@ -1571,7 +1567,7 @@ function CvAutofillContent() {
                         )}
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 0.8fr', gap: '10px' }}>
+                      <div className="cv-form-grid cv-grid-edu-header">
                         <div className="form-group" style={{ marginBottom: 0 }}>
                           <label className="form-label" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span>{t('cvAutofill.labelSchool', '毕业院校 (School)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></span>
@@ -1655,7 +1651,7 @@ function CvAutofillContent() {
                   <i className="ph-bold ph-cpu"></i> {t('cvAutofill.secSkillsLanguages', '核心技能与熟练语言 (Skills & Languages)')}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                <div className="cv-form-grid cv-grid-skills-languages">
                   <div className="form-group">
                     <label className="form-label">{t('cvAutofill.labelSkills', '专业技能 (Skills - 逗号分隔)')}</label>
                     <input type="text" name="skills" className="form-input" value={formData.skills} onChange={handleChange} placeholder={t('cvAutofill.placeholderSkills', '如: Python, Java, SQL, Firebase')} />
@@ -1731,25 +1727,12 @@ function CvAutofillContent() {
               )}
 
               {/* 操作栏 - 底部吸附让体验更佳 */}
-              <div style={{
-                marginTop: 'auto',
-                paddingTop: 'var(--space-4)',
-                paddingBottom: '4px',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '12px',
-                borderTop: '1px solid var(--border-hairline)',
-                position: 'sticky',
-                bottom: 0,
-                background: 'var(--bezel-core-bg, #0b0c13)',
-                zIndex: 10,
-                flexShrink: 0
-              }}>
+              <div className="cv-bottom-actions">
                 <button 
                   className="btn btn-secondary" 
                   onClick={handleExportDocx} 
                   disabled={isExporting}
-                  style={{ padding: '12px 24px', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
                 >
                   {isExporting ? (
                     <><i className="ph-light ph-spinner ph-spin"></i> {t('cvAutofill.btnExporting', '正在生成...')}</>
@@ -1761,7 +1744,7 @@ function CvAutofillContent() {
                   className="btn btn-primary" 
                   onClick={handleSave} 
                   disabled={isSaving}
-                  style={{ padding: '12px 32px', fontSize: '1.05rem', background: 'var(--accent-emerald)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--accent-emerald)' }}
                 >
                   {isSaving ? (
                     <><i className="ph-light ph-spinner ph-spin"></i> {t('cvAutofill.btnSaving', '正在入库...')}</>

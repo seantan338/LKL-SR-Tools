@@ -2319,5 +2319,235 @@ html[data-theme="tactical"] .kanban-card-list.drag-over {
   }
 }
 
+/* ==========================================================================
+   CV Auto Fill & Ingestion (Sunrise Template) Responsive Styles
+   ========================================================================== */
+.cv-autofill-container {
+  display: flex;
+  gap: var(--space-6);
+  max-width: 1500px;
+  margin: 0 auto;
+  width: 100%;
+  height: calc(100dvh - 140px);
+  min-height: 580px;
+}
+
+.cv-autofill-left {
+  width: 38%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  height: 100%;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.cv-autofill-right {
+  width: 62%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.cv-autofill-scroll-core {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--space-5);
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 24px));
+}
+
+.cv-step1-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cv-tabs-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.cv-tab-btn {
+  flex: 1 1 0;
+  min-width: 130px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+/* Grid Layouts for CV Form */
+.cv-form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.cv-grid-name-contact {
+  grid-template-columns: 1.2fr 1fr 1fr;
+}
+
+.cv-grid-address-position {
+  grid-template-columns: 1.5fr 1fr 1fr;
+  margin-top: 10px;
+}
+
+.cv-grid-demographics {
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cv-grid-salaries {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 10px;
+}
+
+.cv-grid-job-header {
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 10px;
+}
+
+.cv-grid-job-salary-reason {
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.cv-grid-edu-header {
+  grid-template-columns: 1.4fr 1fr 1fr 0.8fr;
+  gap: 10px;
+}
+
+.cv-grid-skills-languages {
+  grid-template-columns: 1.2fr 1fr;
+}
+
+.cv-bottom-actions {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  padding-bottom: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--border-hairline);
+  position: sticky;
+  bottom: 0;
+  background: var(--bezel-core-bg, #0b0c13);
+  z-index: 15;
+  flex-shrink: 0;
+}
+
+/* Responsive Breakpoints: Tablet & Mobile Stacking */
+@media (max-width: 1024px) {
+  .cv-autofill-container {
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    gap: var(--space-5);
+  }
+
+  .cv-autofill-left,
+  .cv-autofill-right {
+    width: 100%;
+    height: auto;
+    flex-shrink: 1;
+  }
+
+  .cv-autofill-scroll-core {
+    overflow-y: visible;
+    height: auto;
+    padding: var(--space-4);
+    padding-bottom: calc(120px + env(safe-area-inset-bottom, 24px));
+  }
+
+  .cv-grid-demographics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .cv-grid-edu-header {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .cv-autofill-container {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 20px));
+  }
+
+  .cv-step1-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cv-pick-candidate-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cv-grid-name-contact,
+  .cv-grid-address-position,
+  .cv-grid-salaries,
+  .cv-grid-job-header,
+  .cv-grid-job-salary-reason,
+  .cv-grid-skills-languages {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .cv-grid-demographics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .cv-grid-demographics > :nth-child(5) {
+    grid-column: span 2;
+  }
+
+  .cv-grid-edu-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Bottom Actions Bar on Mobile - Elevated above mobile tab bar, clear of FAB */
+  .cv-bottom-actions {
+    position: sticky;
+    bottom: calc(56px + env(safe-area-inset-bottom, 4px));
+    padding: 10px 76px 10px 12px; /* 76px right padding clears the floating FAB */
+    background: var(--bezel-core-bg, rgba(11, 12, 19, 0.95));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border-subtle);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.45);
+    flex-direction: column-reverse;
+    gap: 8px;
+    z-index: 75;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .cv-bottom-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px !important;
+    font-size: 0.92rem !important;
+  }
+}
+
+
 
 

@@ -558,6 +558,18 @@
     display: none !important;
   }
 
+  /* Hide version pill and commission wallet badge on mobile to free up horizontal space */
+  .header-version-pill,
+  .header-commission-badge {
+    display: none !important;
+  }
+
+  /* Move language & theme toggles into sidebar on mobile to guarantee full topbar visibility */
+  .header-lang-btn,
+  .header-theme-btn {
+    display: none !important;
+  }
+
   /* Compact header buttons on mobile */
   .lang-toggle-btn {
     height: 34px;
@@ -613,13 +625,6 @@
   }
 }
 
-@media (max-width: 540px) {
-  /* On compact mobile devices, move language and theme toggles into sidebar to guarantee full title visibility */
-  .header-lang-btn,
-  .header-theme-btn {
-    display: none !important;
-  }
-}
 
 @media (max-width: 480px) {
   .app-header {

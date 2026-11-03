@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.51';
-export const BUILD_DATE = '2026-11-02';
-export const RELEASE_CODENAME = 'Attendance Matrix Unifies Absent Code to MIA';
+export const APP_VERSION = 'v1.7.56';
+export const BUILD_DATE = '2026-11-03';
+export const RELEASE_CODENAME = 'CV Autofill Mobile Responsive Stacking & Grid Optimization';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

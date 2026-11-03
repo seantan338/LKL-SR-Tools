@@ -134,7 +134,7 @@ export default function CommissionWalletBadge() {
   if (!user || !isOwner) return null;
 
   return (
-    <div style={{ position: 'relative' }} ref={popoverRef}>
+    <div className="header-commission-badge" style={{ position: 'relative' }} ref={popoverRef}>
       {/* Wallet Badge Button */}
       <button
         type="button"
