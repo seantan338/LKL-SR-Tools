@@ -28,7 +28,6 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date()); // For month navigation
   const [selectedDate, setSelectedDate] = useState(Utils.formatDate(new Date())); // Selected day (YYYY-MM-DD)
   const [agendaTab, setAgendaTab] = useState('selected'); // 'selected' | 'all'
-  const [hasAutoJumped, setHasAutoJumped] = useState(false);
   const [isAgendaOpen, setIsAgendaOpen] = useState(false); // Toggleable interview agenda panel
 
   // Restore preferred view mode from localStorage
@@ -223,29 +222,31 @@ export default function CalendarPage() {
     scheduledMonthMap[ym] = (scheduledMonthMap[ym] || 0) + 1;
   });
 
+  const MONTH_NAMES_EN = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const formatYearMonth = (y, mIndex) => {
+    if (isEn) {
+      return `${MONTH_NAMES_EN[mIndex] || ''} ${y}`;
+    }
+    return `${y}年${mIndex + 1}月`;
+  };
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); // 0-indexed
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
   const currentMonthCount = scheduledMonthMap[currentYearMonth] || 0;
-  const otherScheduledMonths = Object.keys(scheduledMonthMap).filter(ym => ym !== currentYearMonth).sort();
 
-  // Smart auto-jump to the earliest relevant month on initial load if current month has no interviews
-  useEffect(() => {
-    if (!hasAutoJumped && allScheduledCandidates.length > 0) {
-      if (currentMonthCount === 0 && otherScheduledMonths.length > 0) {
-        // Jump to the first scheduled month
-        const targetYM = otherScheduledMonths[0];
-        const [targetY, targetM] = targetYM.split('-');
-        const targetDateObj = new Date(parseInt(targetY, 10), parseInt(targetM, 10) - 1, 1);
-        setCurrentDate(targetDateObj);
-        
-        // Select the first date that has interviews in that month
-        const firstDateInMonth = Object.keys(groupedInterviews).sort().find(d => d.startsWith(targetYM));
-        if (firstDateInMonth) setSelectedDate(firstDateInMonth);
-      }
-      setHasAutoJumped(true);
-    }
-  }, [allScheduledCandidates.length, currentMonthCount, otherScheduledMonths, hasAutoJumped]);
+  // Filter valid months for quick navigation (isolate obvious ancient/typo years < 2020)
+  const otherScheduledMonths = Object.keys(scheduledMonthMap)
+    .filter(ym => {
+      if (ym === currentYearMonth) return false;
+      const yr = parseInt(ym.substring(0, 4), 10);
+      return yr >= 2020 && yr <= 2040;
+    })
+    .sort((a, b) => a.localeCompare(b));
 
   // Calendar Helpers
   const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
@@ -369,7 +370,7 @@ export default function CalendarPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', flexShrink: 0, flexWrap: 'wrap', gap: 'var(--space-3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-                  {t('calendar.yearMonth', { year, month: month + 1 }, `${year}年${month + 1}月`)}
+                  {t('calendar.yearMonth', { year, month: isEn ? MONTH_NAMES_EN[month] : month + 1 }, formatYearMonth(year, month))}
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', padding: '2px', border: '1px solid var(--border-hairline)' }}>
@@ -531,6 +532,8 @@ export default function CalendarPage() {
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {otherScheduledMonths.map(ym => {
                     const [y, m] = ym.split('-');
+                    const mIndex = parseInt(m, 10) - 1;
+                    const btnMonthDisplay = isEn ? MONTH_NAMES_EN[mIndex] : parseInt(m, 10);
                     return (
                       <button
                         key={ym}
@@ -538,7 +541,7 @@ export default function CalendarPage() {
                         className="btn btn-secondary btn-sm"
                         style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
                       >
-                        {t('calendar.goTo', '前往')} {t('calendar.yearMonth', { year: y, month: parseInt(m, 10) }, `${y}年${parseInt(m, 10)}月`)} ({scheduledMonthMap[ym]}) ➔
+                        {t('calendar.goTo', '前往')} {t('calendar.yearMonth', { year: y, month: btnMonthDisplay }, formatYearMonth(parseInt(y, 10), mIndex))} ({scheduledMonthMap[ym]}) ➔
                       </button>
                     );
                   })}
