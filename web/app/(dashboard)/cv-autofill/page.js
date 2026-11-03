@@ -216,7 +216,7 @@ function CvAutofillContent() {
   const { teamId, user, userProfile, isOwner, isManager } = useAuth();
   const { candidates: scopedCandidates = [], teamMembers = [], candidatesLoading: isLoadingCandidatesList } = useNotifications();
   const { showToast } = useFeedback();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlCandidateId = searchParams?.get('candidateId');
@@ -486,17 +486,28 @@ function CvAutofillContent() {
       const skillsStr = Array.isArray(raw.skills) ? raw.skills.join(', ') : (raw.skills || '');
       const langsStr = Array.isArray(raw.languages) ? raw.languages.join(', ') : (raw.languages || '');
 
+      const isEn = lang === 'en';
+      const skillsLabel = isEn ? '[Skills]: ' : '【专业技能】: ';
+      const langsLabel = isEn ? '[Languages]: ' : '【掌握语言】: ';
+      const salaryLabel = isEn ? '[Expected Salary]: ' : '【期望薪资】: ';
+      const lastSalaryLabel = isEn ? '[Last Drawn Salary]: ' : '【上份薪资】: ';
+      const availLabel = isEn ? '[Availability]: ' : '【到岗时间】: ';
+      const ageLabel = isEn ? '[Age]: ' : '【年龄】: ';
+      const genderLabel = isEn ? '[Gender]: ' : '【性别】: ';
+      const maritalLabel = isEn ? '[Marital Status]: ' : '【婚姻状况】: ';
+      const nationalityLabel = isEn ? '[Nationality/Race]: ' : '【国籍/种族】: ';
+
       // 智能组装技能、语言与求职意向至经历摘要
       const compiledNotes = [
-        skillsStr ? `【专业技能】: ${skillsStr}` : '',
-        langsStr ? `【掌握语言】: ${langsStr}` : '',
-        personal.expected_salary ? `【期望薪资】: ${personal.expected_salary}` : '',
-        personal.last_drawn_salary ? `【上份薪资】: ${personal.last_drawn_salary}` : '',
-        personal.availability ? `【到岗时间】: ${personal.availability}` : '',
-        personal.age ? `【年龄】: ${personal.age}` : '',
-        personal.gender ? `【性别】: ${personal.gender}` : '',
-        personal.marital_status ? `【婚姻状况】: ${personal.marital_status}` : '',
-        (personal.nationality || personal.race) ? `【国籍/种族】: ${[personal.nationality, personal.race].filter(Boolean).join(' / ')}` : ''
+        skillsStr ? `${skillsLabel}${skillsStr}` : '',
+        langsStr ? `${langsLabel}${langsStr}` : '',
+        personal.expected_salary ? `${salaryLabel}${personal.expected_salary}` : '',
+        personal.last_drawn_salary ? `${lastSalaryLabel}${personal.last_drawn_salary}` : '',
+        personal.availability ? `${availLabel}${personal.availability}` : '',
+        personal.age ? `${ageLabel}${personal.age}` : '',
+        personal.gender ? `${genderLabel}${personal.gender}` : '',
+        personal.marital_status ? `${maritalLabel}${personal.marital_status}` : '',
+        (personal.nationality || personal.race) ? `${nationalityLabel}${[personal.nationality, personal.race].filter(Boolean).join(' / ')}` : ''
       ].filter(Boolean).join('\n');
 
       const respStr = Array.isArray(primaryProf.responsibilities) 
