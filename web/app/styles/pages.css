@@ -2237,4 +2237,87 @@ html[data-theme="tactical"] .kanban-card-list.drag-over {
   outline: 2px dashed rgba(245, 158, 11, 0.5);
 }
 
+/* ==========================================================================
+   Announcements Page Responsive Layout & Mobile Collapsible Changelog
+   ========================================================================== */
+.announcements-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.announcements-main-col {
+  min-width: 0;
+  width: 100%;
+}
+
+.announcements-changelog-sidebar {
+  background: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 18px 20px;
+  position: sticky;
+  top: 20px;
+  width: 100%;
+  transition: all 0.25s ease;
+}
+
+.announcements-changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-changelog-toggle-btn {
+  display: none !important;
+}
+
+.announcements-changelog-body {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .announcements-layout-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .announcements-main-col {
+    width: 100%;
+  }
+
+  .announcements-changelog-sidebar {
+    position: static;
+    top: auto;
+    padding: 12px 16px;
+    margin-bottom: 6px;
+    order: -1;
+  }
+
+  .announcements-changelog-header {
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-changelog-toggle-btn {
+    display: inline-flex !important;
+  }
+
+  .announcements-changelog-body {
+    display: none;
+    padding-top: 14px;
+    margin-top: 12px;
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  }
+
+  .announcements-changelog-body.mobile-open {
+    display: block;
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+
 

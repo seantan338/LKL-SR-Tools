@@ -253,6 +253,9 @@ export default function AnnouncementsPage() {
   // 右侧系统日志展开状态
   const [expandedLogId, setExpandedLogId] = useState('sys_v1_7_1');
 
+  // 移动端专用：系统更新日志折叠/展开状态 (手机端默认折叠以舒展公告内容)
+  const [isMobileChangelogOpen, setIsMobileChangelogOpen] = useState(false);
+
   // 当系统语言变化时同步详情弹窗默认视图
   useEffect(() => {
     setDetailViewLang(lang || 'zh');
@@ -816,18 +819,13 @@ export default function AnnouncementsPage() {
         </div>
       )}
 
-      {/* 2. 主体：方案 A 左主右辅双栏分流布局 (7:3 比例) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 7fr) minmax(320px, 3fr)',
-        gap: '24px',
-        alignItems: 'start'
-      }}>
+      {/* 2. 主体：方案 A 左主右辅双栏分流布局 (7:3 比例，移动端自动纵向堆叠并全宽舒展) */}
+      <div className="announcements-layout-grid">
         
         {/* ========================================================
-            左侧主栏 (70% 宽度) - 行政与业务公告卡片流
+            左侧主栏 (70% 宽度，移动端 100% 全宽舒展) - 行政与业务公告卡片流
             ======================================================== */}
-        <div style={{ minWidth: 0 }}>
+        <div className="announcements-main-col">
           
           {/* 筛选与操作工具栏 */}
           <div style={{
@@ -1245,25 +1243,18 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* ========================================================
-            右侧边栏 (30% 宽度) - 系统更新日志 (System Changelog)
+            右侧边栏 (30% 宽度，移动端折叠收纳) - 系统更新日志 (System Changelog)
             ======================================================== */}
-        <div style={{
-          background: 'var(--bg-surface, #1e293b)',
-          border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
-          borderRadius: '12px',
-          padding: '18px 20px',
-          position: 'sticky',
-          top: '20px'
-        }}>
-          {/* 边栏头部 */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingBottom: '14px',
-            marginBottom: '16px',
-            borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))'
-          }}>
+        <div className="announcements-changelog-sidebar">
+          {/* 边栏头部 (移动端可点击一键切换展开/收起) */}
+          <div 
+            className="announcements-changelog-header"
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+                setIsMobileChangelogOpen(prev => !prev);
+              }
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{
                 width: '28px',
@@ -1282,20 +1273,49 @@ export default function AnnouncementsPage() {
                 {t('announcements.systemChangelogTitle', '系统更新日志')}
               </span>
             </div>
-            <span style={{
-              fontSize: '0.75rem',
-              color: 'var(--accent-blue, #3b82f6)',
-              background: 'rgba(59, 130, 246, 0.1)',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              fontWeight: '600'
-            }}>
-              {t('announcements.timelineBadge', 'Timeline')}
-            </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                fontSize: '0.75rem',
+                color: 'var(--accent-blue, #3b82f6)',
+                background: 'rgba(59, 130, 246, 0.1)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontWeight: '600'
+              }}>
+                {t('announcements.timelineBadge', 'Timeline')}
+              </span>
+
+              {/* 仅在移动端呈现的展开/收起控制器 */}
+              <button
+                type="button"
+                className="mobile-changelog-toggle-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMobileChangelogOpen(prev => !prev);
+                }}
+                style={{
+                  background: isMobileChangelogOpen ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: isMobileChangelogOpen ? 'var(--accent-blue, #60a5fa)' : 'var(--text-secondary, #cbd5e1)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer'
+                }}
+                title={t('announcements.toggleChangelogHint', '点击展开/收起系统更新日志')}
+              >
+                <span>{isMobileChangelogOpen ? t('announcements.collapseLog', '收起') : t('announcements.expandLog', '展开')}</span>
+                <i className={`ph-bold ${isMobileChangelogOpen ? 'ph-caret-up' : 'ph-caret-down'}`}></i>
+              </button>
+            </div>
           </div>
 
-          {/* 紧凑时间轴流 */}
-          <div style={{ position: 'relative', paddingLeft: '20px' }}>
+          {/* 紧凑时间轴流 (移动端支持一键折叠) */}
+          <div className={`announcements-changelog-body ${isMobileChangelogOpen ? 'mobile-open' : ''}`} style={{ position: 'relative', paddingLeft: '20px' }}>
             {/* 时间轴主垂线 */}
             <div style={{
               position: 'absolute',
