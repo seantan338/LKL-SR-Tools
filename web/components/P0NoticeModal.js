@@ -49,6 +49,19 @@ export default function P0NoticeModal() {
 
   const activeNotice = pendingP0[0];
 
+  // Sync body class to avoid overlapping with floating alert notifications
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (activeNotice) {
+      document.body.classList.add('p0-notice-open');
+    } else {
+      document.body.classList.remove('p0-notice-open');
+    }
+    return () => {
+      document.body.classList.remove('p0-notice-open');
+    };
+  }, [activeNotice]);
+
   if (!activeNotice) return null;
 
   const hasBilingual = Boolean(

@@ -242,6 +242,19 @@ export default function AttendanceModal() {
     return () => window.removeEventListener('omni_open_attendance_modal', handleOpen);
   }, []);
 
+  // Sync body class to avoid overlapping with floating alert notifications
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (isOpen) {
+      document.body.classList.add('attendance-modal-open');
+    } else {
+      document.body.classList.remove('attendance-modal-open');
+    }
+    return () => {
+      document.body.classList.remove('attendance-modal-open');
+    };
+  }, [isOpen]);
+
   const handleDismiss = () => {
     if (user?.uid) {
       sessionStorage.setItem(`omni_clockin_dismissed_${user.uid}_${todayDateStr}`, 'true');
@@ -675,7 +688,8 @@ export default function AttendanceModal() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 'var(--space-4)'
+      padding: 'var(--space-4)',
+      overflowY: 'auto'
     }}>
       {/* Toast Alert */}
       {toastMsg && (

@@ -597,12 +597,12 @@ export function NotificationProvider({ children }) {
               style={{ cursor: 'pointer' }}
             >
               <div className="reminder-alert-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
                   <div className="reminder-alert-icon-wrap">
                     <i className="ph-fill ph-bell-ringing"></i>
                   </div>
-                  <div>
-                    <div style={{ fontWeight: '600', fontSize: '0.88rem', color: '#ffffff' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.88rem', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {t('notifications.alertTitle', { name: alert.candidateName }, '跟进提醒 · {name}')}
                     </div>
                     {alert.time && (
