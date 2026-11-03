@@ -29,6 +29,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(Utils.formatDate(new Date())); // Selected day (YYYY-MM-DD)
   const [agendaTab, setAgendaTab] = useState('selected'); // 'selected' | 'all'
   const [hasAutoJumped, setHasAutoJumped] = useState(false);
+  const [isAgendaOpen, setIsAgendaOpen] = useState(false); // Toggleable interview agenda panel
 
   // Restore preferred view mode from localStorage
   useEffect(() => {
@@ -358,19 +359,19 @@ export default function CalendarPage() {
 
   return (
     <>
-      <div className="page-view active" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 'var(--space-6)', alignItems: 'start' }}>
+      <div className={`page-view active calendar-view-container ${isAgendaOpen ? 'with-agenda' : ''}`}>
         
-        {/* Left Panel: Calendar - Independent Fixed Height, Never Stretched */}
-        <div className="bezel-shell" style={{ alignSelf: 'start', position: 'sticky', top: '1rem' }}>
+        {/* Left Panel: Calendar - Independent Fixed Height, Full Width when Agenda is Closed */}
+        <div className="bezel-shell" style={{ alignSelf: 'start', position: 'sticky', top: '1rem', width: '100%' }}>
           <div className="bezel-core" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column' }}>
             
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)' }}>
-                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)', flexShrink: 0, flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '700', color: 'var(--text-primary)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
                   {t('calendar.yearMonth', { year, month: month + 1 }, `${year}年${month + 1}月`)}
                 </h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-full)', padding: '2px', border: '1px solid var(--border-hairline)' }}>
                     <button 
                       onClick={() => handleModeChange('global')}
@@ -457,7 +458,7 @@ export default function CalendarPage() {
                 </div>
               </div>
               
-              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button 
                   onClick={handlePrevMonth}
                   title={t('calendar.prevMonth', '上个月')}
@@ -472,6 +473,45 @@ export default function CalendarPage() {
                   title={t('calendar.nextMonth', '下个月')}
                   style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-interactive)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
                 ><i className="ph ph-caret-right"></i></button>
+
+                {/* Agenda Drawer Toggle Button */}
+                <button 
+                  type="button"
+                  onClick={() => setIsAgendaOpen(!isAgendaOpen)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    height: '32px',
+                    borderRadius: '16px',
+                    padding: '0 12px',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    background: isAgendaOpen ? 'var(--accent-blue)' : 'rgba(59, 130, 246, 0.12)',
+                    color: isAgendaOpen ? '#ffffff' : 'var(--accent-blue)',
+                    border: isAgendaOpen ? '1px solid var(--accent-blue)' : '1px solid rgba(59, 130, 246, 0.35)',
+                    boxShadow: isAgendaOpen ? '0 2px 8px rgba(59, 130, 246, 0.3)' : 'none'
+                  }}
+                  title={isAgendaOpen ? t('calendar.closeAgenda', '收起排期') : t('calendar.openAgenda', '面试日程')}
+                >
+                  <i className={isAgendaOpen ? 'ph-bold ph-sidebar-simple' : 'ph-bold ph-calendar-check'} style={{ fontSize: '13px' }}></i>
+                  <span>{isAgendaOpen ? t('calendar.closeAgenda', '收起排期') : t('calendar.openAgenda', '面试日程')}</span>
+                  {allScheduledCandidates.length > 0 && (
+                    <span style={{
+                      background: isAgendaOpen ? 'rgba(255,255,255,0.25)' : 'var(--accent-blue)',
+                      color: '#ffffff',
+                      padding: '1px 6px',
+                      borderRadius: 'var(--radius-pill)',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      lineHeight: '1.2'
+                    }}>
+                      {allScheduledCandidates.length}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -744,15 +784,25 @@ export default function CalendarPage() {
                       })}
                       
                       {cellDisplayTags.length > 3 && (
-                        <div style={{ 
-                          fontSize: '10px', 
-                          color: 'var(--accent-blue)', 
-                          fontWeight: '600',
-                          padding: '1px 5px',
-                          background: 'rgba(59, 130, 246, 0.08)',
-                          borderRadius: '3px',
-                          width: 'fit-content'
-                        }}>
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDate(cell.dateStr);
+                            setAgendaTab('selected');
+                            setIsAgendaOpen(true);
+                          }}
+                          style={{ 
+                            fontSize: '10px', 
+                            color: 'var(--accent-blue)', 
+                            fontWeight: '600',
+                            padding: '1px 5px',
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            borderRadius: '3px',
+                            width: 'fit-content',
+                            cursor: 'pointer'
+                          }}
+                          title={t('calendar.viewAll', '查看全部 ➔')}
+                        >
                           +{t('calendar.moreItems', { count: cellDisplayTags.length - 3 }, `${cellDisplayTags.length - 3} 更多`)}
                         </div>
                       )}
@@ -764,19 +814,56 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Right Panel: Daily Interviews & Full Agenda - Expands Independently */}
-        <div className="bezel-shell" style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column' }}>
-          <div className="bezel-core" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column' }}>
-            
-            {/* Right Panel Header with Tab Toggle */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <i className="ph ph-clock" style={{ fontSize: '1.2rem', color: 'var(--accent-blue)' }}></i>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {t('calendar.scheduleTitle', '面试日程排期')}
-                </h3>
-              </div>
-            </div>
+        {/* Right Panel: Daily Interviews & Full Agenda - Opens / Closes on Demand */}
+        {isAgendaOpen && (
+          <>
+            <div 
+              className="calendar-agenda-overlay"
+              onClick={() => setIsAgendaOpen(false)}
+            />
+            <div className="bezel-shell calendar-agenda-drawer-shell" style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column' }}>
+              <div className="bezel-core" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column' }}>
+                
+                {/* Right Panel Header with Tab Toggle & Close Button */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <i className="ph ph-clock" style={{ fontSize: '1.2rem', color: 'var(--accent-blue)' }}></i>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                      {t('calendar.scheduleTitle', '面试日程排期')}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAgendaOpen(false)}
+                    title={t('common.close', '关闭')}
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid var(--border-interactive)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                      e.currentTarget.style.color = 'rgb(248, 113, 113)';
+                      e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.borderColor = 'var(--border-interactive)';
+                    }}
+                  >
+                    <i className="ph ph-x" style={{ fontSize: '13px' }}></i>
+                  </button>
+                </div>
 
             {/* Agenda Tab Switcher */}
             <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)', padding: '2px', marginBottom: 'var(--space-4)' }}>
@@ -1020,7 +1107,9 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
-      </div>
+      </>
+    )}
+  </div>
       
       <CandidateDrawer 
         isOpen={isDrawerOpen} 

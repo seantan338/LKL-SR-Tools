@@ -1054,6 +1054,68 @@
 /* ==========================================================================
    Page 4: Calendar / Interview Schedule
    ========================================================================== */
+.calendar-view-container.page-view.active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+  transition: grid-template-columns var(--duration-normal) var(--ease-spring);
+}
+
+.calendar-view-container.page-view.active.with-agenda {
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+.calendar-agenda-overlay {
+  display: none;
+}
+
+@keyframes agendaFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 1024px) {
+  .calendar-view-container.page-view.active,
+  .calendar-view-container.page-view.active.with-agenda {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .calendar-agenda-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 4, 7, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1040;
+    animation: agendaFadeIn 0.2s ease forwards;
+  }
+
+  .calendar-agenda-drawer-shell {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: min(420px, 92vw) !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    z-index: 1045 !important;
+    border-radius: 0 !important;
+    border-left: 1px solid var(--border-interactive) !important;
+    box-shadow: -12px 0 35px rgba(0, 0, 0, 0.75) !important;
+    animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .calendar-agenda-drawer-shell .bezel-core {
+    height: 100% !important;
+    border-radius: 0 !important;
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 16px)) !important;
+  }
+}
+
 .calendar-layout {
   display: grid;
   grid-template-columns: 1fr 340px;
