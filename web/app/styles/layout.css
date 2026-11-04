@@ -3,12 +3,21 @@
  * App Layout, Modern Detached Sidebar, Topbar & Shell
  */
 
+#talent-app-root {
+  max-width: 100vw;
+  width: 100%;
+  overflow-x: hidden;
+}
+
 .app-wrapper {
   display: flex;
   min-height: 100dvh;
   position: relative;
   background-color: transparent;
   z-index: auto;
+  max-width: 100%;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* Sidebar Shell - Modern Detached Floating Structure */
@@ -232,6 +241,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 100%;
+  width: 100%;
   padding: 1rem 1.25rem 2rem 1.25rem;
 }
 
@@ -429,12 +440,16 @@
   flex: 1;
   max-width: var(--content-max-width);
   width: 100%;
+  min-width: 0;
   margin: 0 auto;
 }
 
 /* Page Section Fade Transition */
 .page-view {
   display: none;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
   /* 不要加 forwards：动画停在最后一帧时，Chrome 会把 .page-view 当作 position: fixed 的定位基准，
      页面内的全屏弹窗 / 遮罩会被困在内容区并超出屏幕。最后一帧本来就等于默认样式，去掉不影响视觉 */
   animation: viewFadeIn var(--duration-normal) var(--ease-spring);

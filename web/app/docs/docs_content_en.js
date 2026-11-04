@@ -82,7 +82,7 @@ export const sectionsEn = [
     badge: 'Demand Mgmt',
     icon: 'ph-briefcase',
     tag: 'Requisitions',
-    summary: 'Manage client hiring specifications, multi-token smart search, candidate pitch scripts, and E2EE confidential notes.',
+    summary: 'Manage client hiring specifications, multi-token smart search, candidate pitch scripts, and shared team notes.',
     content: (
       <div className="doc-section-body">
         <div className="doc-callout doc-callout-info">
@@ -113,7 +113,7 @@ export const sectionsEn = [
 
         <h4>2. Space-Separated Multi-Token Smart Search</h4>
         <p>
-          The search bar implements real-time space-separated multi-token search. For example, typing <code>Semiconductor Senior Penang</code> splits each keyword and matches across company name, job title, location, specifications, and decrypted secret notes. <strong>Only requisitions matching all tokens simultaneously are displayed</strong>.
+          The search bar implements real-time space-separated multi-token search. For example, typing <code>Semiconductor Senior Penang</code> splits each keyword and matches across company name, job title, location, specifications, and shared team notes. <strong>Only requisitions matching all tokens simultaneously are displayed</strong>.
         </p>
 
         <h4>3. One-Click Candidate Pitch Generation</h4>
@@ -121,15 +121,10 @@ export const sectionsEn = [
           Inside any requisition detail drawer, click <strong>Generate Candidate Pitch</strong> to produce an enticing, structured job pitch highlighting key selling points and compensation structure, ready to copy into WhatsApp or email outreach.
         </p>
 
-        <h4>4. End-to-End Encrypted (E2EE) Confidential Notes</h4>
+        <h4>4. Shared Team Requisition Notes</h4>
         <p>
-          Record sensitive client markups, fee percentages, payment cycles, and client hiring quirks strictly in <strong>Secret Notes (私密笔记)</strong>:
+          Record client expectations, interview guidelines, minimum salary thresholds, and team collaboration notes in <strong>Job Notes (职位备注)</strong>. All updates are synchronized in real-time across your team via Cloud Firestore.
         </p>
-        <ul className="doc-feature-list">
-          <li><strong>Client-Side Encryption</strong>: Notes are encrypted directly in the browser using Web Crypto API (<code>PBKDF2-SHA-256</code> with 100,000 iterations + <code>AES-GCM-256</code>).</li>
-          <li><strong>Ciphertext Signature</strong>: Cloud Firestore stores only ciphertext beginning with the standard signature <code>TLFL_E2EE_V1:</code>.</li>
-          <li><strong>Zero-Knowledge Vault</strong>: Neither the database operator nor system developers possess your master key. Unlocking requires entering your team vault master password in <strong>Settings</strong>.</li>
-        </ul>
 
         <h4>5. AI Semantic Matching & Vector Embeddings</h4>
         <p>
@@ -549,12 +544,12 @@ export const sectionsEn = [
     badge: 'Console',
     icon: 'ph-gear-six',
     tag: 'Settings',
-    summary: 'Disaster recovery JSON migration, Google Sheets 15-column import & AI cleaning, E2EE vault, and WhatsApp alerts.',
+    summary: 'Disaster recovery JSON migration, Google Sheets 15-column import & AI cleaning, tenant security isolation, and WhatsApp alerts.',
     content: (
       <div className="doc-section-body">
         <div className="doc-callout doc-callout-info">
           <strong><i className="ph-bold ph-lock-key"></i> Security & Integration Console:</strong>
-          <span>Manage data migration, batch spreadsheet imports, Zero-Knowledge encryption vaults, and personal notification preferences.</span>
+          <span>Manage data migration, batch spreadsheet imports, multi-tenant security isolation, and personal notification preferences.</span>
         </div>
 
         <h4>1. Local JSON Migration (Disaster Recovery Only)</h4>
@@ -571,9 +566,9 @@ export const sectionsEn = [
           <li><strong>AI Smart Cleaning Pipeline</strong>: Pre-deduplicates against Firestore cloud records (saving API tokens), batches rows concurrently, matches recruiter names fuzzily, and displays an editable Diff Review table before committing.</li>
         </ul>
 
-        <h4>3. Confidential Data Vault (Zero-Knowledge E2EE)</h4>
+        <h4>3. Multi-Tenant Data Security & RBAC Isolation</h4>
         <p>
-          Client commission rates and confidential order notes are encrypted using browser-native Web Crypto API (PBKDF2-SHA-256 with 100,000 iterations + AES-GCM-256). All encrypted records bear the signature <code>TLFL_E2EE_V1:</code>. Because encryption is symmetric, all team members accessing confidential notes must share the same vault password. Passwords are never uploaded to the server and cannot be recovered if lost!
+          Client data, candidate profiles, and fee configurations are strictly isolated at the tenant level via Firebase Authentication and Cloud Firestore security rules. All mission-critical actions are recorded in immutable audit logs, preventing cross-tenant leakage.
         </p>
 
         <h4>4. WhatsApp Notification Binding & Template Customization</h4>
@@ -583,7 +578,7 @@ export const sectionsEn = [
 
         <h4>5. Recommended Onboarding Configuration Sequence</h4>
         <p>
-          Step 1: Initialize Vault Master Password in Settings ➔ Step 2: Bind personal WhatsApp phone number ➔ Step 3: Perform initial Google Sheets or JSON migration ➔ Step 4: Approve incoming team members in Team Collaboration.
+          Step 1: Bind personal WhatsApp phone number ➔ Step 2: Perform initial Google Sheets or JSON migration ➔ Step 3: Approve incoming team members in Team Collaboration.
         </p>
       </div>
     )
@@ -594,7 +589,7 @@ export const sectionsEn = [
     badge: 'Knowledge Base',
     icon: 'ph-question',
     tag: 'Guide',
-    summary: 'Comprehensive solutions for account approvals, Kanban snapbacks, talent reactivation, AI timeouts, and E2EE vaults.',
+    summary: 'Comprehensive solutions for account approvals, Kanban snapbacks, talent reactivation, AI timeouts, and tenant security.',
     content: (
       <div className="doc-section-body">
         <div className="doc-callout doc-callout-info">
@@ -708,19 +703,19 @@ export const sectionsEn = [
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0 10px 0' }}>
           <div style={{ padding: '16px 18px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))', borderRadius: '10px' }}>
             <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', fontSize: '0.96rem' }}>
-              Q11: After logging in from a new laptop, why do confidential notes appear encrypted and locked?
+              Q11: Can team members see clients or candidates belonging to other teams or partners?
             </div>
             <div style={{ color: 'var(--text-secondary)', lineHeight: '1.8' }}>
-              Answer: This is standard End-to-End Encryption (E2EE) behavior. The vault password is only cached in local browser memory and never uploaded to Firestore. After switching devices or clearing browser cache, simply navigate to "System Settings", re-enter your Vault Master Password, and save to unlock all notes immediately.
+              Answer: No. The platform enforces strict team-level isolation and Firestore Security Rules. Recruiters and Managers can only access records within their assigned team. Only Headquarter (HQ) accounts possess one-way read-only penetration into partner branches, while partner branches cannot read HQ data.
             </div>
           </div>
 
           <div style={{ padding: '16px 18px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))', borderRadius: '10px' }}>
             <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', fontSize: '0.96rem' }}>
-              Q12: What if I forget the Confidential Data Vault master password?
+              Q12: How are sensitive commission rates and trade secrets protected?
             </div>
             <div style={{ color: 'var(--text-secondary)', lineHeight: '1.8' }}>
-              Answer: High-strength Zero-Knowledge encryption (PBKDF2 + AES-GCM-256) is mathematically irreversible; neither servers nor developers can retrieve your password! Emergency Recovery: Contact a colleague (such as the Owner) who still has an unlocked session on their computer, copy and backup the plaintext notes from their screen, and then reset a new master password for the team.
+              Answer: All business-critical records are secured by Firebase Authentication and fine-grained Cloud Firestore RBAC rules. Sensitive operations are recorded to immutable audit trails, ensuring complete tenant-boundary protection and preventing unauthorized data leaks.
             </div>
           </div>
 

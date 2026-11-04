@@ -5,7 +5,10 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "precheck": "node scripts/pre_commit_check.js",
+    "deploy:web": "node scripts/trigger_deploy.js web",
+    "deploy:ai": "node scripts/trigger_deploy.js ai"
   },
   "repository": {
     "type": "git",
