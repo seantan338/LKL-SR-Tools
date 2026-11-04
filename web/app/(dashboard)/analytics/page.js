@@ -1971,13 +1971,12 @@ export default function AnalyticsPage() {
 
         {/* Tab Switcher & Quick Clock In */}
         {/* Tab Switcher & Attendance Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+        <div className="analytics-header-actions">
           
           {/* Owner Rule Settings Button */}
           {isOwner && isHqTeam && (
             <button
-              className="btn btn-sm btn-outline"
-              style={{ border: '1px solid var(--border-interactive)', gap: '6px', background: 'rgba(255,255,255,0.03)' }}
+              className="btn btn-sm btn-outline analytics-rules-btn"
               onClick={() => {
                 setEditingRules(JSON.parse(JSON.stringify(attendanceRules)));
                 setIsSettingsOpen(true);
@@ -1989,7 +1988,7 @@ export default function AnalyticsPage() {
             </button>
           )}
 
-          <div className="analytics-tabs-scroll">
+          <div className="analytics-tabs-group">
             <button
               className={`btn btn-sm analytics-tab-btn ${activeTab === 'performance' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('performance')}
@@ -2133,7 +2132,7 @@ export default function AnalyticsPage() {
 
           {/* Quick Clock-in Buttons (HQ only) */}
           {isHqTeam && (
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="analytics-clock-actions">
             <button
               className="btn btn-sm btn-primary"
               style={{ gap: '5px', fontWeight: '600' }}
