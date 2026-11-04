@@ -131,10 +131,32 @@ async function checkI18n(files) {
   let enKeysSet = new Set();
 
   try {
-    const fileUrl = 'file:///' + i18nPath.replace(/\\/g, '/');
-    const i18nModule = await import(fileUrl);
-    const zh = i18nModule.zh || {};
-    const en = i18nModule.en || {};
+    let zh = null;
+    let en = null;
+
+    // 1. 优先通过沙箱极速解析（兼容 Node 18/20/22/24，跨平台 Linux/Render/Windows，无需 package.json "type": "module"）
+    try {
+      const raw = fs.readFileSync(i18nPath, 'utf8');
+      const cjs = raw.replace(/\bexport\s+const\s+/g, 'exports.');
+      const mod = { exports: {} };
+      new Function('exports', 'module', cjs)(mod.exports, mod);
+      if (mod.exports.zh && mod.exports.en) {
+        zh = mod.exports.zh;
+        en = mod.exports.en;
+      }
+    } catch {
+      zh = null;
+      en = null;
+    }
+
+    // 2. 降级为动态 import (使用标准 pathToFileURL)
+    if (!zh || !en) {
+      const { pathToFileURL } = require('url');
+      const fileUrl = pathToFileURL(i18nPath).href;
+      const i18nModule = await import(fileUrl);
+      zh = i18nModule.zh || {};
+      en = i18nModule.en || {};
+    }
 
     const zhList = flattenKeys(zh);
     const enList = flattenKeys(en);
