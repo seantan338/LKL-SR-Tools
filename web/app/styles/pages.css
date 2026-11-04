@@ -1776,6 +1776,44 @@
   }
 }
 
+/* Analytics Main Tabs Horizontal Scrollable Bar */
+.analytics-tabs-scroll {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  gap: 4px;
+}
+
+.analytics-tabs-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.analytics-tab-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  border: none;
+  gap: 6px;
+}
+
+@media (max-width: 640px) {
+  .analytics-tab-btn {
+    font-size: 12px;
+    padding: 0.35rem 0.65rem;
+  }
+}
+
 /* Responsive adjustments */
 @media (max-width: 1024px) {
   .overview-metrics-grid {
