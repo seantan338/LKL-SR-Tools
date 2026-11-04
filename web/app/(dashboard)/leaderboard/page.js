@@ -1002,7 +1002,7 @@ export default function LeaderboardPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: '3rem' }}>
       
       {/* Top Controls: Compact Filter Toolbar */}
-      <div style={{
+      <div className="lb-toolbar" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -1015,7 +1015,7 @@ export default function LeaderboardPage() {
         boxShadow: 'var(--shadow-card)'
       }}>
         {/* Track Toggle Tabs (Sales vs Attendance) */}
-        <div style={{
+        <div className="lb-tabs" style={{
           display: 'inline-flex',
           gap: '4px',
           background: 'var(--input-bg)',
@@ -1024,6 +1024,7 @@ export default function LeaderboardPage() {
           border: '1px solid var(--border-interactive)'
         }}>
           <button
+            className="lb-tab-btn"
             onClick={() => setActiveTab('sales')}
             style={{
               padding: '6px 14px',
@@ -1044,12 +1045,13 @@ export default function LeaderboardPage() {
           >
             <i className="ph-bold ph-chart-line-up" style={{ color: activeTab === 'sales' ? 'var(--accent-blue)' : 'inherit' }}></i>
             <span>{t('leaderboard.tabSales', '销售业绩榜')}</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+            <span className="lb-tab-count" style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
               ({salesLeaderboard.length})
             </span>
           </button>
 
           <button
+            className="lb-tab-btn"
             onClick={() => setActiveTab('attendance')}
             style={{
               padding: '6px 14px',
@@ -1070,12 +1072,13 @@ export default function LeaderboardPage() {
           >
             <i className="ph-bold ph-calendar-check" style={{ color: activeTab === 'attendance' ? '#8b5cf6' : 'inherit' }}></i>
             <span>{t('leaderboard.tabAttendance', '考勤守时榜')}</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+            <span className="lb-tab-count" style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
               ({attendanceLeaderboard.length})
             </span>
           </button>
 
           <button
+            className="lb-tab-btn"
             onClick={() => setActiveTab('my_attendance')}
             style={{
               padding: '6px 14px',
@@ -1149,7 +1152,7 @@ export default function LeaderboardPage() {
 
           </div>
         ) : (
-          <div style={{
+          <div className="lb-date-pills" style={{
             display: 'flex',
             gap: '4px',
             background: 'var(--input-bg)',
@@ -1165,6 +1168,7 @@ export default function LeaderboardPage() {
             ].map(f => (
               <button
                 key={f.id}
+                className="lb-date-pill-btn"
                 onClick={() => setDateFilter(f.id)}
                 style={{
                   border: 'none',
@@ -1268,17 +1272,17 @@ export default function LeaderboardPage() {
         <>
           {/* Top 3 Podium (Classic Olympic Stagger: #2 Left, #1 Center, #3 Right) */}
           {currentRankingList.length > 0 && (
-        <div style={{
+        <div className="lb-podium-grid" style={{
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'flex-end',
           gap: 'var(--space-4)',
           flexWrap: 'wrap'
         }}>
-          
+          {!top2 && <div className="lb-podium-placeholder" />}
           {/* Rank 2: Silver */}
           {top2 && (
-            <div style={{
+            <div className="lb-podium-card lb-rank-2" style={{
               flex: '1 1 260px',
               maxWidth: '340px',
               background: 'var(--card-bg)',
@@ -1289,7 +1293,7 @@ export default function LeaderboardPage() {
               boxShadow: 'var(--shadow-card)',
               position: 'relative'
             }}>
-              <div style={{
+              <div className="lb-podium-badge" style={{
                 position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
                 background: '#94a3b8', color: '#0f172a', fontWeight: '800', fontSize: '12px',
                 padding: '2px 14px', borderRadius: 'var(--radius-full)',
@@ -1299,7 +1303,7 @@ export default function LeaderboardPage() {
                 <span>RANK 2</span>
               </div>
 
-              <div style={{
+              <div className="lb-podium-avatar" style={{
                 width: '54px', height: '54px', borderRadius: '50%',
                 background: 'linear-gradient(135deg, rgba(148, 163, 184, 0.25) 0%, rgba(71, 85, 105, 0.25) 100%)',
                 border: '2px solid #94a3b8',
@@ -1310,33 +1314,33 @@ export default function LeaderboardPage() {
                 {top2.name.charAt(0).toUpperCase()}
               </div>
 
-              <div style={{ fontWeight: '700', fontSize: 'var(--text-md)', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              <div className="lb-podium-name" style={{ fontWeight: '700', fontSize: 'var(--text-md)', color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {top2.name}
               </div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              <div className="lb-podium-email" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '14px' }}>
                 {top2.email}
               </div>
 
               {activeTab === 'sales' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {top2.onboarded > 0 ? (
-                    <div style={{
+                    <div className="lb-podium-score-box" style={{
                       padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
                     }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
-                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top2.onboarded}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top2.onboarded}</span>
                     </div>
                   ) : (
-                    <div style={{
+                    <div className="lb-podium-score-box" style={{
                       padding: '8px', background: 'rgba(245, 158, 11, 0.08)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)'
                     }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
-                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top2.compositeScore}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top2.compositeScore}</span>
                     </div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     {top2.onboarded > 0 ? (
                       <>
                         <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compositeScore}</strong></span>
@@ -1352,16 +1356,16 @@ export default function LeaderboardPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{
+                  <div className="lb-podium-score-box" style={{
                     padding: '8px', background: 'rgba(139, 92, 246, 0.08)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)'
                   }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
-                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
+                    <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
                       {top2.daysPresent === 0 ? '-' : `${top2.punctualityRate}%`}
                     </span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compliantDays}/{top2.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.punctualityScore}</strong></span>
                   </div>
@@ -1372,7 +1376,7 @@ export default function LeaderboardPage() {
 
           {/* Rank 1: Gold (Center & Elevated) */}
           {top1 && (
-            <div style={{
+            <div className="lb-podium-card lb-rank-1" style={{
               flex: '1 1 280px',
               maxWidth: '360px',
               background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--card-bg) 100%)',
@@ -1384,7 +1388,7 @@ export default function LeaderboardPage() {
               position: 'relative',
               order: top2 ? 0 : -1
             }}>
-              <div style={{
+              <div className="lb-podium-badge" style={{
                 position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)',
                 background: '#f59e0b', color: '#000000', fontWeight: '900', fontSize: '12px',
                 padding: '3px 18px', borderRadius: 'var(--radius-full)',
@@ -1394,7 +1398,7 @@ export default function LeaderboardPage() {
                 <span>RANK 1</span>
               </div>
 
-              <div style={{
+              <div className="lb-podium-avatar" style={{
                 width: '64px', height: '64px', borderRadius: '50%',
                 background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(217, 119, 6, 0.3) 100%)',
                 border: '3px solid #f59e0b',
@@ -1406,33 +1410,33 @@ export default function LeaderboardPage() {
                 {top1.name.charAt(0).toUpperCase()}
               </div>
 
-              <div style={{ fontWeight: '800', fontSize: 'var(--text-lg)', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              <div className="lb-podium-name" style={{ fontWeight: '800', fontSize: 'var(--text-lg)', color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {top1.name}
               </div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              <div className="lb-podium-email" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '16px' }}>
                 {top1.email}
               </div>
 
               {activeTab === 'sales' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {top1.onboarded > 0 ? (
-                    <div style={{
+                    <div className="lb-podium-score-box" style={{
                       padding: '10px', background: 'rgba(16, 185, 129, 0.1)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.3)'
                     }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
-                      <span style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-emerald)' }}>{top1.onboarded}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span className="lb-podium-score-val" style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-emerald)' }}>{top1.onboarded}</span>
                     </div>
                   ) : (
-                    <div style={{
+                    <div className="lb-podium-score-box" style={{
                       padding: '10px', background: 'rgba(245, 158, 11, 0.12)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.35)'
                     }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
-                      <span style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-amber)' }}>{top1.compositeScore}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span className="lb-podium-score-val" style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-amber)' }}>{top1.compositeScore}</span>
                     </div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
                     {top1.onboarded > 0 ? (
                       <>
                         <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.compositeScore}</strong></span>
@@ -1448,16 +1452,16 @@ export default function LeaderboardPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{
+                  <div className="lb-podium-score-box" style={{
                     padding: '10px', background: 'rgba(139, 92, 246, 0.12)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.35)'
                   }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
-                    <span style={{ fontSize: '1.65rem', fontWeight: '900', color: '#c084fc' }}>
+                    <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span className="lb-podium-score-val" style={{ fontSize: '1.65rem', fontWeight: '900', color: '#c084fc' }}>
                       {top1.daysPresent === 0 ? '-' : `${top1.punctualityRate}%`}
                     </span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.compliantDays}/{top1.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.punctualityScore}</strong></span>
                   </div>
@@ -1468,7 +1472,7 @@ export default function LeaderboardPage() {
 
           {/* Rank 3: Bronze */}
           {top3 && (
-            <div style={{
+            <div className="lb-podium-card lb-rank-3" style={{
               flex: '1 1 260px',
               maxWidth: '340px',
               background: 'var(--card-bg)',
@@ -1479,7 +1483,7 @@ export default function LeaderboardPage() {
               boxShadow: 'var(--shadow-card)',
               position: 'relative'
             }}>
-              <div style={{
+              <div className="lb-podium-badge" style={{
                 position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
                 background: '#b45309', color: '#ffffff', fontWeight: '800', fontSize: '12px',
                 padding: '2px 14px', borderRadius: 'var(--radius-full)',
@@ -1489,7 +1493,7 @@ export default function LeaderboardPage() {
                 <span>RANK 3</span>
               </div>
 
-              <div style={{
+              <div className="lb-podium-avatar" style={{
                 width: '54px', height: '54px', borderRadius: '50%',
                 background: 'linear-gradient(135deg, rgba(180, 83, 9, 0.25) 0%, rgba(120, 53, 15, 0.25) 100%)',
                 border: '2px solid #b45309',
@@ -1500,33 +1504,33 @@ export default function LeaderboardPage() {
                 {top3.name.charAt(0).toUpperCase()}
               </div>
 
-              <div style={{ fontWeight: '700', fontSize: 'var(--text-md)', color: 'var(--text-primary)', marginBottom: '4px' }}>
+              <div className="lb-podium-name" style={{ fontWeight: '700', fontSize: 'var(--text-md)', color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {top3.name}
               </div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              <div className="lb-podium-email" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '14px' }}>
                 {top3.email}
               </div>
 
               {activeTab === 'sales' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {top3.onboarded > 0 ? (
-                    <div style={{
+                    <div className="lb-podium-score-box" style={{
                       padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
                     }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
-                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top3.onboarded}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top3.onboarded}</span>
                     </div>
                   ) : (
-                    <div style={{
+                    <div className="lb-podium-score-box" style={{
                       padding: '8px', background: 'rgba(245, 158, 11, 0.08)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)'
                     }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
-                      <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top3.compositeScore}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top3.compositeScore}</span>
                     </div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     {top3.onboarded > 0 ? (
                       <>
                         <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compositeScore}</strong></span>
@@ -1542,16 +1546,16 @@ export default function LeaderboardPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{
+                  <div className="lb-podium-score-box" style={{
                     padding: '8px', background: 'rgba(139, 92, 246, 0.08)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)'
                   }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
-                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
+                    <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
                       {top3.daysPresent === 0 ? '-' : `${top3.punctualityRate}%`}
                     </span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compliantDays}/{top3.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.punctualityScore}</strong></span>
                   </div>
@@ -1559,6 +1563,7 @@ export default function LeaderboardPage() {
               )}
             </div>
           )}
+          {!top3 && <div className="lb-podium-placeholder" />}
 
         </div>
       )}
@@ -1576,7 +1581,7 @@ export default function LeaderboardPage() {
             </span>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
+          <div className="lb-desktop-table" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
@@ -1776,6 +1781,114 @@ export default function LeaderboardPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Compact Ranking List (< 768px) */}
+          <div className="lb-mobile-list">
+            {currentRankingList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--text-muted)', fontSize: '13px' }}>
+                {t('leaderboard.noData', '暂无榜单数据')}
+              </div>
+            ) : (
+              currentRankingList.map((item, idx) => {
+                const isTop3 = idx < 3;
+                const badgeBg = idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#b45309' : 'rgba(255,255,255,0.06)';
+                const badgeColor = idx === 0 || idx === 1 ? '#000' : idx === 2 ? '#fff' : 'var(--text-muted)';
+
+                return (
+                  <div key={`mob_${item.key || item.name}`} className="lb-mobile-item">
+                    <div className="lb-mobile-item-top">
+                      <div className="lb-mobile-item-left">
+                        <span style={{
+                          background: badgeBg,
+                          color: badgeColor,
+                          borderRadius: isTop3 ? '50%' : '6px',
+                          width: '22px',
+                          height: '22px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '800',
+                          fontSize: '11px',
+                          flexShrink: 0
+                        }}>
+                          {isTop3 ? idx + 1 : `#${idx + 1}`}
+                        </span>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%',
+                          background: idx === 0 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : idx === 1 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : idx === 2 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                          color: idx === 0 || idx === 1 ? '#000' : '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', fontWeight: '700', flexShrink: 0
+                        }}>
+                          {item.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.name}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Primary Score Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                          {activeTab === 'sales' ? t('leaderboard.compositeScore', '综合积分') : t('leaderboard.punctualityScore', '守时指数')}
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.14)', color: 'var(--accent-amber)', fontWeight: '800', fontSize: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px' }}>
+                          {activeTab === 'sales' ? item.compositeScore : item.punctualityScore}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom 4-Grid Key Metrics */}
+                    {activeTab === 'sales' ? (
+                      <div className="lb-mobile-item-metrics">
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.onboarded', '成功入职')}</span>
+                          <span className="lb-mobile-metric-val" style={{ color: item.onboarded > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>{item.onboarded}</span>
+                        </div>
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.offers', 'Offer 数')}</span>
+                          <span className="lb-mobile-metric-val">{item.offer}</span>
+                        </div>
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.interviews', '面试数')}</span>
+                          <span className="lb-mobile-metric-val">{item.interview}</span>
+                        </div>
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.sourced', '推人量')}</span>
+                          <span className="lb-mobile-metric-val">{item.totalSourced} ({item.rate}%)</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="lb-mobile-item-metrics">
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.punctualityRate', '准点率')}</span>
+                          <span className="lb-mobile-metric-val" style={{ color: item.punctualityRate >= 90 ? 'var(--accent-emerald)' : '#c084fc' }}>
+                            {item.daysPresent === 0 ? '-' : `${item.punctualityRate}%`}
+                          </span>
+                        </div>
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.compliantDays', '准点天数')}</span>
+                          <span className="lb-mobile-metric-val">{item.compliantDays}/{item.daysPresent}</span>
+                        </div>
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.avgArrival', '平均签到')}</span>
+                          <span className="lb-mobile-metric-val">{item.avgArrivalStr}</span>
+                        </div>
+                        <div className="lb-mobile-metric-cell">
+                          <span className="lb-mobile-metric-label">{t('leaderboard.violations', '迟到/异常')}</span>
+                          <span className="lb-mobile-metric-val" style={{ color: item.violationDays > 0 ? 'var(--accent-rose)' : 'var(--text-muted)' }}>
+                            {item.violationDays}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

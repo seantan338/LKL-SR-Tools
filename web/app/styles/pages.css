@@ -2921,6 +2921,234 @@ html[data-theme="tactical"] .kanban-card-list.drag-over {
   }
 }
 
+/* ==========================================================================
+   Leaderboard Mobile & Responsive Optimization (Plan A: 3-Column Mini Podium)
+   ========================================================================== */
+.lb-mobile-list {
+  display: none;
+}
+
+.lb-podium-placeholder {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* 1. Top Toolbar & Tabs */
+  .lb-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+
+  .lb-tabs {
+    display: flex !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .lb-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lb-tab-btn {
+    flex: 1 1 0 !important;
+    justify-content: center !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    gap: 4px !important;
+  }
+
+  .lb-tab-count {
+    display: none !important;
+  }
+
+  .lb-date-pills {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+
+  .lb-date-pill-btn {
+    flex: 1 !important;
+    text-align: center !important;
+    padding: 5px 6px !important;
+    font-size: 11px !important;
+  }
+
+  /* 2. Compact 3-Column Olympic Podium on Mobile (#2 Left, #1 Center, #3 Right) */
+  .lb-podium-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.14fr) minmax(0, 1fr) !important;
+    align-items: end !important;
+    gap: 8px !important;
+    padding-top: 14px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .lb-podium-placeholder {
+    display: block;
+    visibility: hidden;
+  }
+
+  .lb-podium-card {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 16px 6px 10px 6px !important;
+    border-radius: 14px !important;
+  }
+
+  .lb-podium-card.lb-rank-1 {
+    padding: 18px 8px 12px 8px !important;
+    transform: translateY(-6px);
+    order: 0 !important;
+  }
+
+  /* Podium Rank Badge */
+  .lb-podium-badge {
+    font-size: 9px !important;
+    padding: 2px 8px !important;
+    top: -10px !important;
+    gap: 3px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Podium Avatar */
+  .lb-podium-avatar {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    margin: 4px auto 6px auto !important;
+  }
+
+  .lb-podium-card.lb-rank-1 .lb-podium-avatar {
+    width: 46px !important;
+    height: 46px !important;
+    font-size: 1.15rem !important;
+    margin: 4px auto 8px auto !important;
+  }
+
+  /* Podium Name & Email */
+  .lb-podium-name {
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    margin-bottom: 6px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 0 2px !important;
+  }
+
+  .lb-podium-card.lb-rank-1 .lb-podium-name {
+    font-size: 13px !important;
+  }
+
+  .lb-podium-email {
+    display: none !important;
+  }
+
+  /* Podium Score Box */
+  .lb-podium-score-box {
+    padding: 6px 4px !important;
+    border-radius: 8px !important;
+  }
+
+  .lb-podium-score-label {
+    font-size: 9px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .lb-podium-score-val {
+    font-size: 1.1rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .lb-podium-card.lb-rank-1 .lb-podium-score-val {
+    font-size: 1.3rem !important;
+  }
+
+  /* Podium Sub-metrics */
+  .lb-podium-submetrics {
+    grid-template-columns: 1fr !important;
+    gap: 2px !important;
+    font-size: 10px !important;
+    margin-top: 2px !important;
+  }
+
+  /* 3. Desktop Table vs Mobile Ranking Card List */
+  .lb-desktop-table {
+    display: none !important;
+  }
+
+  .lb-mobile-list {
+    display: flex !important;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .lb-mobile-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--border-hairline);
+  }
+
+  .lb-mobile-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .lb-mobile-item-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .lb-mobile-item-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-hairline);
+    text-align: center;
+  }
+
+  .lb-mobile-metric-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.015);
+    padding: 4px 2px;
+    border-radius: 6px;
+  }
+
+  .lb-mobile-metric-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lb-mobile-metric-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+}
+
+
 
 
 
