@@ -8,13 +8,13 @@
 
 ## 🛠️ 技术栈构成
 
-- **框架**：Next.js 16.3.5 (App Router)
+- **框架**：Next.js 16.4.2 (App Router)
 - **UI 库**：React 19.2.8
 - **云端服务**：Firebase 11.9.0 (Cloud Firestore 实时同步 + Firebase Authentication 身份鉴权)
 - **看板交互**：`@hello-pangea/dnd` 拖拽 + `react-indiana-drag-scroll` 横向鼠标平移
 - **数据可视化**：`Chart.js` 4.5.0
 - **文档生成与导出**：`docx` 9.7.1 (Word 导出) + `html2pdf.js` (PDF 导出) + `pdfjs-dist` (PDF 解析)
-- **端到端加密**：基于 Web Crypto API (AES-256-GCM + PBKDF2) 的零知识保密保险库
+- **数据安全与隔离**：基于 Firebase Auth + Cloud Firestore RBAC 规则的多租户物理隔离与不可变审计日志留痕
 
 ---
 

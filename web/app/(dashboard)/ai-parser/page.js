@@ -450,7 +450,7 @@ export default function AIParserPage() {
                 {results && !isProcessing && (
                   <div style={{ display: 'flex', flexDirection: 'column', height: '100%', marginTop: 'var(--space-3)' }}>
                     {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
                       <button 
                         onClick={() => setActiveTab('internal')}
                         style={{ 

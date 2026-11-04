@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node --max-old-space-size=400 ./node_modules/next/dist/bin/next build",
+    "precheck": "node -e \"if(require('fs').existsSync('../scripts/pre_commit_check.js')) require('child_process').execSync('node ../scripts/pre_commit_check.js --skip-backend', {stdio:'inherit'})\"",
+    "build": "npm run precheck && node --max-old-space-size=400 ./node_modules/next/dist/bin/next build",
     "start": "next start",
     "test:identity": "node --test lib/identity.test.mjs",
     "test:reminder": "node --test lib/interview-reminder.test.mjs",

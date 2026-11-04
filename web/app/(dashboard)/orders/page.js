@@ -79,7 +79,7 @@ export default function OrdersPage() {
   const openModal = (order = null) => {
     if (order) {
       setEditingOrder(order);
-      const { id, createdAt, updatedAt, decryptedPrivateNotes, privateNotesError, privateNotes, ...rest } = order;
+      const { id, createdAt, updatedAt, ...rest } = order;
       setFormData({
         ...rest
       });
@@ -287,9 +287,6 @@ export default function OrdersPage() {
 
     try {
       let finalData = { ...formData };
-      delete finalData.decryptedPrivateNotes;
-      delete finalData.privateNotesError;
-      delete finalData.privateNotes;
       delete finalData.id;
       delete finalData.createdAt;
       delete finalData.updatedAt;
