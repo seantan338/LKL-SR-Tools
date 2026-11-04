@@ -1776,17 +1776,17 @@
   }
 }
 
-/* Analytics Main Tabs Horizontal Scrollable Bar */
-.analytics-tabs-scroll {
+/* Analytics Main Tabs & Header Controls */
+.analytics-header-actions {
   display: flex;
   align-items: center;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.analytics-tabs-group {
+  display: inline-flex;
+  align-items: center;
   background: rgba(255, 255, 255, 0.05);
   padding: 4px;
   border-radius: var(--radius-md);
@@ -1794,23 +1794,72 @@
   gap: 4px;
 }
 
-.analytics-tabs-scroll::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
 .analytics-tab-btn {
   flex-shrink: 0;
   white-space: nowrap;
   border: none;
   gap: 6px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.analytics-rules-btn {
+  border: 1px solid var(--border-interactive);
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.analytics-clock-actions {
+  display: flex;
+  gap: 6px;
 }
 
 @media (max-width: 640px) {
+  .analytics-header-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .analytics-rules-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+  }
+
+  .analytics-tabs-group {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
+    padding: 6px !important;
+  }
+
   .analytics-tab-btn {
-    font-size: 12px;
-    padding: 0.35rem 0.65rem;
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+    white-space: nowrap !important;
+  }
+
+  /* When 3 tabs are present, the 3rd tab (Commission) spans both columns full width */
+  .analytics-tab-btn:nth-child(3) {
+    grid-column: span 2 !important;
+  }
+
+  .analytics-clock-actions {
+    width: 100% !important;
+    display: flex !important;
+  }
+
+  .analytics-clock-actions .btn {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 8px 10px !important;
   }
 }
 
