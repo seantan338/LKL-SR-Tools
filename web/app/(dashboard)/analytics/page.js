@@ -1989,10 +1989,9 @@ export default function AnalyticsPage() {
             </button>
           )}
 
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+          <div className="analytics-tabs-scroll">
             <button
-              className={`btn btn-sm ${activeTab === 'performance' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ border: 'none', gap: '6px' }}
+              className={`btn btn-sm analytics-tab-btn ${activeTab === 'performance' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('performance')}
             >
               <i className="ph-bold ph-trophy"></i>
@@ -2000,8 +1999,7 @@ export default function AnalyticsPage() {
             </button>
             {isHqTeam && (
             <button
-              className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ border: 'none', gap: '6px' }}
+              className={`btn btn-sm analytics-tab-btn ${activeTab === 'attendance' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('attendance')}
             >
               <i className="ph-bold ph-clock-user"></i>
@@ -2010,8 +2008,7 @@ export default function AnalyticsPage() {
             )}
             {isOwner && (
             <button
-              className={`btn btn-sm ${activeTab === 'commission' ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ border: 'none', gap: '6px' }}
+              className={`btn btn-sm analytics-tab-btn ${activeTab === 'commission' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('commission')}
             >
               <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)' }}></i>
@@ -2409,7 +2406,7 @@ export default function AnalyticsPage() {
           {/* View Mode Switcher: My Attendance vs Team Attendance (Admins can toggle, Employees view My Attendance) */}
           {canManageAttendance && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
                 <button
                   type="button"
                   className={`btn btn-sm ${attendanceViewMode === 'my' ? 'btn-primary' : 'btn-ghost'}`}
