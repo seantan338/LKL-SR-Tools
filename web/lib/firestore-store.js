@@ -1944,14 +1944,18 @@ export const FirestoreStore = {
     try {
       const logsRef = collection(db, 'teams', teamId, 'logs');
       await addDoc(logsRef, {
-        timestamp: new Date().toISOString(),
+        level: 'audit',
         action: 'SUBMIT',
         targetType: 'EXPENSE_CLAIM',
         targetId: claimDoc.id,
         targetName: record.title,
         message: `${record.userName} 提交了报销单: ${record.title} (RM ${roundedTotal.toFixed(2)})`,
-        user: record.userName,
-        userEmail: record.userEmail,
+        user: {
+          uid: record.userId || '',
+          displayName: record.userName || '员工',
+          email: record.userEmail || ''
+        },
+        timestamp: serverTimestamp(),
         isDeleted: false
       });
     } catch (e) {
@@ -2003,14 +2007,18 @@ export const FirestoreStore = {
     try {
       const logsRef = collection(db, 'teams', teamId, 'logs');
       await addDoc(logsRef, {
-        timestamp: new Date().toISOString(),
+        level: 'audit',
         action: `CLAIM_${newStatus}`,
         targetType: 'EXPENSE_CLAIM',
         targetId: claimId,
         targetName: meta.title || `报销单 ${claimId}`,
         message: `${user?.displayName || 'Admin'} 更新报销单状态为 [${newStatus}]${meta.reason ? `: ${meta.reason}` : ''}`,
-        user: user?.displayName || 'Admin',
-        userEmail: user?.email || '',
+        user: {
+          uid: user?.uid || '',
+          displayName: user?.displayName || user?.email || 'Admin',
+          email: user?.email || ''
+        },
+        timestamp: serverTimestamp(),
         isDeleted: false
       });
     } catch (e) {
@@ -2062,14 +2070,18 @@ export const FirestoreStore = {
     try {
       const logsRef = collection(db, 'teams', teamId, 'logs');
       await addDoc(logsRef, {
-        timestamp: new Date().toISOString(),
+        level: 'audit',
         action: payoutChannel === 'PAYROLL' ? 'LOCK_CLAIMS_TO_PAYROLL' : 'CREATE_PAYOUT_BATCH',
         targetType: 'EXPENSE_CLAIM_BATCH',
         targetId: batchId,
         targetName: batchDocData.batchTitle,
         message: `${user?.displayName || 'Finance'} 完成了 ${claimIds.length} 笔报销单的${payoutChannel === 'PAYROLL' ? '月度随薪锁定' : '批次放款'}`,
-        user: user?.displayName || 'Finance',
-        userEmail: user?.email || '',
+        user: {
+          uid: user?.uid || '',
+          displayName: user?.displayName || user?.email || 'Finance',
+          email: user?.email || ''
+        },
+        timestamp: serverTimestamp(),
         isDeleted: false
       });
     } catch (e) {

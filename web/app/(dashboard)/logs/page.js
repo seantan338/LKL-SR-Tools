@@ -138,14 +138,52 @@ export default function LogsPage() {
     }
   };
 
+  const isAuditLog = (log) => {
+    if (!log) return false;
+    if (log.level === 'audit') return true;
+    if (log.level === 'error' || log.level === 'warn') return false;
+    // 兼容历史遗留数据：未带 level 但具备审计动作或目标的日志，视为审计日志
+    return Boolean(log.action || log.targetType);
+  };
+
+  const getLogDate = (ts) => {
+    if (!ts) return new Date();
+    if (typeof ts.toDate === 'function') return ts.toDate();
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const formatLogFullTime = (ts) => {
+    if (!ts) return 'N/A';
+    if (typeof ts.toDate === 'function') return ts.toDate().toLocaleString();
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString();
+  };
+
+  const getLogUserName = (log) => {
+    if (!log) return t('logsPage.unknownUser') || '未知用户';
+    if (typeof log.user === 'object' && log.user !== null) {
+      return log.user.displayName || log.user.email || t('logsPage.unknownUser') || '未知用户';
+    }
+    return log.user || log.userEmail || t('logsPage.unknownUser') || '未知用户';
+  };
+
+  const getLogUserEmail = (log) => {
+    if (!log) return 'N/A';
+    if (typeof log.user === 'object' && log.user !== null) {
+      return log.user.email || 'N/A';
+    }
+    return log.userEmail || 'N/A';
+  };
+
   const filteredLogs = useMemo(() => {
     if (logFilter === 'deleted') {
       return isOwner ? logs.filter(l => l.isDeleted === true) : [];
     }
     const activeLogs = logs.filter(l => !l.isDeleted);
     if (logFilter === 'all') return activeLogs;
-    if (logFilter === 'audit') return activeLogs.filter(l => l.level === 'audit');
-    if (logFilter === 'error') return activeLogs.filter(l => l.level === 'error' || l.level === 'warn');
+    if (logFilter === 'audit') return activeLogs.filter(l => isAuditLog(l));
+    if (logFilter === 'error') return activeLogs.filter(l => !isAuditLog(l));
     return activeLogs;
   }, [logs, logFilter, isOwner]);
 
@@ -155,6 +193,12 @@ export default function LogsPage() {
       case 'UPDATE': return <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>{t('logsPage.actionUpdate')}</span>;
       case 'DELETE': return <span className="badge" style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244,63,94,0.3)' }}>{t('logsPage.actionDelete')}</span>;
       case 'AI_PARSE': return <span className="badge" style={{ color: 'var(--accent-purple)', borderColor: 'rgba(168,85,247,0.3)' }}>{t('logsPage.actionAiParse')}</span>;
+      case 'SUBMIT': return <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>{t('claims.statusSubmitted') || '待主管初审'}</span>;
+      case 'CLAIM_MANAGER_APPROVED': return <span className="badge" style={{ color: 'var(--accent-purple)', borderColor: 'rgba(168,85,247,0.3)' }}>{t('claims.statusManagerApproved') || '主管已审'}</span>;
+      case 'CLAIM_APPROVED_PENDING_PAYOUT': return <span className="badge" style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16,185,129,0.3)' }}>{t('claims.statusApprovedPendingPayout') || '待放款'}</span>;
+      case 'CLAIM_REJECTED': return <span className="badge" style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244,63,94,0.3)' }}>{t('claims.statusRejected') || '已驳回'}</span>;
+      case 'CREATE_PAYOUT_BATCH': return <span className="badge" style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16,185,129,0.3)' }}>{t('claims.batchPayoutBtn') || '批次放款'}</span>;
+      case 'LOCK_CLAIMS_TO_PAYROLL': return <span className="badge" style={{ color: 'var(--accent-amber, #f59e0b)', borderColor: 'rgba(245,158,11,0.3)' }}>{t('claims.lockPayrollBtn') || '随薪结算'}</span>;
       default: return <span className="badge">{action}</span>;
     }
   };
@@ -164,6 +208,11 @@ export default function LogsPage() {
       case 'CANDIDATE': return 'ph-users';
       case 'JOB_ORDER': return 'ph-briefcase';
       case 'SYSTEM': return 'ph-magic-wand';
+      case 'EXPENSE_CLAIM': return 'ph-receipt';
+      case 'EXPENSE_CLAIM_BATCH': return 'ph-credit-card';
+      case 'COMMISSION': return 'ph-currency-dollar';
+      case 'ATTENDANCE':
+      case 'ATTENDANCE_ADJUSTMENT': return 'ph-clock-user';
       default: return 'ph-folder';
     }
   };
@@ -278,8 +327,9 @@ export default function LogsPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', padding: 'var(--space-3)' }}>
                 {filteredLogs.map((log) => {
-                  const isAudit = log.level === 'audit';
+                  const isAudit = isAuditLog(log);
                   const isSelected = selectedLog?.id === log.id;
+                  const userName = getLogUserName(log);
                   
                   return (
                     <div 
@@ -302,14 +352,14 @@ export default function LogsPage() {
                         <>
                           {/* Audit Row */}
                           <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--bg-surface-elevated, rgba(125,125,125,0.15))', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.85rem' }}>
-                            {log.user?.displayName ? log.user.displayName.charAt(0).toUpperCase() : '?'}
+                            {userName.charAt(0).toUpperCase()}
                           </div>
                           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: '500', color: 'var(--text-primary)', fontSize: '0.9rem' }}>{log.user?.displayName || log.user?.email || t('logsPage.unknownUser')}</span>
+                              <span style={{ fontWeight: '500', color: 'var(--text-primary)', fontSize: '0.9rem' }}>{userName}</span>
                               {getActionLabel(log.action)}
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <i className={`ph-light ${getTargetIcon(log.targetType)}`}></i> {log.targetName}
+                                <i className={`ph-light ${getTargetIcon(log.targetType)}`}></i> {log.targetName || log.message || log.targetType}
                               </span>
                               {log.isDeleted && (
                                 <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
@@ -318,7 +368,7 @@ export default function LogsPage() {
                               )}
                             </div>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                              {Utils.formatRelativeTime(log.timestamp?.toDate ? log.timestamp.toDate() : new Date(), t)}
+                              {Utils.formatRelativeTime(getLogDate(log.timestamp), t)}
                             </div>
                           </div>
                         </>
@@ -330,8 +380,8 @@ export default function LogsPage() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: 'bold', color: 'var(--accent-rose)', fontSize: '0.85rem', textTransform: 'uppercase' }}>{log.level}</span>
-                              <span style={{ color: 'var(--accent-purple)', fontSize: '0.85rem' }}>[{log.module}]</span>
+                              <span style={{ fontWeight: 'bold', color: 'var(--accent-rose)', fontSize: '0.85rem', textTransform: 'uppercase' }}>{log.level || 'ERROR'}</span>
+                              {log.module && <span style={{ color: 'var(--accent-purple)', fontSize: '0.85rem' }}>[{log.module}]</span>}
                               <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.message}</span>
                               {log.isDeleted && (
                                 <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
@@ -340,7 +390,7 @@ export default function LogsPage() {
                               )}
                             </div>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                              {Utils.formatRelativeTime(log.timestamp?.toDate ? log.timestamp.toDate() : new Date(), t)}
+                              {Utils.formatRelativeTime(getLogDate(log.timestamp), t)}
                             </div>
                           </div>
                         </>
@@ -360,7 +410,7 @@ export default function LogsPage() {
               <div style={{ fontFamily: 'var(--font-mono)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
                   <h3 style={{ fontSize: '1rem', margin: 0, color: 'var(--text-primary)' }}>
-                    {selectedLog.level === 'audit' ? t('logsPage.auditDetailsTitle') : t('logsPage.errorDetailsTitle')}
+                    {isAuditLog(selectedLog) ? t('logsPage.auditDetailsTitle') : t('logsPage.errorDetailsTitle')}
                   </h3>
                   {selectedLog.isDeleted && (
                     <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)', fontWeight: 'bold' }}>
@@ -370,25 +420,30 @@ export default function LogsPage() {
                 </div>
                 
                 <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldTime')}</span> <span style={{ color: 'var(--text-primary)' }}>{selectedLog.timestamp?.toDate ? selectedLog.timestamp.toDate().toLocaleString() : 'N/A'}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldTime')}</span> <span style={{ color: 'var(--text-primary)' }}>{formatLogFullTime(selectedLog.timestamp)}</span>
                 </div>
                 
-                {selectedLog.level === 'audit' ? (
+                {isAuditLog(selectedLog) ? (
                   <>
                     <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldUser')}</span> <span style={{ color: 'var(--text-primary)' }}>{selectedLog.user?.displayName || t('logsPage.unknownUser')} ({selectedLog.user?.email || 'N/A'})</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldUser')}</span> <span style={{ color: 'var(--text-primary)' }}>{getLogUserName(selectedLog)} ({getLogUserEmail(selectedLog)})</span>
                     </div>
                     <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
                       <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldAction')}</span> {getActionLabel(selectedLog.action)}
                     </div>
                     <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldTarget')}</span> <span style={{ color: 'var(--accent-blue)' }}>{selectedLog.targetType}</span> / <span style={{ color: 'var(--text-primary)' }}>{selectedLog.targetName}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldTarget')}</span> <span style={{ color: 'var(--accent-blue)' }}>{selectedLog.targetType || 'SYSTEM'}</span> / <span style={{ color: 'var(--text-primary)' }}>{selectedLog.targetName || selectedLog.message || '-'}</span>
                     </div>
+                    {selectedLog.message && (
+                      <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldMessage') || '说明'}</span> <span style={{ color: 'var(--text-secondary)' }}>{selectedLog.message}</span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
                     <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldModule')}</span> <span style={{ color: 'var(--accent-purple)' }}>{selectedLog.module}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldModule')}</span> <span style={{ color: 'var(--accent-purple)' }}>{selectedLog.module || 'SYSTEM'}</span>
                     </div>
                     <div style={{ marginBottom: 'var(--space-3)', fontSize: '0.85rem' }}>
                       <span style={{ color: 'var(--text-muted)' }}>{t('logsPage.fieldMessage')}</span> <span style={{ color: 'var(--text-primary)' }}>{selectedLog.message}</span>
