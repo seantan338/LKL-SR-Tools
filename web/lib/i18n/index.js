@@ -97,6 +97,7 @@ export const zh = {
     langZh: '中文版',
     langEn: 'English',
     hasBilingualBadge: '双语',
+    hasBilingualTooltip: '包含双语翻译',
     teamMemberFallback: '团队成员',
     btnEdit: '编辑',
     btnDelete: '删除',
@@ -547,7 +548,27 @@ export const zh = {
       '/talent-pool': { title: '储备人才库', subtitle: '已淘汰/暂缓跟进候选人沉淀与唤醒激活', helpGuide: ['人才蓄水: 集中沉淀未入职但具有潜在价值的候选人', '一键激活: 重新开放职位时随时一键恢复流转至看板', '精准激活: 支持按专业、技能、学历多维盘活历史资源'] },
       '/whatsapp': { title: 'WhatsApp 触达控制台', subtitle: '候选人自动跟进、提醒回传与会话管理', helpGuide: ['会话连接: 扫码即连多账号 Baileys 客户端微服务', '提醒桥接: 候选人跟进提醒到期自动点对点通知顾问 WhatsApp', '无感调度: 零成本内存扫描保障常年稳定不宕机'] },
       '/leaderboard': { title: '排行榜', subtitle: '团队考勤与销售业绩实时排行', docSlug: 'leaderboard', helpGuide: ['销售业绩排行: 统计顾问成功入职、Offer 与面试等核心业务成单效能', '考勤出勤排行: 呈现出勤天数、出勤率及办公室与 WFH 出勤分布'] },
+      '/announcements': { 
+        title: '公告与系统日志', 
+        subtitle: '管理层与业务公告、系统更新日志与查岗确认',
+        docSlug: 'announcements',
+        helpGuide: [
+          '双栏分流浏览: 左侧关注管理与业务通报，右侧时间轴跟踪系统更新日志',
+          '强制知晓保障: P0 紧急公告要求点击确认，全员触达不遗漏',
+          '主管查岗看板: 管理层可实时查阅全团队各成员已读与确认状态'
+        ]
+      },
       '/claims': { title: '费用与报销', subtitle: '报销审批流转、对账导出与批次放款（仅管理员）', helpGuide: ['智能票据识别: 上传发票即可 AI 自动反填商户、日期与金额', '里程补贴计算: 按车型费率自动叠加过路费与停车费', '双轨审批: 主管初审、Owner 终审，支持随薪发放或独立批次打款'] },
+      '/docs': {
+        title: '用户操作与业务手册',
+        subtitle: 'TALENT FLOW 全功能实操指引与业务规范',
+        docSlug: 'overview',
+        helpGuide: [
+          '系统全景指引: 全流程业务闭环、订单管理与候选人流转指南',
+          '快捷锚点定位: 支持按模块一键跳转对应教程章节',
+          '持续演进知识库: 团队实操规范与自动化配置手册'
+        ]
+      },
     }
   },
   stages: {
@@ -1605,7 +1626,12 @@ export const zh = {
     exportFailed: '导出失败: ',
     hqMembersCount: '共 {count} 人上榜',
     unitDays: '天',
-    unitViolations: '次'
+    unitViolations: '次',
+    avgEarlyMargin: '平均提前到岗',
+    earlyMarginSuffix: '提早 {mins}m',
+    earlyMarginDesc: '较核定班次起始时间平均提前到达',
+    tieRankLabel: '并列第 {rank}',
+    tieRankTooltip: '并列第 {rank} 名'
   },
   analytics: {
     gateTitle: '专属权限受限',
@@ -3029,6 +3055,7 @@ export const en = {
     langZh: 'Chinese',
     langEn: 'English',
     hasBilingualBadge: 'Bilingual',
+    hasBilingualTooltip: 'Includes bilingual translation',
     teamMemberFallback: 'Teammate',
     btnEdit: 'Edit',
     btnDelete: 'Delete',
@@ -3479,7 +3506,27 @@ export const en = {
       '/talent-pool': { title: 'Talent Pool & Reserves', subtitle: 'Archived & rejected candidates repository for future rediscovery', helpGuide: ['Talent Sinks: Central repository for promising reserve applicants', 'One-click Restore: Reactivate candidates directly back to active pipeline', 'Skill Search: Filter by education, skills, and industry backgrounds'] },
       '/whatsapp': { title: 'WhatsApp Hub', subtitle: 'Campaign messaging, real-time follow-up & reminder bot bridge', helpGuide: ['Multi-Account: Scan QR to link multiple Baileys WhatsApp sessions', 'Reminder Bridge: Push due candidate alerts directly to recruiter phones', 'Zero-Cost Sync: High precision memory scheduler running 24/7'] },
       '/leaderboard': { title: 'Leaderboard', subtitle: 'Real-time team attendance & sales performance rankings', docSlug: 'leaderboard', helpGuide: ['Sales Ranking: Onboardings, offers and interviews per advisor', 'Attendance Ranking: Days present, punctuality, office vs WFH split'] },
+      '/announcements': { 
+        title: 'Announcements & System Logs', 
+        subtitle: 'Executive & team notices, system changelog & team check-in audit',
+        docSlug: 'announcements',
+        helpGuide: [
+          'Dual-Stream Browsing: Left stream for company announcements; right timeline for system changelog',
+          'Mandatory Acknowledgment: P0 critical notices require explicit acknowledgment with zero dropouts',
+          'Read Tracker Audit: Managers track read and acknowledgment status across all teammates in real time'
+        ]
+      },
       '/claims': { title: 'Expense Claims', subtitle: 'Claim approvals, reconciliation export & batch payouts (admins only)', helpGuide: ['Smart OCR: Upload a receipt to auto-fill merchant, date and amount', 'Mileage: Vehicle-based rates plus toll and parking', 'Dual-track Approval: Manager review, Owner final approval, payroll or batch payout'] },
+      '/docs': {
+        title: 'User Manual & Operation Docs',
+        subtitle: 'TALENT FLOW full-featured operating guide and business standard operating procedures',
+        docSlug: 'overview',
+        helpGuide: [
+          'End-to-End Walkthrough: Complete guide for recruitment pipeline, requisitions and candidate lifecycle',
+          'Anchor Jump Navigation: Quickly navigate to module tutorials via anchor links',
+          'Living Knowledge Base: Continuously updated SOPs, troubleshooting guides, and automation setups'
+        ]
+      },
     }
   },
   stages: {
@@ -4537,7 +4584,12 @@ export const en = {
     exportFailed: 'Export failed: ',
     hqMembersCount: '{count} Members on Board',
     unitDays: 'd',
-    unitViolations: 'late'
+    unitViolations: 'late',
+    avgEarlyMargin: 'Avg Early Arrival',
+    earlyMarginSuffix: '+{mins}m early',
+    earlyMarginDesc: 'Average minutes arrived before shift start time',
+    tieRankLabel: 'Rank {rank} (Tie)',
+    tieRankTooltip: 'Tied for Rank {rank}'
   },
   analytics: {
     gateTitle: 'Exclusive Access Restricted',

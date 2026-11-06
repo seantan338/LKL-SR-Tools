@@ -23,6 +23,7 @@ import {
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
 import ManualPunchModal from '../../../components/ManualPunchModal';
 import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
+import DraggableTableWrapper from '../../../components/DraggableTableWrapper';
 
 const getApiUrl = (path) => {
   return path;
@@ -2259,8 +2260,8 @@ export default function AnalyticsPage() {
                 </span>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+              <DraggableTableWrapper>
+                <table style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                       <th style={{ padding: 'var(--space-3) var(--space-3)', width: '60px' }}>{t('analytics.colRank', '排名')}</th>
@@ -2389,7 +2390,7 @@ export default function AnalyticsPage() {
                     )}
                   </tbody>
                 </table>
-              </div>
+              </DraggableTableWrapper>
             </div>
           </div>
 
@@ -2713,8 +2714,8 @@ export default function AnalyticsPage() {
                       {t('analytics.emptyMyAttendance', { month: myAttendanceMonth }, `在 ${myAttendanceMonth} 期间暂无打卡记录，可在顶部弹窗进行日常考勤签到`)}
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                    <DraggableTableWrapper>
+                      <table style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                             <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colDate', '考勤日期')}</th>
@@ -2992,7 +2993,7 @@ export default function AnalyticsPage() {
                           })}
                         </tbody>
                       </table>
-                    </div>
+                    </DraggableTableWrapper>
                   )}
                 </div>
               </div>
@@ -3482,8 +3483,8 @@ export default function AnalyticsPage() {
                       </div>
 
                       {/* Day Table */}
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+                      <DraggableTableWrapper>
+                        <table style={{ width: '100%', minWidth: '1120px', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                               <th style={{ padding: 'var(--space-3) var(--space-3)' }}>{t('analytics.colAttPic', '打卡人 (PIC)')}</th>
@@ -3825,7 +3826,7 @@ export default function AnalyticsPage() {
                             })}
                           </tbody>
                         </table>
-                      </div>
+                      </DraggableTableWrapper>
                     </div>
                   </div>
                 );
@@ -3895,8 +3896,8 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Ledger Table */}
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
+              <DraggableTableWrapper>
+                <table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--text-sm)' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                       <th style={{ padding: '10px 12px' }}>{t('commission.colCandidate', '候选人 / 入职岗位')}</th>
@@ -4167,7 +4168,7 @@ export default function AnalyticsPage() {
                     })()}
                   </tbody>
                 </table>
-              </div>
+              </DraggableTableWrapper>
             </div>
           </div>
         </div>
