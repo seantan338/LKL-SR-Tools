@@ -32,6 +32,14 @@ export default function AIParserPage() {
   // Versions State
   const [adVersions, setAdVersions] = useState([]);
   const [currentVersion, setCurrentVersion] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // Initialize desktop sidebar open state on client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth > 900) {
+      setIsHistoryOpen(true);
+    }
+  }, []);
 
   // Load Job Orders
   useEffect(() => {
@@ -197,6 +205,9 @@ export default function AIParserPage() {
     if (version.orderId) {
       setSelectedOrderId(version.orderId);
     }
+    if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+      setIsHistoryOpen(false);
+    }
   };
 
   const handleNewBlankVersion = () => {
@@ -205,6 +216,9 @@ export default function AIParserPage() {
     setInputText('');
     setSelectedOrderId('');
     setFile(null);
+    if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+      setIsHistoryOpen(false);
+    }
   };
 
   const handleRenameVersion = async (version) => {
@@ -281,16 +295,42 @@ export default function AIParserPage() {
 
   return (
     <div className="page-view active">
-      <div style={{ display: 'flex', gap: 'var(--space-6)', maxWidth: '1400px', margin: '0 auto', width: '100%', height: 'calc(100vh - 100px)' }}>
+      <div className={`ai-parser-layout ${isHistoryOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
         
-        {/* Left Sidebar: Version History */}
-        <div className="bezel-shell" style={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div className="bezel-core" style={{ padding: 'var(--space-4)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-              <h3 style={{ fontSize: 'var(--text-md)', margin: 0 }}><i className="ph-light ph-clock-counter-clockwise"></i> {t('aiParserPage.historyTitle')}</h3>
-              <button className="btn-icon" title={t('aiParserPage.resetBtn')} onClick={handleNewBlankVersion}>
-                <i className="ph-light ph-plus"></i>
-              </button>
+        {/* Mobile Backdrop Overlay */}
+        <div 
+          className={`ai-parser-overlay ${isHistoryOpen ? 'active' : ''}`}
+          onClick={() => setIsHistoryOpen(false)}
+        />
+
+        {/* Left Sidebar: Version History (Desktop Collapsible / Mobile Off-canvas Drawer) */}
+        <div className={`bezel-shell ai-parser-sidebar ${isHistoryOpen ? 'open' : ''}`}>
+          <div className="bezel-core ai-parser-sidebar-core">
+            <div className="ai-parser-sidebar-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="ph-light ph-clock-counter-clockwise" style={{ color: 'var(--accent-purple)', fontSize: '18px' }}></i>
+                <h3 style={{ fontSize: 'var(--text-md)', margin: 0, fontWeight: 600 }}>{t('aiParserPage.historyTitle')}</h3>
+                <span className="ai-parser-count-badge">{adVersions.length}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button className="btn-icon" title={t('aiParserPage.resetBtn')} onClick={handleNewBlankVersion}>
+                  <i className="ph-light ph-plus"></i>
+                </button>
+                <button 
+                  className="btn-icon ai-parser-desktop-collapse" 
+                  title={t('aiParserPage.collapseSidebar')} 
+                  onClick={() => setIsHistoryOpen(false)}
+                >
+                  <i className="ph-light ph-caret-left"></i>
+                </button>
+                <button 
+                  className="btn-icon ai-parser-drawer-close" 
+                  title={t('aiParserPage.closeDrawer')} 
+                  onClick={() => setIsHistoryOpen(false)}
+                >
+                  <i className="ph-light ph-x"></i>
+                </button>
+              </div>
             </div>
             
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -339,13 +379,23 @@ export default function AIParserPage() {
         </div>
 
         {/* Right Main Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', overflowY: 'auto', paddingRight: '4px', height: '100%' }}>
+        <div className="ai-parser-main">
           
-          <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
-            <div>
+          <div className="page-header ai-parser-header">
+            <div className="ai-parser-header-titles">
               <h1 className="page-title"><i className="ph-fill ph-magic-wand"></i> {t('aiParserPage.title')} {currentVersion ? `(${t('aiParserPage.viewing')} ${currentVersion.title})` : ''}</h1>
               <p className="page-subtitle">{t('aiParserPage.subtitle')}</p>
             </div>
+            <button 
+              type="button" 
+              className={`btn ${isHistoryOpen ? 'btn-primary' : 'btn-secondary'} ai-parser-toggle-btn`}
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              title={isHistoryOpen ? t('aiParserPage.hideHistory') : t('aiParserPage.showHistory')}
+            >
+              <i className={isHistoryOpen ? "ph-bold ph-sidebar-simple" : "ph-bold ph-clock-counter-clockwise"}></i>
+              <span>{isHistoryOpen ? t('aiParserPage.hideHistory') : t('aiParserPage.showHistory')}</span>
+              <span className="ai-parser-count-badge">{adVersions.length}</span>
+            </button>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
