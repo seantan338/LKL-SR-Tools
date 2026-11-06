@@ -114,7 +114,7 @@ const PAGE_TITLES = {
     docSlug: 'settings',
     helpGuide: [
       'Google Sheets 同步：支持 12 列映射导入与 AI 智能清洗',
-      'E2EE 零知识密钥库：管理本地加密密钥，确保敏感薪酬端到端安全',
+      '灾备与数据安全：支持离线灾备 JSON 导出恢复与审计日志留痕',
       '系统偏好设定：中英多语言切换、外观主题与通知规则'
     ]
   },

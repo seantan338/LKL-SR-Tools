@@ -95,7 +95,7 @@ export default function StandaloneDocsPage() {
       badge: '需求管理',
       icon: 'ph-briefcase',
       tag: '高频',
-      summary: '招聘需求统一录入、多词空格智能联搜、E2EE 零知识加密保密笔记及 AI 智能人岗推荐。',
+      summary: '招聘需求统一录入、多词空格智能联搜、团队协同备注及 AI 智能人岗推荐。',
       content: (
         <div className="doc-section-body">
           <div className="doc-callout doc-callout-info">
@@ -187,7 +187,7 @@ export default function StandaloneDocsPage() {
             <li>
               <strong>搜索订单（空格分词联搜）</strong>：
               <p style={{ margin: '4px 0' }}>
-                在搜索框输入多个关键词，用空格隔开，例如 <code>前端 远程 25k</code> 或 <code>深圳 运营 急聘</code>。系统会把每个词拆开，在公司名、岗位、薪资、地点、任职要求、福利、工作时间、团队备注乃至解密后的私密笔记里查找，<strong>只有同时包含所有关键词的订单才会显示</strong>。词越多，范围越窄。
+                在搜索框输入多个关键词，用空格隔开，例如 <code>前端 远程 25k</code> 或 <code>深圳 运营 急聘</code>。系统会把每个词拆开，在公司名、岗位、薪资、地点、任职要求、福利、工作时间与团队备注里查找，<strong>只有同时包含所有关键词的订单才会显示</strong>。词越多，范围越窄。
               </p>
             </li>
             <li>
@@ -199,19 +199,14 @@ export default function StandaloneDocsPage() {
             <li>
               <strong>查看订单详情</strong>：
               <p style={{ margin: '4px 0' }}>
-                点击卡片上的「<strong>查看详情</strong>」，右侧抽屉里可以看到岗位信息、薪酬范围、工作时间制、任职资格、福利待遇、私密笔记和 AI 推荐入口。
+                点击卡片上的「<strong>查看详情</strong>」，右侧抽屉里可以看到岗位信息、薪酬范围、工作时间制、任职资格、福利待遇、团队备注和 AI 推荐入口。
               </p>
             </li>
             <li>
-              <strong>写私密笔记（端到端加密）</strong>：
+              <strong>团队协同备注（Notes）</strong>：
               <p style={{ margin: '4px 0' }}>
-                客户的真实底价、佣金点数、回款周期、对接人信息这类内容，请只写在「<strong>私密笔记（Secret Notes）</strong>」里，不要写在公开备注里。
+                在「<strong>职位备注</strong>」中记录客户对接细节、面试注意事项、薪酬底线与团队同步事宜，所有改动均由 Firestore 实时同步并在抽屉与卡片中清晰呈现。
               </p>
-              <ul>
-                <li>笔记在你的浏览器里加密后才上传，云端只保存密文（以 <code>TLFL_E2EE_V1:</code> 开头）；</li>
-                <li>只有输入了团队金库密码的成员，才能在自己的浏览器里解密查看；</li>
-                <li>如果看到“已加密内容，请输入金库密码查看”，说明金库处于锁定状态，在金库入口输入口令即可。</li>
-              </ul>
             </li>
             <li>
               <strong>用 AI 智能推荐找人</strong>：
@@ -2029,7 +2024,7 @@ export default function StandaloneDocsPage() {
       badge: '配置安全',
       icon: 'ph-gear',
       tag: '安全',
-      summary: '历史离线 JSON 备份上云、Google 表格 14/15 列映射与 AI 清洗、E2EE 零知识保险库及 WhatsApp 通知绑定。',
+      summary: '历史离线 JSON 备份上云、Google 表格 14/15 列映射与 AI 清洗、多租户安全隔离及 WhatsApp 通知绑定。',
       content: (
         <div className="doc-section-body">
           <div className="doc-callout doc-callout-info">
@@ -2044,7 +2039,7 @@ export default function StandaloneDocsPage() {
           <ul>
             <li><strong>历史数据上云迁移</strong>：将桌面单机版或离线归档备份一键平滑搬迁至云端；</li>
             <li><strong>Google 表格导入与 AI 清洗</strong>：支持公开与私有表格、列自动匹配推断、AI 查重过滤与智能清洗入库；</li>
-            <li><strong>私密保险库 (端到端 E2EE 加密)</strong>：采用客户端原生 Web Crypto 高强度加密，保护客户谈判底价与佣金点数等商业机密；</li>
+            <li><strong>多租户安全与操作审计</strong>：基于 Firebase 物理隔离与 RBAC 规则保障团队数据私密性，关键操作全量写入不可变审计日志；</li>
             <li><strong>WhatsApp 个人通知中枢绑定</strong>：绑定顾问个人手机号，个性化定制跟进提醒与面试回传推送模板。</li>
           </ul>
 
@@ -2185,23 +2180,16 @@ export default function StandaloneDocsPage() {
             <li><strong>标准化入库流转</strong>：系统自动规范日期格式（<code>YYYY-MM-DD</code>）与时刻；若数据包含有效面试日期，该候选人导入后会自动流转至“面试考核”阶段。</li>
           </ol>
 
-          <h4>五、私密数据保险库 (端到端零知识 E2EE 加密)</h4>
+          <h4>五、团队数据安全与隔离机制</h4>
           <p>
-            客户谈判底价、猎头佣金点数、提成底线及敏感背调评语，必须受到最高等级的安全保护。数据在离开顾问浏览器前即完成加密，云端仅存储密文。
+            系统全面依托 Firebase Authentication 身份鉴权、Cloud Firestore 多租户物理隔离与严格的 RBAC 角色安全规则，确保各团队及顾问数据安全：
           </p>
 
           <ol style={{ margin: '8px 0 16px 20px', lineHeight: '1.8' }}>
-            <li><strong>设置与解锁</strong>：在「私密数据保险库密码」面板中输入主密码并点击「设置密码」，当前浏览器会话即刻解锁，招聘订单详情与候选人抽屉中的保密笔记即可正常查看与编辑；在公共设备使用完毕后点击「清除本地密码」即刻重新锁定为密文状态；</li>
-            <li><strong>团队密码共用规则</strong>：私密保险库采用对称密码机制，<strong>团队内需要互相查阅或协同编辑保密笔记的成员，必须在各自电脑上输入相同的“团队保险库主密码”</strong>；建议由企业负责人统一设定并通过安全渠道同步给有权知悉的核心成员；</li>
-            <li><strong>安全原理与密文规范</strong>：采用 W3C 原生 Web Crypto API，通过 <code>PBKDF2-SHA-256</code>（100,000 次哈希迭代）派生 256 位密钥，并使用 <code>AES-GCM-256</code> 高强度算法加密，云端存储的密文均带有系统签名 <code>TLFL_E2EE_V1:</code>，主密码绝不上传服务器。</li>
+            <li><strong>多租户物理隔离</strong>：所有业务数据（候选人、招聘订单、面试日程、提成规则）均以 <code>teamId</code> 顶级作用域隔离，未获授权的跨团队请求在 Firestore 规则层直接拦截并熔断；</li>
+            <li><strong>合作人单向穿透</strong>：支持总部 HQ 账号单向只读穿透查看合作人团队数据，合作人无法逆向访问总部数据；</li>
+            <li><strong>不可变审计日志</strong>：所有关键增删改及状态流转操作均实时写入系统审计日志，操作人、时间戳与操作类型永久留痕。</li>
           </ol>
-
-          <div className="doc-callout doc-callout-warning">
-            <strong><i className="ph-bold ph-shield-warning"></i> 核心安全警示：</strong>
-            <p>
-              保险库密码一旦遗忘，任何人（包括管理员和开发者）均无法找回或重置，该密码加密的内容将永久无法解密！建议使用企业密码管理器妥善保管。
-            </p>
-          </div>
 
           <h4>六、WhatsApp 个人通知与模板定制</h4>
           <ol style={{ margin: '8px 0 16px 20px', lineHeight: '1.8' }}>
@@ -2213,7 +2201,7 @@ export default function StandaloneDocsPage() {
           </ol>
 
           <h4>七、推荐使用顺序与常见问题 (FAQ)</h4>
-          <p><strong>初次配置推荐顺序：</strong>① 设置保险库密码 ➔ ② 绑定 WhatsApp 并检查模板 ➔ ③ 若有旧单机数据，由 Owner 执行一次性 JSON 上云 ➔ ④ 依据日常业务使用 Google 表格 AI 导入。</p>
+          <p><strong>初次配置推荐顺序：</strong>① 绑定 WhatsApp 并检查通知模板 ➔ ② 若有旧单机数据，由 Owner 执行一次性 JSON 上云 ➔ ③ 依据日常业务使用 Google 表格 AI 导入。</p>
 
           <ul style={{ margin: '8px 0 16px 20px', lineHeight: '1.8' }}>
             <li>
@@ -2264,7 +2252,7 @@ export default function StandaloneDocsPage() {
       badge: '疑难速查',
       icon: 'ph-question',
       tag: '指引',
-      summary: '账号审批、看板拖拽、储备库激活、AI 超时、跨月日程、Telegram 机器人与 E2EE 保险库常见疑问汇编。',
+      summary: '账号审批、看板拖拽、储备库激活、AI 超时、跨月日程、Telegram 机器人与多租户数据安全常见疑问汇编。',
       content: (
         <div className="doc-section-body">
           <div className="doc-callout doc-callout-info">
@@ -2378,19 +2366,19 @@ export default function StandaloneDocsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0 10px 0' }}>
             <div style={{ padding: '16px 18px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))', borderRadius: '10px' }}>
               <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', fontSize: '0.96rem' }}>
-                Q11: 换了新电脑登录后，为什么订单的私密笔记显示为加密锁闭状态？
+                Q11: 团队成员能否看到其他团队或合作人的客户与候选人数据？
               </div>
               <div style={{ color: 'var(--text-secondary)', lineHeight: '1.8' }}>
-                答：这是端到端零知识加密 (E2EE) 的标准表现。主密码仅缓存在本地浏览器内存中，绝不上传云端数据库。换新设备或清理浏览器缓存后，只需进入「系统设置」重新输入一次您的“保险库主密码”并保存，即可秒级解锁。
+                答：不能。系统采用严格的团队级租户物理隔离与 Firestore Security Rules。招聘员与主管只能访问自身所归属的团队数据；仅总部 (HQ) 账号具备向合作人子团队的单向穿透只读权限，合作人团队绝无权限逆向查阅总部或其他平行团队的任何数据。
               </div>
             </div>
 
             <div style={{ padding: '16px 18px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))', borderRadius: '10px' }}>
               <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', fontSize: '0.96rem' }}>
-                Q12: 忘记了私密数据保险库密码怎么办？
+                Q12: 团队敏感商业机密（如客户佣金点数与薪酬）如何保障安全？
               </div>
               <div style={{ color: 'var(--text-secondary)', lineHeight: '1.8' }}>
-                答：零知识高强度加密（PBKDF2 + AES-GCM-256）在数学上无法反向破解，服务器与开发者完全无法找回！应急方案：请先联系在其他设备上仍处于解锁状态的团队同事（如 Owner），在对方设备上复制并备份明文笔记，随后统一重新设置新密码。
+                答：系统依托 Firebase Authentication 身份鉴权、Cloud Firestore 严密的多租户 RBAC 安全规则以及全链路敏感操作不可变审计日志。所有招聘订单、客户提成及候选人档案仅限本团队授权成员在会话中解包访问，全方位防止数据跨租户泄露。
               </div>
             </div>
 

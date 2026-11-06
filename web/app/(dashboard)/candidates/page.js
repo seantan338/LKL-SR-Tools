@@ -707,127 +707,91 @@ function CandidatesContent() {
         )}
 
         {/* Talent Pool & Pipeline Segment Tabs */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 'var(--space-3)',
-          marginBottom: 'var(--space-4)'
-        }}>
-          <div style={{
-            display: 'inline-flex',
-            background: 'var(--bezel-shell-bg, var(--bg-surface))',
-            padding: '4px',
-            borderRadius: 'var(--radius-pill)',
-            border: '1px solid var(--border-hairline)',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setPoolTab('active');
-                setStageFilter('all');
-                setReasonFilter('all');
-              }}
-              style={{
-                borderRadius: 'var(--radius-pill)',
-                padding: '6px 16px',
-                fontSize: '0.8125rem',
-                fontWeight: poolTab === 'active' ? '600' : '500',
-                background: poolTab === 'active' ? 'var(--accent-blue)' : 'transparent',
-                color: poolTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
-                border: 'none',
-                boxShadow: poolTab === 'active' ? '0 2px 8px rgba(59, 130, 246, 0.35)' : 'none',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              <i className="ph-fill ph-sparkle" style={{ fontSize: '13px' }}></i>
-              <span>{t('candidates.poolActive', '在职流转中')}</span>
-              <span style={{
-                background: poolTab === 'active' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '1px 7px',
-                fontSize: '0.725rem'
-              }}>
-                {activeCount}
-              </span>
-            </button>
+        <div className="candidates-pool-tabs-row">
+          <div className="candidates-pool-tabs-scroll">
+            <div className="candidates-pool-tabs">
+              <button
+                type="button"
+                className={`btn btn-sm candidates-pool-tab-btn ${poolTab === 'active' ? 'active' : ''}`}
+                onClick={() => {
+                  setPoolTab('active');
+                  setStageFilter('all');
+                  setReasonFilter('all');
+                }}
+                style={{
+                  fontWeight: poolTab === 'active' ? '600' : '500',
+                  background: poolTab === 'active' ? 'var(--accent-blue)' : 'transparent',
+                  color: poolTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
+                  border: 'none',
+                  boxShadow: poolTab === 'active' ? '0 2px 8px rgba(59, 130, 246, 0.35)' : 'none',
+                }}
+              >
+                <i className="ph-fill ph-sparkle" style={{ fontSize: '13px' }}></i>
+                <span>{t('candidates.poolActive', '在职流转中')}</span>
+                <span style={{
+                  background: poolTab === 'active' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '1px 7px',
+                  fontSize: '0.725rem'
+                }}>
+                  {activeCount}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setPoolTab('reserved');
-                setStageFilter('all');
-              }}
-              style={{
-                borderRadius: 'var(--radius-pill)',
-                padding: '6px 16px',
-                fontSize: '0.8125rem',
-                fontWeight: poolTab === 'reserved' ? '600' : '500',
-                background: poolTab === 'reserved' ? 'var(--accent-amber)' : 'transparent',
-                color: poolTab === 'reserved' ? '#ffffff' : 'var(--text-secondary)',
-                border: 'none',
-                boxShadow: poolTab === 'reserved' ? '0 2px 8px rgba(245, 158, 11, 0.35)' : 'none',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              <i className="ph-fill ph-archive-tray" style={{ fontSize: '13px' }}></i>
-              <span>{t('candidates.poolReserved', '储备人才库')}</span>
-              <span style={{
-                background: poolTab === 'reserved' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '1px 7px',
-                fontSize: '0.725rem'
-              }}>
-                {reservedCount}
-              </span>
-            </button>
+              <button
+                type="button"
+                className={`btn btn-sm candidates-pool-tab-btn ${poolTab === 'reserved' ? 'active' : ''}`}
+                onClick={() => {
+                  setPoolTab('reserved');
+                  setStageFilter('all');
+                }}
+                style={{
+                  fontWeight: poolTab === 'reserved' ? '600' : '500',
+                  background: poolTab === 'reserved' ? 'var(--accent-amber)' : 'transparent',
+                  color: poolTab === 'reserved' ? '#ffffff' : 'var(--text-secondary)',
+                  border: 'none',
+                  boxShadow: poolTab === 'reserved' ? '0 2px 8px rgba(245, 158, 11, 0.35)' : 'none',
+                }}
+              >
+                <i className="ph-fill ph-archive-tray" style={{ fontSize: '13px' }}></i>
+                <span>{t('candidates.poolReserved', '储备人才库')}</span>
+                <span style={{
+                  background: poolTab === 'reserved' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '1px 7px',
+                  fontSize: '0.725rem'
+                }}>
+                  {reservedCount}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setPoolTab('all');
-                setStageFilter('all');
-                setReasonFilter('all');
-              }}
-              style={{
-                borderRadius: 'var(--radius-pill)',
-                padding: '6px 16px',
-                fontSize: '0.8125rem',
-                fontWeight: poolTab === 'all' ? '600' : '500',
-                background: poolTab === 'all' ? 'var(--bg-elevated)' : 'transparent',
-                color: poolTab === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                border: poolTab === 'all' ? '1px solid var(--border-interactive)' : '1px solid transparent',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              <i className="ph-bold ph-users-three" style={{ fontSize: '13px' }}></i>
-              <span>{t('candidates.poolAll', '全部档案')}</span>
-              <span style={{
-                background: poolTab === 'all' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '1px 7px',
-                fontSize: '0.725rem'
-              }}>
-                {candidates.length}
-              </span>
-            </button>
+              <button
+                type="button"
+                className={`btn btn-sm candidates-pool-tab-btn ${poolTab === 'all' ? 'active' : ''}`}
+                onClick={() => {
+                  setPoolTab('all');
+                  setStageFilter('all');
+                  setReasonFilter('all');
+                }}
+                style={{
+                  fontWeight: poolTab === 'all' ? '600' : '500',
+                  background: poolTab === 'all' ? 'var(--bg-elevated)' : 'transparent',
+                  color: poolTab === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  border: poolTab === 'all' ? '1px solid var(--border-interactive)' : '1px solid transparent',
+                }}
+              >
+                <i className="ph-bold ph-users-three" style={{ fontSize: '13px' }}></i>
+                <span>{t('candidates.poolAll', '全部档案')}</span>
+                <span style={{
+                  background: poolTab === 'all' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '1px 7px',
+                  fontSize: '0.725rem'
+                }}>
+                  {candidates.length}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 

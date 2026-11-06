@@ -244,7 +244,8 @@ candidate_followup/
 │   │   ├── firebase.js                # Firebase 初始化与配置
 │   │   ├── firestore-store.js         # Firestore 实时数据层与 CRUD
 │   │   ├── auth-context.js            # 全局用户身份状态与权限上下文
-│   │   ├── crypto-web.js              # Web Crypto API 零知识客户端加密引擎
+│   │   ├── commission-engine.js       # 猎头提成智能核算引擎 (四级跳点与超额阶梯累进)
+│   │   ├── claims-engine.js           # 费用报销全生命周期与单据归档内核
 │   │   ├── i18n/                      # 中英双语全链路国际化字典库
 │   │   └── utils.js                   # 常用格式化、阶段定义与工具函数
 │   ├── firestore.rules                # 严格的企业级 Firestore 权限控制规则

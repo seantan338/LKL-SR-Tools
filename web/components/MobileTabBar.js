@@ -13,7 +13,6 @@ export default function MobileTabBar({ onOpenMenu }) {
     { path: '/overview', label: isEn ? 'Home' : '概览', icon: 'ph-squares-four' },
     { path: '/orders', label: isEn ? 'Jobs' : '订单', icon: 'ph-briefcase' },
     { path: '/candidates', label: isEn ? 'Talent' : '人才', icon: 'ph-users' },
-    { path: '/pipeline', label: isEn ? 'Kanban' : '看板', icon: 'ph-kanban' },
   ];
 
   return (

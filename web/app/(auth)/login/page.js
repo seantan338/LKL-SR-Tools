@@ -72,7 +72,7 @@ export default function LoginPage() {
   };
 
   // If already logged in (and not currently signing in), show loader while AuthGuard redirects
-  if ((user || loading) && !isSigningIn && !runPrefetch) {
+  if (user && !isSigningIn && !runPrefetch) {
     return (
       <div className="bezel-shell modal-bezel" style={{ width: '400px', maxWidth: '90vw' }}>
         <div className="bezel-core modal-core" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
