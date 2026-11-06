@@ -34,6 +34,32 @@ export function AuthProvider({ children }) {
 
     let unsubProfile = null;
 
+    // 安全兜底计时器：若在弱网、移动端 WebKit 或冷启动环境下 6 秒内未完成身份判定，
+    // 强制解除全局加载阻塞，同时若已有登录态则补齐兜底 userProfile，彻底杜绝卡死在 "Verifying identity..." 或 "正在加载账户信息..."
+    const safetyTimeout = setTimeout(() => {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const isAdmin = checkIsAdminEmail(currentUser.email);
+        setUser(currentUser);
+        setUserProfile((prev) => prev || {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName || '',
+          photoURL: currentUser.photoURL || '',
+          teamId: isAdmin ? 'default_team' : null,
+          role: isAdmin ? 'owner' : 'pending',
+          _firestoreFallback: true,
+        });
+      }
+      setLoading((currentLoading) => {
+        if (currentLoading) {
+          console.warn('[auth] Auth state detection safety timeout reached (6s), unlocking loading state.');
+          return false;
+        }
+        return false;
+      });
+    }, 6000);
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (unsubProfile) {
         unsubProfile();
@@ -67,12 +93,15 @@ export function AuthProvider({ children }) {
           ]);
 
           const inviteData = inviteSnap?.exists() ? inviteSnap.data() : null;
+          let resolvedProfile = null;
 
           if (profileSnap.exists()) {
             const data = profileSnap.data();
+            resolvedProfile = { ...data, uid: firebaseUser.uid };
             // If the user is designated as admin via NEXT_PUBLIC_ADMIN_EMAIL, try to ensure owner role
             if (isAdmin && (data.role !== 'owner' || data.teamId !== 'default_team')) {
-              await persistProfile({ ...data, teamId: 'default_team', role: 'owner' }, data);
+              const saved = await persistProfile({ ...data, teamId: 'default_team', role: 'owner' }, data);
+              resolvedProfile = { ...saved, uid: firebaseUser.uid };
             } else if (inviteData && (data.role === 'pending' || !data.teamId)) {
               // 管理员已提前在后台预设过该邮箱的入驻权限与团队，首次登录/刷新时自动激活直通
               const preApprovedData = {
@@ -83,7 +112,8 @@ export function AuthProvider({ children }) {
                 allowWfhPunch: inviteData.allowWfhPunch !== undefined ? Boolean(inviteData.allowWfhPunch) : false,
                 assignedPic: inviteData.assignedPic || inviteData.displayName || data.assignedPic || '',
               };
-              await persistProfile(preApprovedData, data);
+              const saved = await persistProfile(preApprovedData, data);
+              resolvedProfile = { ...saved, uid: firebaseUser.uid };
               try { await deleteDoc(inviteRef); } catch (e) {}
             } else if (!data.teamId || !data.role) {
               const patchedData = {
@@ -91,7 +121,8 @@ export function AuthProvider({ children }) {
                 teamId: isAdmin ? 'default_team' : null,
                 role: isAdmin ? 'owner' : 'pending'
               };
-              await persistProfile(patchedData, { ...data, teamId: null, role: 'pending' });
+              const saved = await persistProfile(patchedData, { ...data, teamId: null, role: 'pending' });
+              resolvedProfile = { ...saved, uid: firebaseUser.uid };
             }
           } else {
             // First-time login — create profile
@@ -111,21 +142,32 @@ export function AuthProvider({ children }) {
             };
             try {
               await withTimeout(setDoc(profileRef, newProfile), 3000);
+              resolvedProfile = { ...newProfile, uid: firebaseUser.uid };
               if (inviteData && inviteRef) {
                 try { await deleteDoc(inviteRef); } catch (e) {}
               }
             } catch (createErr) {
               console.warn('[auth] Direct create of profile blocked (likely firestore rules), attempting compliant fallback:', createErr);
+              const fallbackProfile = { ...newProfile, uid: firebaseUser.uid, teamId: null, role: 'pending' };
+              resolvedProfile = fallbackProfile;
               try {
-                await withTimeout(setDoc(profileRef, { ...newProfile, teamId: null, role: 'pending' }), 3000);
+                await withTimeout(setDoc(profileRef, fallbackProfile), 3000);
               } catch (fallbackErr) {
                 console.error('[auth] Fallback profile creation also failed:', fallbackErr);
               }
             }
           }
 
+          // getDoc / setDoc 完成后立即同步写入 userProfile 并解除 loading，不等待 onSnapshot 首次回调才解锁界面
+          if (resolvedProfile) {
+            setUserProfile(resolvedProfile);
+          }
+          clearTimeout(safetyTimeout);
+          setLoading(false);
+
           // 核心：对当前用户文档建立实时监听，任何权限撤销/剔除、WFH 权限开关、角色或团队变更全站零刷新即刻响应
           unsubProfile = onSnapshot(profileRef, (snap) => {
+            clearTimeout(safetyTimeout);
             if (snap.exists()) {
               const snapData = snap.data();
               if (snapData.role === 'revoked') {
@@ -139,10 +181,12 @@ export function AuthProvider({ children }) {
             }
             setLoading(false);
           }, (err) => {
+            clearTimeout(safetyTimeout);
             console.warn('[auth] Real-time profile listener error:', err);
             setLoading(false);
           });
         } else {
+          clearTimeout(safetyTimeout);
           setUser(null);
           setUserProfile(null);
           setLinkedChildTeams([]);
@@ -153,6 +197,7 @@ export function AuthProvider({ children }) {
           setLoading(false);
         }
       } catch (error) {
+        clearTimeout(safetyTimeout);
         console.error('Error fetching user profile from Firestore:', error);
         if (firebaseUser) {
           setUser(firebaseUser);
@@ -173,6 +218,7 @@ export function AuthProvider({ children }) {
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       if (unsubProfile) unsubProfile();
       unsubscribeAuth();
     };

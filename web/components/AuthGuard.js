@@ -26,6 +26,10 @@ export default function AuthGuard({ children }) {
   }, [user, loading, router, pathname]);
 
   if (loading) {
+    // 登录页由 LoginPage 自身展示轻量交互，避免全局 AuthGuard 盖死屏幕
+    if (pathname === '/login') {
+      return children;
+    }
     return (
       <div className="empty-state" style={{ height: '100dvh', justifyContent: 'center' }}>
         <div className="empty-state-icon" style={{ animation: 'pulse 2s infinite' }}>

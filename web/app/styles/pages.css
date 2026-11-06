@@ -3217,7 +3217,205 @@ html[data-theme="tactical"] .kanban-card-list.drag-over {
   }
 }
 
+/* ========================================================
+   AI Job Generator (ai-parser) Responsive Layout & Drawer
+   ======================================================== */
+.ai-parser-layout {
+  display: flex;
+  gap: var(--space-6);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  height: calc(100vh - 100px);
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+.ai-parser-overlay {
+  display: none !important;
+}
 
+.ai-parser-sidebar {
+  width: 290px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
+              opacity 0.25s ease, 
+              margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
 
+.ai-parser-sidebar-core {
+  padding: var(--space-4);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ai-parser-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  flex-shrink: 0;
+}
+
+.ai-parser-layout.sidebar-collapsed .ai-parser-sidebar {
+  width: 0 !important;
+  margin-right: calc(-1 * var(--space-6));
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  border-width: 0;
+  padding: 0;
+}
+
+.ai-parser-drawer-close {
+  display: none !important;
+}
+
+.ai-parser-desktop-collapse {
+  display: inline-flex !important;
+}
+
+.ai-parser-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  overflow-y: auto;
+  padding-right: 4px;
+  height: 100%;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-parser-header {
+  margin-bottom: 0;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.ai-parser-header-titles {
+  flex: 1;
+  min-width: 220px;
+}
+
+.ai-parser-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.ai-parser-count-badge {
+  background: var(--accent-purple-glow, rgba(168, 85, 247, 0.15));
+  color: var(--accent-purple, #a855f7);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill, 12px);
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  line-height: 1;
+}
+
+/* Mobile Responsiveness for AI Parser */
+@media (max-width: 900px) {
+  .ai-parser-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto !important;
+    min-height: auto;
+    gap: var(--space-4);
+  }
+
+  .ai-parser-overlay {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(10, 15, 29, 0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 1090;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .ai-parser-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .ai-parser-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 320px !important;
+    max-width: 86vw;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 1100;
+    transform: translateX(-105%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+    border-radius: 0 16px 16px 0;
+    border-left: none;
+    box-shadow: none;
+    margin: 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto;
+    background: var(--bg-surface, #1e293b);
+  }
+
+  .ai-parser-sidebar.open {
+    transform: translateX(0);
+    box-shadow: 12px 0 36px rgba(0, 0, 0, 0.7);
+  }
+
+  .ai-parser-drawer-close {
+    display: inline-flex !important;
+  }
+
+  .ai-parser-desktop-collapse {
+    display: none !important;
+  }
+
+  .ai-parser-main {
+    height: auto !important;
+    overflow-y: visible;
+    padding-right: 0;
+    width: 100%;
+  }
+
+  .ai-parser-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .ai-parser-toggle-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+  }
+}
 
