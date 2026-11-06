@@ -3419,3 +3419,39 @@ html[data-theme="tactical"] .kanban-card-list.drag-over {
   }
 }
 
+/* ==========================================================================
+   Draggable Table Scroll Container (Mouse Pan & Smooth Scroll)
+   ========================================================================== */
+.draggable-table-wrapper {
+  overflow-x: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(0, 0, 0, 0.12);
+  transition: box-shadow 0.2s ease;
+}
+
+.draggable-table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.draggable-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-pill, 9999px);
+}
+
+.draggable-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-pill, 9999px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.draggable-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.55);
+}
+
+.draggable-table-wrapper.is-grabbing * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+
