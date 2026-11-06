@@ -3,6 +3,7 @@
 import { useState, useMemo, Fragment } from 'react';
 import { useI18n } from '../lib/i18n-context';
 import { FirestoreStore } from '../lib/firestore-store';
+import DraggableTableWrapper from './DraggableTableWrapper';
 
 export default function ExpenseClaimsAnalyticsTab({
   expenseClaims = [],
@@ -276,8 +277,8 @@ export default function ExpenseClaimsAnalyticsTab({
               <div>{t('claims.emptyClaims', '暂无报销单记录')}</div>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table className="table" style={{ width: '100%', fontSize: '12px' }}>
+            <DraggableTableWrapper>
+              <table className="table" style={{ width: '100%', minWidth: '850px', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                     {isOwner && (
@@ -546,7 +547,7 @@ export default function ExpenseClaimsAnalyticsTab({
                   })}
                 </tbody>
               </table>
-            </div>
+            </DraggableTableWrapper>
           )}
         </div>
       </div>

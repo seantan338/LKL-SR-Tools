@@ -19,6 +19,36 @@ import {
 import AttendanceAppealModal from '../../../components/AttendanceAppealModal';
 import AttendanceLeaveModal from '../../../components/AttendanceLeaveModal';
 
+/**
+ * 标准竞赛排名算法 (1224 制)，支持全指标并列 (Tie) 识别
+ * @param {Array} list - 已排好序的顾问列表
+ * @param {Function} isTieFn - 判断两项指标是否完全打平的比较函数
+ * @returns {Array} 附带 rank 和 isTie 属性的列表
+ */
+function assignCompetitionRanks(list, isTieFn) {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  const result = [];
+  for (let i = 0; i < list.length; i++) {
+    const item = { ...list[i] };
+    if (i === 0) {
+      item.rank = 1;
+      item.isTie = false;
+    } else {
+      const prev = result[i - 1];
+      if (isTieFn(item, prev)) {
+        item.rank = prev.rank;
+        item.isTie = true;
+        prev.isTie = true;
+      } else {
+        item.rank = i + 1;
+        item.isTie = false;
+      }
+    }
+    result.push(item);
+  }
+  return result;
+}
+
 export default function LeaderboardPage() {
   const { teamId, isHqTeam, role, user, userProfile, isOwner, isManager } = useAuth();
   const { candidates, candidatesLoading } = useNotifications();
@@ -456,7 +486,12 @@ export default function LeaderboardPage() {
     }).filter(item => item.compositeScore > 0 || item.totalSourced > 0);
 
     // Primary: Onboarded DESC, Secondary: Composite Score DESC, Tertiary: Total Sourced DESC
-    return list.sort((a, b) => b.onboarded - a.onboarded || b.compositeScore - a.compositeScore || b.totalSourced - a.totalSourced);
+    const sorted = list.sort((a, b) => b.onboarded - a.onboarded || b.compositeScore - a.compositeScore || b.totalSourced - a.totalSourced);
+    return assignCompetitionRanks(sorted, (cur, prev) => {
+      return cur.onboarded === prev.onboarded &&
+             cur.compositeScore === prev.compositeScore &&
+             cur.totalSourced === prev.totalSourced;
+    });
   }, [candidates, orders, hqMembers, teamMembers, dateFilter, commissionRecords]);
 
   // -------------------------------------------------------------
@@ -484,6 +519,8 @@ export default function LeaderboardPage() {
         violationDays: 0,
         earliestMinutesSum: 0,
         firstInCount: 0,
+        earlyMarginMinutesSum: 0,
+        earlyMarginCount: 0,
         dayRecords: {}
       };
     });
@@ -518,6 +555,8 @@ export default function LeaderboardPage() {
           violationDays: 0,
           earliestMinutesSum: 0,
           firstInCount: 0,
+          earlyMarginMinutesSum: 0,
+          earlyMarginCount: 0,
           dayRecords: {}
         };
       }
@@ -621,6 +660,15 @@ export default function LeaderboardPage() {
           const minutesFromMidnight = res.firstIn.getHours() * 60 + res.firstIn.getMinutes();
           member.earliestMinutesSum += minutesFromMidnight;
           member.firstInCount += 1;
+
+          // 方案 A: 班次早到余量统计 (Early Margin)
+          // 仅在非迟到/非异常违规且班次有起始时间时，计算较核定班次开始时间提前了多少分钟
+          if (!res.isViolation && !res.isLate && res.shift?.startTime) {
+            const shiftStartMinutes = CascadeShiftEngine.parseTimeToMinutes(res.shift.startTime);
+            const margin = Math.max(0, shiftStartMinutes - minutesFromMidnight);
+            member.earlyMarginMinutesSum += margin;
+            member.earlyMarginCount += 1;
+          }
         }
 
         member.daysPresent += 1;
@@ -649,12 +697,17 @@ export default function LeaderboardPage() {
         : 0;
 
       let avgArrivalStr = '-';
+      let avgArrivalMin = 9999;
       if (item.firstInCount > 0) {
-        const avgMin = Math.round(item.earliestMinutesSum / item.firstInCount);
-        const hh = String(Math.floor(avgMin / 60)).padStart(2, '0');
-        const mm = String(avgMin % 60).padStart(2, '0');
+        avgArrivalMin = Math.round(item.earliestMinutesSum / item.firstInCount);
+        const hh = String(Math.floor(avgArrivalMin / 60)).padStart(2, '0');
+        const mm = String(avgArrivalMin % 60).padStart(2, '0');
         avgArrivalStr = `${hh}:${mm}`;
       }
+
+      const avgEarlyMargin = item.earlyMarginCount > 0
+        ? Number((item.earlyMarginMinutesSum / item.earlyMarginCount).toFixed(1))
+        : 0;
 
       // 0 attendance is strictly 0 score!
       // Score = (compliantDays * 20) + (daysPresent * 5) - (violationDays * 10)
@@ -666,17 +719,38 @@ export default function LeaderboardPage() {
         ...item,
         punctualityRate,
         avgArrivalStr,
+        avgArrivalMin,
+        avgEarlyMargin,
         punctualityScore
       };
     });
 
-    // Primary: punctualityScore DESC, Secondary: punctualityRate DESC, Tertiary: compliantDays DESC, Quaternary: daysPresent DESC
-    return list.sort((a, b) => 
-      b.punctualityScore - a.punctualityScore ||
-      b.punctualityRate - a.punctualityRate ||
-      b.compliantDays - a.compliantDays ||
-      b.daysPresent - a.daysPresent
-    );
+    // 方案 A: 严格层级决胜排序机制 (Tie-breaker Hierarchy)
+    // 1. punctualityScore DESC (守时指数)
+    // 2. punctualityRate DESC (准点率)
+    // 3. compliantDays DESC (达标天数)
+    // 4. daysPresent DESC (出勤天数)
+    // 5. avgEarlyMargin DESC (平均早到余量：提早到岗越充分越靠前)
+    // 6. avgArrivalMin ASC (平均到岗绝对时间：绝对时间越早越靠前)
+    const sorted = list.sort((a, b) => {
+      if (b.punctualityScore !== a.punctualityScore) return b.punctualityScore - a.punctualityScore;
+      if (b.punctualityRate !== a.punctualityRate) return b.punctualityRate - a.punctualityRate;
+      if (b.compliantDays !== a.compliantDays) return b.compliantDays - a.compliantDays;
+      if (b.daysPresent !== a.daysPresent) return b.daysPresent - a.daysPresent;
+      if (b.avgEarlyMargin !== a.avgEarlyMargin) return b.avgEarlyMargin - a.avgEarlyMargin;
+      if (a.avgArrivalMin !== b.avgArrivalMin) return a.avgArrivalMin - b.avgArrivalMin;
+      return 0;
+    });
+
+    // 方案 C: 若所有考勤指标 (含早到余量与到岗时间) 均完全一致，则分配并列名次 (Tie Ranking 1224 制)
+    return assignCompetitionRanks(sorted, (cur, prev) => {
+      return cur.punctualityScore === prev.punctualityScore &&
+             cur.punctualityRate === prev.punctualityRate &&
+             cur.compliantDays === prev.compliantDays &&
+             cur.daysPresent === prev.daysPresent &&
+             cur.avgEarlyMargin === prev.avgEarlyMargin &&
+             cur.avgArrivalMin === prev.avgArrivalMin;
+    });
   }, [manualCheckins, logs, hqMembers, teamMembers, dateFilter, attendanceRules, attendanceLeaves, isEn]);
 
   // -------------------------------------------------------------
@@ -1280,27 +1354,28 @@ export default function LeaderboardPage() {
           flexWrap: 'wrap'
         }}>
           {!top2 && <div className="lb-podium-placeholder" />}
-          {/* Rank 2: Silver */}
+          {/* Rank 2: Silver or Tied Rank */}
           {top2 && (
-            <div className="lb-podium-card lb-rank-2" style={{
+            <div className={`lb-podium-card ${top2.rank === 1 ? 'lb-rank-1' : 'lb-rank-2'}`} style={{
               flex: '1 1 260px',
               maxWidth: '340px',
-              background: 'var(--card-bg)',
-              border: '1px solid rgba(148, 163, 184, 0.4)',
+              background: top2.rank === 1 ? 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--card-bg) 100%)' : 'var(--card-bg)',
+              border: top2.rank === 1 ? '2px solid rgba(245, 158, 11, 0.65)' : '1px solid rgba(148, 163, 184, 0.4)',
               borderRadius: 'var(--radius-xl)',
               padding: 'var(--space-5)',
               textAlign: 'center',
-              boxShadow: 'var(--shadow-card)',
+              boxShadow: top2.rank === 1 ? '0 12px 36px rgba(245, 158, 11, 0.15)' : 'var(--shadow-card)',
               position: 'relative'
             }}>
               <div className="lb-podium-badge" style={{
                 position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
-                background: '#94a3b8', color: '#0f172a', fontWeight: '800', fontSize: '12px',
+                background: top2.rank === 1 ? '#f59e0b' : '#94a3b8', color: '#0f172a', fontWeight: '800', fontSize: '12px',
                 padding: '2px 14px', borderRadius: 'var(--radius-full)',
-                display: 'inline-flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                boxShadow: top2.rank === 1 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : '0 2px 8px rgba(0,0,0,0.3)'
               }}>
-                <i className="ph-bold ph-medal"></i>
-                <span>RANK 2</span>
+                <i className={`ph-bold ${top2.rank === 1 ? 'ph-trophy' : 'ph-medal'}`}></i>
+                <span>{top2.isTie ? (isEn ? `RANK ${top2.rank} (TIE)` : `并列第 ${top2.rank}`) : `RANK ${top2.rank || 2}`}</span>
               </div>
 
               <div className="lb-podium-avatar" style={{
@@ -1367,7 +1442,13 @@ export default function LeaderboardPage() {
                   </div>
                   <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compliantDays}/{top2.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
-                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.punctualityScore}</strong></span>
+                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: top2.rank === 1 ? 'var(--accent-amber)' : 'var(--text-primary)' }}>{top2.punctualityScore}</strong></span>
+                    {top2.avgEarlyMargin > 0 && (
+                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', color: 'var(--accent-emerald)', fontSize: '11px', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                        <i className="ph-bold ph-clock-countdown"></i>
+                        <span>{t('leaderboard.avgEarlyMargin', '平均提前到岗')}: <strong>+{top2.avgEarlyMargin}m</strong></span>
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1395,7 +1476,7 @@ export default function LeaderboardPage() {
                 display: 'inline-flex', alignItems: 'center', gap: '5px', boxShadow: '0 4px 14px rgba(245, 158, 11, 0.4)'
               }}>
                 <i className="ph-bold ph-trophy"></i>
-                <span>RANK 1</span>
+                <span>{top1.isTie ? (isEn ? 'RANK 1 (TIE)' : '并列第 1') : 'RANK 1'}</span>
               </div>
 
               <div className="lb-podium-avatar" style={{
@@ -1464,33 +1545,42 @@ export default function LeaderboardPage() {
                   <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.compliantDays}/{top1.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.punctualityScore}</strong></span>
+                    {top1.avgEarlyMargin > 0 && (
+                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: 'var(--accent-emerald)', fontSize: '11px', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                        <i className="ph-bold ph-clock-countdown"></i>
+                        <span>{t('leaderboard.avgEarlyMargin', '平均提前到岗')}: <strong>+{top1.avgEarlyMargin}m</strong></span>
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Rank 3: Bronze */}
+          {/* Rank 3: Bronze or Tied Rank */}
           {top3 && (
-            <div className="lb-podium-card lb-rank-3" style={{
+            <div className={`lb-podium-card ${top3.rank === 1 ? 'lb-rank-1' : top3.rank === 2 ? 'lb-rank-2' : 'lb-rank-3'}`} style={{
               flex: '1 1 260px',
               maxWidth: '340px',
-              background: 'var(--card-bg)',
-              border: '1px solid rgba(180, 83, 9, 0.4)',
+              background: top3.rank === 1 ? 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--card-bg) 100%)' : 'var(--card-bg)',
+              border: top3.rank === 1 ? '2px solid rgba(245, 158, 11, 0.65)' : top3.rank === 2 ? '1px solid rgba(148, 163, 184, 0.4)' : '1px solid rgba(180, 83, 9, 0.4)',
               borderRadius: 'var(--radius-xl)',
               padding: 'var(--space-5)',
               textAlign: 'center',
-              boxShadow: 'var(--shadow-card)',
+              boxShadow: top3.rank === 1 ? '0 12px 36px rgba(245, 158, 11, 0.15)' : 'var(--shadow-card)',
               position: 'relative'
             }}>
               <div className="lb-podium-badge" style={{
                 position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
-                background: '#b45309', color: '#ffffff', fontWeight: '800', fontSize: '12px',
+                background: top3.rank === 1 ? '#f59e0b' : top3.rank === 2 ? '#94a3b8' : '#b45309',
+                color: top3.rank === 3 ? '#ffffff' : '#0f172a',
+                fontWeight: '800', fontSize: '12px',
                 padding: '2px 14px', borderRadius: 'var(--radius-full)',
-                display: 'inline-flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                boxShadow: top3.rank === 1 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : '0 2px 8px rgba(0,0,0,0.3)'
               }}>
-                <i className="ph-bold ph-medal"></i>
-                <span>RANK 3</span>
+                <i className={`ph-bold ${top3.rank === 1 ? 'ph-trophy' : 'ph-medal'}`}></i>
+                <span>{top3.isTie ? (isEn ? `RANK ${top3.rank} (TIE)` : `并列第 ${top3.rank}`) : `RANK ${top3.rank || 3}`}</span>
               </div>
 
               <div className="lb-podium-avatar" style={{
@@ -1557,7 +1647,13 @@ export default function LeaderboardPage() {
                   </div>
                   <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compliantDays}/{top3.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
-                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.punctualityScore}</strong></span>
+                    <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: top3.rank === 1 ? 'var(--accent-amber)' : 'var(--text-primary)' }}>{top3.punctualityScore}</strong></span>
+                    {top3.avgEarlyMargin > 0 && (
+                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', color: 'var(--accent-emerald)', fontSize: '11px', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                        <i className="ph-bold ph-clock-countdown"></i>
+                        <span>{t('leaderboard.avgEarlyMargin', '平均提前到岗')}: <strong>+{top3.avgEarlyMargin}m</strong></span>
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1622,27 +1718,29 @@ export default function LeaderboardPage() {
                   </tr>
                 ) : (
                   currentRankingList.map((item, idx) => {
+                    const displayRank = item.rank || (idx + 1);
+                    const tieTooltip = item.isTie ? (isEn ? `Rank ${displayRank} (Tie)` : `并列第 ${displayRank} 名`) : '';
                     let rankBadge = (
-                      <span style={{ color: 'var(--text-muted)', fontWeight: '600', paddingLeft: '4px' }}>
-                        #{idx + 1}
+                      <span style={{ color: 'var(--text-muted)', fontWeight: '600', paddingLeft: '4px' }} title={tieTooltip}>
+                        {item.isTie ? `T-${displayRank}` : `#${displayRank}`}
                       </span>
                     );
-                    if (idx === 0) {
+                    if (displayRank === 1) {
                       rankBadge = (
-                        <span style={{ background: '#f59e0b', color: '#000000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px' }}>
-                          1
+                        <span title={tieTooltip} style={{ background: '#f59e0b', color: '#000000', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', boxShadow: '0 2px 6px rgba(245,158,11,0.3)' }}>
+                          {item.isTie ? 'T1' : '1'}
                         </span>
                       );
-                    } else if (idx === 1) {
+                    } else if (displayRank === 2) {
                       rankBadge = (
-                        <span style={{ background: '#94a3b8', color: '#000000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px' }}>
-                          2
+                        <span title={tieTooltip} style={{ background: '#94a3b8', color: '#000000', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', boxShadow: '0 2px 6px rgba(148,163,184,0.3)' }}>
+                          {item.isTie ? 'T2' : '2'}
                         </span>
                       );
-                    } else if (idx === 2) {
+                    } else if (displayRank === 3) {
                       rankBadge = (
-                        <span style={{ background: '#b45309', color: '#ffffff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px' }}>
-                          3
+                        <span title={tieTooltip} style={{ background: '#b45309', color: '#ffffff', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', boxShadow: '0 2px 6px rgba(180,83,9,0.3)' }}>
+                          {item.isTie ? 'T3' : '3'}
                         </span>
                       );
                     }
@@ -1656,17 +1754,17 @@ export default function LeaderboardPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{
                               width: '32px', height: '32px', borderRadius: '50%',
-                              background: idx === 0 
+                              background: displayRank === 1 
                                 ? 'linear-gradient(135deg, #f59e0b, #d97706)' 
-                                : idx === 1 
+                                : displayRank === 2 
                                   ? 'linear-gradient(135deg, #94a3b8, #64748b)' 
-                                  : idx === 2 
+                                  : displayRank === 3 
                                     ? 'linear-gradient(135deg, #b45309, #78350f)' 
                                     : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                              color: idx === 0 || idx === 1 ? '#000' : '#fff',
+                              color: displayRank === 1 || displayRank === 2 ? '#000' : '#fff',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: '12px', fontWeight: '700',
-                              border: idx === 0 ? '1px solid #f59e0b' : idx === 1 ? '1px solid #94a3b8' : idx === 2 ? '1px solid #b45309' : 'none'
+                              border: displayRank === 1 ? '1px solid #f59e0b' : displayRank === 2 ? '1px solid #94a3b8' : displayRank === 3 ? '1px solid #b45309' : 'none'
                             }}>
                               {item.name.charAt(0).toUpperCase()}
                             </div>
@@ -1756,8 +1854,16 @@ export default function LeaderboardPage() {
                               </span>
                               <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}> / {item.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</span>
                             </td>
-                            <td style={{ padding: '12px', color: item.avgArrivalStr !== '-' ? 'var(--text-secondary)' : 'var(--text-muted)', fontWeight: '500' }}>
-                              {item.avgArrivalStr}
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ color: item.avgArrivalStr !== '-' ? 'var(--text-secondary)' : 'var(--text-muted)', fontWeight: '600' }}>
+                                {item.avgArrivalStr}
+                              </div>
+                              {item.avgEarlyMargin > 0 && (
+                                <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                                  <i className="ph-bold ph-clock-countdown" style={{ fontSize: '10px' }}></i>
+                                  <span>+{item.avgEarlyMargin}m</span>
+                                </div>
+                              )}
                             </td>
                             <td style={{ padding: '12px' }}>
                               {item.violationDays > 0 ? (
@@ -1791,9 +1897,10 @@ export default function LeaderboardPage() {
               </div>
             ) : (
               currentRankingList.map((item, idx) => {
-                const isTop3 = idx < 3;
-                const badgeBg = idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#b45309' : 'rgba(255,255,255,0.06)';
-                const badgeColor = idx === 0 || idx === 1 ? '#000' : idx === 2 ? '#fff' : 'var(--text-muted)';
+                const displayRank = item.rank || (idx + 1);
+                const isTop3 = displayRank <= 3;
+                const badgeBg = displayRank === 1 ? '#f59e0b' : displayRank === 2 ? '#94a3b8' : displayRank === 3 ? '#b45309' : 'rgba(255,255,255,0.06)';
+                const badgeColor = displayRank === 1 || displayRank === 2 ? '#000' : displayRank === 3 ? '#fff' : 'var(--text-muted)';
 
                 return (
                   <div key={`mob_${item.key || item.name}`} className="lb-mobile-item">
@@ -1803,8 +1910,8 @@ export default function LeaderboardPage() {
                           background: badgeBg,
                           color: badgeColor,
                           borderRadius: isTop3 ? '50%' : '6px',
-                          width: '22px',
-                          height: '22px',
+                          width: '24px',
+                          height: '24px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1812,12 +1919,12 @@ export default function LeaderboardPage() {
                           fontSize: '11px',
                           flexShrink: 0
                         }}>
-                          {isTop3 ? idx + 1 : `#${idx + 1}`}
+                          {item.isTie ? `T${displayRank}` : (isTop3 ? displayRank : `#${displayRank}`)}
                         </span>
                         <div style={{
                           width: '28px', height: '28px', borderRadius: '50%',
-                          background: idx === 0 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : idx === 1 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : idx === 2 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                          color: idx === 0 || idx === 1 ? '#000' : '#fff',
+                          background: displayRank === 1 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : displayRank === 2 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : displayRank === 3 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                          color: displayRank === 1 || displayRank === 2 ? '#000' : '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: '11px', fontWeight: '700', flexShrink: 0
                         }}>
@@ -1875,7 +1982,14 @@ export default function LeaderboardPage() {
                         </div>
                         <div className="lb-mobile-metric-cell">
                           <span className="lb-mobile-metric-label">{t('leaderboard.avgArrival', '平均签到')}</span>
-                          <span className="lb-mobile-metric-val">{item.avgArrivalStr}</span>
+                          <span className="lb-mobile-metric-val">
+                            {item.avgArrivalStr}
+                            {item.avgEarlyMargin > 0 && (
+                              <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', marginLeft: '3px', fontWeight: '700' }}>
+                                (+{item.avgEarlyMargin}m)
+                              </span>
+                            )}
+                          </span>
                         </div>
                         <div className="lb-mobile-metric-cell">
                           <span className="lb-mobile-metric-label">{t('leaderboard.violations', '迟到/异常')}</span>

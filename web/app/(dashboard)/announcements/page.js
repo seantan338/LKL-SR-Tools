@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../../lib/auth-context';
 import { useFeedback } from '../../../lib/feedback-context';
 import { useI18n } from '../../../lib/i18n-context';
@@ -10,6 +10,100 @@ import { collection, onSnapshot } from 'firebase/firestore';
 
 // 初始系统更新日志种子数据（支持中英自适应）
 const GET_INITIAL_SYSTEM_CHANGELOG = (isEn) => [
+  {
+    id: 'sys_v1_7_76',
+    category: 'SYSTEM_UPDATE',
+    priority: 'P2_NORMAL',
+    title: 'v1.7.76 全局公告与文档顶栏双语矩阵补齐与系统版本同步',
+    titleEn: 'v1.7.76 Announcements & Docs Header Bilingual Matrix & Version Sync',
+    versionTag: 'v1.7.76',
+    changeTypes: ['feat', 'fix', 'opt'],
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys1776'
+    },
+    createdAt: '2026-11-06T15:00:00Z',
+    content: `### 核心更新亮点：
+- **顶栏中英双语矩阵补齐**：彻底消除公告与系统日志（/announcements）及用户手册（/docs）在英文模式下回退硬编码中文标题的问题，实现 100% 中英动态适配。
+- **系统版本与构建元数据对齐**：全局版本号与 CHANGELOG 严格同步至最新构建（v1.7.76）。
+- **系统日志时间轴首项自适应展开**：右侧系统更新日志支持最新版本自动展开，破除旧版测试 ID 写死硬编码。`,
+    contentEn: `### Key Updates:
+- **Header Bilingual Matrix Completion**: Fixes hardcoded Chinese fallback titles on /announcements and /docs in English mode, achieving 100% dynamic bilingual localization.
+- **System Version & Build Metadata Alignment**: Synchronizes global client version and build dates with CHANGELOG (v1.7.76).
+- **Dynamic First-Item Changelog Expansion**: Automatically expands the latest release on the System Changelog timeline without stale hardcoded IDs.`,
+    readCount: 15,
+    ackCount: 15
+  },
+  {
+    id: 'sys_v1_7_75',
+    category: 'SYSTEM_UPDATE',
+    priority: 'P2_NORMAL',
+    title: 'v1.7.75 iOS WebKit IndexedDB 死锁剥离与鉴权超时兜底',
+    titleEn: 'v1.7.75 iOS WebKit IndexedDB Isolation & Auth Safety Timeout',
+    versionTag: 'v1.7.75',
+    changeTypes: ['fix', 'opt'],
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys1775'
+    },
+    createdAt: '2026-11-06T12:00:00Z',
+    content: `### 核心更新亮点：
+- **iOS WebKit 死锁彻底斩断**：iPhone/iPad 移动端彻底剥离 IndexedDB 持久化死锁源，Auth 注入 popupRedirectResolver 防报错。
+- **鉴权全链路超时熔断兜底**：引入 6 秒安全超时熔断保护，彻底杜绝登录卡在 Verifying identity。
+- **登录页双层免死隔离**：/login 页面零等待直接呈现 Google 登录按钮。`,
+    contentEn: `### Key Updates:
+- **iOS WebKit Deadlock Elimination**: Strips IndexedDB persistence on iOS devices to prevent multi-tab hangs and injects browserPopupRedirectResolver.
+- **Global Auth Safety Timeout**: Added a 6-second circuit breaker to prevent hanging on identity verification.
+- **Login Page Zero-Wait**: Direct display of Google login on /login route without delay.`,
+    readCount: 15,
+    ackCount: 15
+  },
+  {
+    id: 'sys_v1_7_74',
+    category: 'SYSTEM_UPDATE',
+    priority: 'P2_NORMAL',
+    title: 'v1.7.74 AI 职位生成器响应式伸缩工作台与离屏版本抽屉',
+    titleEn: 'v1.7.74 AI Parser Responsive Collapsible Workspace & Off-Canvas Drawer',
+    versionTag: 'v1.7.74',
+    changeTypes: ['feat', 'opt'],
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys1774'
+    },
+    createdAt: '2026-11-05T10:00:00Z',
+    content: `### 核心更新亮点：
+- **移动端绝对主体优先重构**：破除内联双列横向布局，移动端工作台 100% 满宽铺开。
+- **离屏版本抽屉 (Off-Canvas Drawer)**：历史版本侧栏转换为左侧滑入式抽屉，带磨砂遮罩与快捷开关。
+- **桌面端一键伸缩沉浸体验**：宽屏下支持一键折叠历史侧栏，获得满屏大视图。`,
+    contentEn: `### Key Updates:
+- **Mobile Primary Workspace Focus**: Removes hardcoded inline dual-column lock, expanding editor to 100% width on mobile.
+- **Off-Canvas History Drawer**: Slides in from left with backdrop blur and touch dismiss.
+- **Desktop Immersive Toggle**: One-click collapsible sidebar for wide-screen view.`,
+    readCount: 15,
+    ackCount: 15
+  },
+  {
+    id: 'sys_v1_7_73',
+    category: 'SYSTEM_UPDATE',
+    priority: 'P2_NORMAL',
+    title: 'v1.7.73 首页总览直通卡片移动端网格防溢出与按钮自适应',
+    titleEn: 'v1.7.73 Overview Hub Mobile Buttons Flex Min-Width & Grid Safety',
+    versionTag: 'v1.7.73',
+    changeTypes: ['fix'],
+    author: {
+      name: isEn ? 'Architecture Team' : '系统架构组',
+      avatarUrl: 'https://api.dicebear.com/7.x/bottts/svg?seed=sys1773'
+    },
+    createdAt: '2026-11-04T14:00:00Z',
+    content: `### 核心更新亮点：
+- **CSS Grid 容器尺寸安全锁定**：解决 1fr 容器在移动端被偏宽按钮撑爆屏幕视口的隐患。
+- **按钮文字弹性截断与居中**：设置 min-width: 0 与溢出省略，杜绝长文本越出卡片右边界。`,
+    contentEn: `### Key Updates:
+- **CSS Grid Boundary Containment**: Eliminates 1fr flex-blowout bugs on mobile viewports.
+- **Button Flex & Text Ellipsis**: Protects card borders with min-width: 0 and text clipping.`,
+    readCount: 15,
+    ackCount: 15
+  },
   {
     id: 'sys_v1_7_1',
     category: 'SYSTEM_UPDATE',
@@ -250,8 +344,9 @@ export default function AnnouncementsPage() {
     changeTypes: ['feat']
   });
 
-  // 右侧系统日志展开状态
-  const [expandedLogId, setExpandedLogId] = useState('sys_v1_7_1');
+  // 右侧系统日志展开状态（首次自动展开最新第一条，支持手动折叠）
+  const [expandedLogId, setExpandedLogId] = useState(null);
+  const hasAutoExpandedLogRef = useRef(false);
 
   // 移动端专用：系统更新日志折叠/展开状态 (手机端默认折叠以舒展公告内容)
   const [isMobileChangelogOpen, setIsMobileChangelogOpen] = useState(false);
@@ -314,6 +409,14 @@ export default function AnnouncementsPage() {
     });
     return merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [announcements, isEn]);
+
+  // 首次进入时自适应展开最新第一条更新日志
+  useEffect(() => {
+    if (!hasAutoExpandedLogRef.current && systemChangelogs.length > 0) {
+      setExpandedLogId(systemChangelogs[0].id);
+      hasAutoExpandedLogRef.current = true;
+    }
+  }, [systemChangelogs]);
 
   // 4. 计算业务公告流（管理层 / 主管，排除系统更新）
   const businessAnnouncements = useMemo(() => {
@@ -1048,7 +1151,7 @@ export default function AnnouncementsPage() {
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontWeight: '600'
-                          }} title="包含双语翻译">
+                          }} title={t('announcements.hasBilingualTooltip', '包含双语翻译')}>
                             🌐 {t('announcements.hasBilingualBadge', '双语')}
                           </span>
                         )}
