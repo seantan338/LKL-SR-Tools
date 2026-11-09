@@ -97,6 +97,8 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
   const [showDrawerAiParser, setShowDrawerAiParser] = useState(false);
   const [aiParseTab, setAiParseTab] = useState('file'); // 'file' | 'text'
   const [aiFile, setAiFile] = useState(null);
+  const [aiFilePreview, setAiFilePreview] = useState(null);
+  const [isDraggingAiFile, setIsDraggingAiFile] = useState(false);
   const [aiText, setAiText] = useState('');
   const [isAiParsing, setIsAiParsing] = useState(false);
   const [aiParseError, setAiParseError] = useState('');
@@ -201,6 +203,18 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
       setActiveTab('profile');
     }
   }, [candidate, isOpen, isReadOnlyView, userProfile, user, focusInterview]);
+
+  useEffect(() => {
+    if (aiFile && (aiFile.type?.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(aiFile.name || ''))) {
+      const url = URL.createObjectURL(aiFile);
+      setAiFilePreview(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setAiFilePreview(null);
+    }
+  }, [aiFile]);
 
   const handleDrawerAiParse = async () => {
     if (isReadOnlyView) return;
@@ -364,6 +378,71 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
       setAiParseError(err.message || t('candidates.drawer.aiParseErrorFallback'));
     } finally {
       setIsAiParsing(false);
+    }
+  };
+
+  const handleSelectAiFile = (file) => {
+    if (!file) return;
+    const validExts = ['pdf', 'docx', 'doc', 'txt', 'jpg', 'jpeg', 'png', 'webp'];
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : '';
+    const isImage = file.type?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+    const isDoc = ['pdf', 'docx', 'doc', 'txt'].includes(ext) || ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'].includes(file.type);
+
+    if (!isImage && !isDoc) {
+      setAiParseError(t('candidates.drawer.aiUnsupportedFormat'));
+      return;
+    }
+    setAiFile(file);
+    setAiParseError('');
+  };
+
+  const handleClearAiFile = (e) => {
+    if (e) e.stopPropagation();
+    setAiFile(null);
+    setAiFilePreview(null);
+    if (drawerFileInputRef.current) {
+      drawerFileInputRef.current.value = '';
+    }
+  };
+
+  const handleAiPaste = (e) => {
+    if (isReadOnlyView) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          const ext = file.type.split('/')[1] || 'png';
+          const namedFile = new File([file], `screenshot_${Date.now()}.${ext}`, { type: file.type });
+          setAiFile(namedFile);
+          setAiParseTab('file');
+          setAiParseError('');
+          showToast(t('candidates.drawer.aiImagePasted'), 'success');
+          break;
+        }
+      }
+    }
+  };
+
+  const handleAiDragOver = (e) => {
+    e.preventDefault();
+    if (isReadOnlyView) return;
+    setIsDraggingAiFile(true);
+  };
+
+  const handleAiDragLeave = (e) => {
+    e.preventDefault();
+    setIsDraggingAiFile(false);
+  };
+
+  const handleAiDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingAiFile(false);
+    if (isReadOnlyView) return;
+    if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
+      handleSelectAiFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -1153,7 +1232,10 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                   </div>
 
                   {showDrawerAiParser && (
-                    <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                    <div 
+                      onPaste={handleAiPaste}
+                      style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
+                    >
                       {aiParseError && (
                         <div style={{ color: 'var(--accent-rose)', fontSize: '0.75rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <i className="ph-bold ph-warning-circle"></i> {aiParseError}
@@ -1172,7 +1254,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                             fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
                           }}
                         >
-                          <i className="ph-light ph-file-pdf"></i> {t('candidates.drawer.aiUploadFileTab')}
+                          <i className="ph-light ph-file-arrow-up"></i> {t('candidates.drawer.aiUploadFileTab')}
                         </button>
                         <button
                           type="button"
@@ -1193,29 +1275,132 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           <input
                             ref={drawerFileInputRef}
                             type="file"
-                            accept=".pdf,.docx,.doc,.txt"
+                            accept=".pdf,.docx,.doc,.txt,.jpg,.jpeg,.png,.webp"
                             onChange={(e) => {
                               if (e.target.files && e.target.files[0]) {
-                                setAiFile(e.target.files[0]);
-                                setAiParseError('');
+                                handleSelectAiFile(e.target.files[0]);
                               }
                             }}
                             style={{ display: 'none' }}
                           />
                           <div
                             onClick={() => drawerFileInputRef.current?.click()}
+                            onDragOver={handleAiDragOver}
+                            onDragLeave={handleAiDragLeave}
+                            onDrop={handleAiDrop}
                             style={{
-                              border: '1px dashed var(--border-interactive)',
+                              border: isDraggingAiFile
+                                ? '1px dashed var(--accent-blue)'
+                                : '1px dashed var(--border-interactive)',
                               borderRadius: 'var(--radius-md)',
-                              padding: 'var(--space-3)',
+                              padding: aiFile ? '10px 14px' : '16px 12px',
                               textAlign: 'center',
-                              background: aiFile ? 'rgba(59, 130, 246, 0.05)' : 'rgba(0,0,0,0.15)',
-                              cursor: 'pointer'
+                              background: isDraggingAiFile
+                                ? 'rgba(59, 130, 246, 0.12)'
+                                : aiFile
+                                ? 'rgba(59, 130, 246, 0.05)'
+                                : 'rgba(0,0,0,0.15)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
                             }}
                           >
-                            <span style={{ fontSize: '0.8rem', color: aiFile ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                              {aiFile ? `${t('candidates.drawer.aiSelectedPrefix')}${aiFile.name} (${(aiFile.size/1024).toFixed(1)} KB)` : t('candidates.drawer.aiSelectFilePrompt')}
-                            </span>
+                            {aiFile ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                  {aiFilePreview ? (
+                                    <div style={{
+                                      width: '44px',
+                                      height: '44px',
+                                      borderRadius: '6px',
+                                      overflow: 'hidden',
+                                      border: '1px solid rgba(255,255,255,0.1)',
+                                      background: '#0b1120',
+                                      flexShrink: 0,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}>
+                                      <img
+                                        src={aiFilePreview}
+                                        alt="Resume Preview"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      width: '40px',
+                                      height: '40px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(59, 130, 246, 0.15)',
+                                      color: 'var(--accent-blue)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '20px',
+                                      flexShrink: 0
+                                    }}>
+                                      <i className="ph-light ph-file-text"></i>
+                                    </div>
+                                  )}
+                                  <div style={{ textAlign: 'left', minWidth: 0 }}>
+                                    <div style={{
+                                      fontSize: '0.8rem',
+                                      fontWeight: '600',
+                                      color: 'var(--text-primary)',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                      {aiFile.name}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                      <span>{(aiFile.size / 1024).toFixed(1)} KB</span>
+                                      <span style={{
+                                        fontSize: '10px',
+                                        padding: '0 5px',
+                                        borderRadius: '4px',
+                                        background: aiFilePreview ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                        color: aiFilePreview ? 'var(--accent-emerald)' : 'var(--accent-blue)'
+                                      }}>
+                                        {aiFilePreview ? t('candidates.drawer.aiImageCvBadge') : t('candidates.drawer.aiDocCvBadge')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleClearAiFile}
+                                  title={t('candidates.drawer.aiRemoveFile')}
+                                  style={{
+                                    border: 'none',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    color: 'var(--text-muted)',
+                                    borderRadius: '50%',
+                                    width: '24px',
+                                    height: '24px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    flexShrink: 0
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-rose)'; e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                                >
+                                  <i className="ph-bold ph-x" style={{ fontSize: '11px' }}></i>
+                                </button>
+                              </div>
+                            ) : (
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', color: 'var(--accent-blue)', fontSize: '18px', marginBottom: '4px' }}>
+                                  <i className="ph-light ph-file-pdf"></i>
+                                  <i className="ph-light ph-image"></i>
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                  {t('candidates.drawer.aiSelectFilePrompt')}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
