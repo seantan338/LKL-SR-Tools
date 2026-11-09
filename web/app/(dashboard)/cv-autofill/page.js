@@ -226,6 +226,7 @@ function CvAutofillContent() {
 
   const [aiParseTab, setAiParseTab] = useState('file'); // 'file' | 'text'
   const [aiFile, setAiFile] = useState(null);
+  const [aiFilePreview, setAiFilePreview] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [aiText, setAiText] = useState('');
   const [isAiParsing, setIsAiParsing] = useState(false);
@@ -236,14 +237,66 @@ function CvAutofillContent() {
   const [rawParsedCv, setRawParsedCv] = useState(null);
   const fileInputRef = useRef(null);
 
+  useEffect(() => {
+    if (aiFile && (aiFile.type?.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(aiFile.name || ''))) {
+      const url = URL.createObjectURL(aiFile);
+      setAiFilePreview(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setAiFilePreview(null);
+    }
+  }, [aiFile]);
+
+  const handleClearAiFile = (e) => {
+    if (e) e.stopPropagation();
+    setAiFile(null);
+    setAiFilePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSelectAiFile = (file) => {
+    if (!file) return;
+    const validExts = ['pdf', 'docx', 'doc', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'xlsx', 'xls', 'csv'];
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : '';
+    const isImage = file.type?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+    const isDoc = ['pdf', 'docx', 'doc', 'txt', 'xlsx', 'xls', 'csv'].includes(ext) || file.type?.startsWith('text/') || file.type?.includes('pdf') || file.type?.includes('word') || file.type?.includes('sheet');
+
+    if (!isImage && !isDoc) {
+      setAiParseError(t('cvAutofill.unsupportedFormat', '不支持的文件格式，请上传 Word、PDF、图片 (.jpg/.png/.webp)、TXT 或 Excel'));
+      return;
+    }
+    setAiFile(file);
+    setAiParseError('');
+  };
+
+  const handleAiPaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          const ext = file.type.split('/')[1] || 'png';
+          const namedFile = new File([file], `screenshot_${Date.now()}.${ext}`, { type: file.type });
+          setAiFile(namedFile);
+          setAiParseTab('file');
+          setAiParseError('');
+          showToast(t('cvAutofill.imagePasted', '已通过剪贴板载入简历截图！'), 'success');
+          break;
+        }
+      }
+    }
+  };
+
   const handleDropFile = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      setAiFile(file);
-      setAiParseError('');
+      handleSelectAiFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -281,6 +334,7 @@ function CvAutofillContent() {
     setFormData(mapped);
     setLoadedCandidate(cand);
     setAiFile(null);
+    setAiFilePreview(null);
     setIsDragging(false);
     setAiText('');
     setAiParseError('');
@@ -820,6 +874,7 @@ function CvAutofillContent() {
       setLoadedCandidate(null);
       router.replace('/cv-autofill');
       setAiFile(null);
+      setAiFilePreview(null);
       setIsDragging(false);
       setAiText('');
       setMissingAnalysis(null);
@@ -1012,7 +1067,7 @@ function CvAutofillContent() {
           </div>
 
           <div className="bezel-shell" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div className="bezel-core" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div className="bezel-core" onPaste={handleAiPaste} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <div className="bento-header cv-step1-header">
                 <h3>{t('cvAutofill.step1Title', '1. 提供简历内容')}</h3>
                 <button
@@ -1052,7 +1107,7 @@ function CvAutofillContent() {
                     color: aiParseTab === 'file' ? '#fff' : 'var(--text-muted)'
                   }}
                 >
-                  <i className="ph-light ph-file-pdf"></i> <span>{t('cvAutofill.tabFile', '文件解析 (MarkItDown 支持)')}</span>
+                  <i className="ph-light ph-file-arrow-up"></i> <span>{t('cvAutofill.tabFile', '文件 / 图片解析')}</span>
                 </button>
                 <button
                   type="button"
@@ -1072,11 +1127,10 @@ function CvAutofillContent() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.docx,.doc,.txt,.jpg,.jpeg,.png,.xlsx"
+                    accept=".pdf,.docx,.doc,.txt,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
-                        setAiFile(e.target.files[0]);
-                        setAiParseError('');
+                        handleSelectAiFile(e.target.files[0]);
                       }
                     }}
                     style={{ display: 'none' }}
@@ -1103,32 +1157,118 @@ function CvAutofillContent() {
                       boxShadow: isDragging ? '0 0 16px rgba(168, 85, 247, 0.25)' : 'none',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
-                      minHeight: '200px'
+                      minHeight: '200px',
+                      padding: '16px'
                     }}
                   >
-                    <i
-                      className={`ph-light ${isDragging ? 'ph-tray-arrow-down' : (aiFile ? 'ph-file-doc' : 'ph-upload-simple')}`}
-                      style={{
-                        fontSize: '3rem',
-                        color: (isDragging || aiFile) ? 'var(--accent-purple)' : 'var(--text-muted)',
-                        marginBottom: '12px',
-                        transform: isDragging ? 'scale(1.1)' : 'none',
-                        transition: 'transform 0.2s ease'
-                      }}
-                    ></i>
-                    <span style={{ fontSize: '1rem', color: (isDragging || aiFile) ? 'var(--accent-purple)' : 'var(--text-secondary)', textAlign: 'center', padding: '0 12px' }}>
-                      {isDragging
-                        ? t('cvAutofill.uploadDropPrompt', '松开即可添加简历文件')
-                        : (aiFile
-                            ? t('cvAutofill.uploadSelected', { name: aiFile.name, size: (aiFile.size/1024).toFixed(1) }, `已选择: ${aiFile.name} (${(aiFile.size/1024).toFixed(1)} KB)`)
-                            : t('cvAutofill.uploadClickPrompt', '拖拽简历文件至此，或点击上传 (.docx/.pdf/.xlsx)')
-                          )
-                      }
-                    </span>
-                    {!aiFile && !isDragging && (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                        {t('cvAutofill.uploadFormatsPrompt', '支持 Word (.docx/.doc)、PDF、图片或 Excel')}
-                      </span>
+                    {aiFile ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '360px' }}>
+                        {aiFilePreview ? (
+                          <div style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            background: '#0b1120',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                          }}>
+                            <img
+                              src={aiFilePreview}
+                              alt="Resume Preview"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{
+                            width: '56px',
+                            height: '56px',
+                            borderRadius: '8px',
+                            background: 'rgba(168, 85, 247, 0.15)',
+                            color: 'var(--accent-purple)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '2rem'
+                          }}>
+                            <i className="ph-light ph-file-doc"></i>
+                          </div>
+                        )}
+
+                        <div style={{ textAlign: 'center', width: '100%' }}>
+                          <div style={{
+                            fontSize: '0.95rem',
+                            fontWeight: '600',
+                            color: 'var(--text-primary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {aiFile.name}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px' }}>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              {(aiFile.size / 1024).toFixed(1)} KB
+                            </span>
+                            <span style={{
+                              fontSize: '11px',
+                              padding: '1px 7px',
+                              borderRadius: '4px',
+                              background: aiFilePreview ? 'rgba(16, 185, 129, 0.15)' : 'rgba(168, 85, 247, 0.15)',
+                              color: aiFilePreview ? 'var(--accent-emerald)' : 'var(--accent-purple)',
+                              fontWeight: '500'
+                            }}>
+                              {aiFilePreview ? t('cvAutofill.imageCvBadge', '图片简历') : t('cvAutofill.docCvBadge', '文档简历')}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleClearAiFile}
+                          title={t('cvAutofill.removeFile', '移除文件')}
+                          style={{
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'rgba(255,255,255,0.06)',
+                            color: 'var(--text-muted)',
+                            borderRadius: 'var(--radius-pill)',
+                            padding: '4px 12px',
+                            fontSize: '11px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            marginTop: '2px',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-rose)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'; e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                        >
+                          <i className="ph-bold ph-x" style={{ fontSize: '11px' }}></i>
+                          <span>{t('cvAutofill.removeFile', '移除文件')}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', gap: '8px', color: isDragging ? 'var(--accent-purple)' : 'var(--text-muted)', fontSize: '2.5rem', marginBottom: '8px' }}>
+                          <i className="ph-light ph-file-pdf"></i>
+                          <i className="ph-light ph-image"></i>
+                        </div>
+                        <span style={{ fontSize: '1rem', color: isDragging ? 'var(--accent-purple)' : 'var(--text-secondary)', textAlign: 'center', padding: '0 12px' }}>
+                          {isDragging
+                            ? t('cvAutofill.uploadDropPrompt', '松开即可添加简历文件或图片')
+                            : t('cvAutofill.uploadClickPrompt', '拖拽简历文件/图片至此，或点击上传 (.docx/.pdf/.jpg/.png)')
+                          }
+                        </span>
+                        {!isDragging && (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                            {t('cvAutofill.uploadFormatsPrompt', '支持 Word、PDF、图片 (.jpg/.png/.webp)、TXT 或 Excel，亦支持 Ctrl+V 粘贴截图')}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
