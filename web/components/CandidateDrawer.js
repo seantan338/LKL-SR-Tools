@@ -896,7 +896,8 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
     setIsMatchingJobs(true);
     setJobMatchResults(null);
     try {
-      const results = await MatchService.matchOrders(currentCandidate, params, 5, 20, teamId);
+      const safeTeamId = (teamId && String(teamId).trim() && String(teamId) !== 'null' && String(teamId) !== 'undefined') ? teamId : 'default_team';
+      const results = await MatchService.matchOrders(currentCandidate, params, 5, 20, safeTeamId);
       setJobMatchResults(results || []);
       if (!results || results.length === 0) {
         showToast(t('candidates.noJobMatchFound', '未检索到匹配度较高的职位，建议放宽筛选条件或在「招聘需求」同步向量库'), 'info');

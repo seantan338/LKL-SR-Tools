@@ -451,7 +451,8 @@ export default function OrdersPage() {
   const handleSync = async () => {
     try {
       setIsSyncing(true);
-      const res = await MatchService.syncEmbeddings(teamId);
+      const safeTeamId = (teamId && String(teamId).trim() && String(teamId) !== 'null' && String(teamId) !== 'undefined') ? teamId : 'default_team';
+      const res = await MatchService.syncEmbeddings(safeTeamId);
       showToast(res.message, 'success');
     } catch (e) {
       showToast(e.message, 'error');

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from typing import Optional, Any
 
@@ -184,29 +184,45 @@ class NormalizeInterviewRequest(BaseModel):
 
     useAi: Optional[bool] = True
 
-class SyncRequest(BaseModel):
+def _normalize_team_id(v):
+    if v is None:
+        return "default_team"
+    v_str = str(v).strip()
+    if not v_str or v_str.lower() in ("none", "null", "undefined"):
+        return "default_team"
+    return v_str
 
+class SyncRequest(BaseModel):
     teamId: Optional[str] = "default_team"
+
+    @field_validator('teamId', mode='before')
+    @classmethod
+    def clean_team_id(cls, v):
+        return _normalize_team_id(v)
 
 class MatchOrdersRequest(BaseModel):
     candidate: dict
     topK: Optional[int] = 5
     preFilterK: Optional[int] = 20
     filters: Optional[dict] = None
-    teamId: Optional[str] = None
+    teamId: Optional[str] = "default_team"
+
+    @field_validator('teamId', mode='before')
+    @classmethod
+    def clean_team_id(cls, v):
+        return _normalize_team_id(v)
 
 class MatchCandidatesRequest(BaseModel):
-
     order: dict
-
     topK: Optional[int] = 5
-
     preFilterK: Optional[int] = 20
-
     filters: Optional[dict] = None
+    teamId: Optional[str] = "default_team"
 
-    teamId: Optional[str] = None
-
+    @field_validator('teamId', mode='before')
+    @classmethod
+    def clean_team_id(cls, v):
+        return _normalize_team_id(v)
 @app.get("/")
 
 def health_check():

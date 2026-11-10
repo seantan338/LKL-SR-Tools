@@ -2,6 +2,7 @@ import { authFetch } from './api-client';
 
 export const MatchService = {
   async matchCandidates(order, filters = {}, topK = 5, preFilterK = 20, teamId = null) {
+    const safeTeamId = (teamId && String(teamId).trim() && String(teamId) !== 'null' && String(teamId) !== 'undefined') ? teamId : 'default_team';
     try {
       const response = await authFetch('/api/match/candidates', {
         method: 'POST',
@@ -13,7 +14,7 @@ export const MatchService = {
           filters,
           topK,
           preFilterK,
-          teamId
+          teamId: safeTeamId
         }),
       });
 
@@ -37,6 +38,7 @@ export const MatchService = {
   },
 
   async matchOrders(candidate, filters = {}, topK = 5, preFilterK = 20, teamId = null) {
+    const safeTeamId = (teamId && String(teamId).trim() && String(teamId) !== 'null' && String(teamId) !== 'undefined') ? teamId : 'default_team';
     try {
       const response = await authFetch('/api/match/orders', {
         method: 'POST',
@@ -48,7 +50,7 @@ export const MatchService = {
           filters,
           topK,
           preFilterK,
-          teamId
+          teamId: safeTeamId
         }),
       });
 
@@ -72,13 +74,14 @@ export const MatchService = {
   },
 
   async syncEmbeddings(teamId) {
+    const safeTeamId = (teamId && String(teamId).trim() && String(teamId) !== 'null' && String(teamId) !== 'undefined') ? teamId : 'default_team';
     try {
       const response = await authFetch('/api/embeddings/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ teamId }),
+        body: JSON.stringify({ teamId: safeTeamId }),
       });
 
       if (!response.ok) {

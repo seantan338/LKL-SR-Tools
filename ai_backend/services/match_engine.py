@@ -30,11 +30,28 @@ async def match_candidates_for_order(order: dict, filters: dict = None, top_k: i
 
     # Build ChromaDB Where Filter
     where_filter = {}
-    if team_id:
-        # 向量库所有团队共用一个 collection，必须按团队隔离
-        where_filter["teamId"] = team_id
-        if not collection.get(where={"teamId": team_id}, limit=1).get("ids"):
-            raise ValueError("向量库中还没有本团队的候选人，请先点击「同步向量库」 / No candidates in vector DB for this team, please click 'Sync Vector DB' first")
+    safe_team_id = team_id if (team_id and str(team_id).strip() and str(team_id).lower() not in ("none", "null", "undefined")) else "default_team"
+    where_filter["teamId"] = safe_team_id
+    if not collection.get(where={"teamId": safe_team_id}, limit=1).get("ids"):
+        # Auto-heal: pull candidates from Firestore and sync them immediately
+        try:
+            from firebase_admin_init import get_firestore_client
+            db = get_firestore_client()
+            if db:
+                cand_docs = db.collection(f"teams/{safe_team_id}/candidates").stream()
+                cand_list = []
+                for doc in cand_docs:
+                    d = doc.to_dict()
+                    d['id'] = doc.id
+                    cand_list.append(d)
+                if cand_list:
+                    from services.embedding_service import sync_candidates
+                    await sync_candidates(cand_list, team_id=safe_team_id)
+        except Exception as sync_err:
+            logger.warning(f"Auto-sync candidates failed for team {safe_team_id}: {sync_err}")
+
+        if not collection.get(where={"teamId": safe_team_id}, limit=1).get("ids"):
+            raise ValueError(f"向量库与系统暂无本团队 ({safe_team_id}) 的候选人档案，请先录入候选人或点击「同步向量库」 / No candidates found for team {safe_team_id}, please add candidates or click 'Sync Vector DB'")
 
     if filters:
         if filters.get("location"):
@@ -148,10 +165,28 @@ async def match_orders_for_candidate(candidate: dict, filters: dict = None, top_
 
     # Build ChromaDB Where Filter
     where_filter = {}
-    if team_id:
-        where_filter["teamId"] = team_id
-        if not collection.get(where={"teamId": team_id}, limit=1).get("ids"):
-            raise ValueError("向量库中还没有本团队的招聘需求，请先在「招聘需求」页面点击「同步向量库」 / No job orders in vector DB for this team, please click 'Sync Vector DB' in Job Orders page first")
+    safe_team_id = team_id if (team_id and str(team_id).strip() and str(team_id).lower() not in ("none", "null", "undefined")) else "default_team"
+    where_filter["teamId"] = safe_team_id
+    if not collection.get(where={"teamId": safe_team_id}, limit=1).get("ids"):
+        # Auto-heal: pull orders from Firestore and sync them immediately
+        try:
+            from firebase_admin_init import get_firestore_client
+            db = get_firestore_client()
+            if db:
+                orders_docs = db.collection(f"teams/{safe_team_id}/job_orders").stream()
+                orders_list = []
+                for doc in orders_docs:
+                    d = doc.to_dict()
+                    d['id'] = doc.id
+                    orders_list.append(d)
+                if orders_list:
+                    from services.embedding_service import sync_orders
+                    await sync_orders(orders_list, team_id=safe_team_id)
+        except Exception as sync_err:
+            logger.warning(f"Auto-sync job orders failed for team {safe_team_id}: {sync_err}")
+
+        if not collection.get(where={"teamId": safe_team_id}, limit=1).get("ids"):
+            raise ValueError(f"向量库与系统暂无本团队 ({safe_team_id}) 的招聘需求，请先录入招聘需求或在「招聘需求」页面点击「同步向量库」 / No job orders found for team {safe_team_id}, please add job orders or click 'Sync Vector DB'")
 
     if filters:
         if filters.get("location"):
