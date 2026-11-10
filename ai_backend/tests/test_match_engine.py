@@ -99,3 +99,42 @@ def test_sync_prunes_deleted_candidates_only_for_that_team(chroma):
     col = embedding_service.get_candidate_collection()
     assert sorted(col.get(where={"teamId": "team_a"})["ids"]) == ["a1"]
     assert col.get(where={"teamId": "team_b"})["ids"] == ["b1"]
+
+
+def _rerank_order_reply(messages):
+    ids = [l.split(":", 1)[1].strip() for l in messages[-1]["content"].split("\n") if l.startswith("Job Order ID:")]
+    out = [{"id": oid, "score": 88 - i, "highlights": ["h"], "risks": [], "analysis": "a"} for i, oid in enumerate(ids)]
+    out.append({"id": "hallucinated_order", "score": 99})
+    return "```json\n" + json.dumps(out) + "\n```"
+
+
+def _sync_orders(team_id, orders):
+    return asyncio.run(embedding_service.sync_orders(orders, team_id=team_id))
+
+
+def test_match_orders_scoped_to_team(chroma, monkeypatch):
+    _sync_orders("team_a", [
+        {"id": "o1", "position": "Senior Accountant", "company": "Company A", "location": "Penang"},
+        {"id": "o2", "position": "Junior Accountant", "company": "Company B", "location": "KL"},
+    ])
+    _sync_orders("team_b", [{"id": "ob1", "position": "Senior Accountant", "company": "Company X", "location": "Penang"}])
+
+    fake = FakeCompletions(_rerank_order_reply)
+    monkeypatch.setattr(match_engine, "openai_client", SimpleNamespace(chat=SimpleNamespace(completions=fake)))
+
+    matches = asyncio.run(match_engine.match_orders_for_candidate(
+        {"position": "Senior Accountant", "location": "Penang", "skills": ["Account"]},
+        top_k=5, pre_filter_k=10, team_id="team_a"
+    ))
+
+    ids = [m["orderId"] for m in matches]
+    assert set(ids) == {"o1", "o2"}
+    assert "hallucinated_order" not in ids
+    assert matches[0]["position"] in ["Senior Accountant", "Junior Accountant"]
+    assert fake.calls == 1
+
+
+def test_match_orders_without_synced_team_raises_clear_error(chroma, monkeypatch):
+    monkeypatch.setattr(match_engine, "openai_client", SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions(_rerank_order_reply))))
+    with pytest.raises(ValueError, match="招聘需求"):
+        asyncio.run(match_engine.match_orders_for_candidate({"position": "Driver"}, team_id="empty_team"))

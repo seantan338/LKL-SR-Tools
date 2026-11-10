@@ -435,6 +435,19 @@ export default function OrdersPage() {
     };
   }, []);
 
+  // Auto open drawer if ?id= or ?orderId= in URL
+  useEffect(() => {
+    if (typeof window === 'undefined' || !orders || orders.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get('id') || params.get('orderId');
+    if (targetId) {
+      const match = orders.find(o => o.id === targetId);
+      if (match) {
+        openDrawer(match);
+      }
+    }
+  }, [orders]);
+
   const handleSync = async () => {
     try {
       setIsSyncing(true);

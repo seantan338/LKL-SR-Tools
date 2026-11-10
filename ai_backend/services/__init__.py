@@ -5,7 +5,7 @@ from .candidate_parser import parse_candidates
 from .cv_parser import parse_cv
 from .interview_parser import parse_interview_schedule
 from .embedding_service import sync_candidates, sync_orders
-from .match_engine import match_candidates_for_order
+from .match_engine import match_candidates_for_order, match_orders_for_candidate
 from .telegram_service import (
     start_telegram_polling,
     handle_telegram_update,
@@ -52,6 +52,7 @@ __all__ = [
     "sync_candidates",
     "sync_orders",
     "match_candidates_for_order",
+    "match_orders_for_candidate",
     "start_telegram_polling",
     "handle_telegram_update",
     "stop_telegram_polling",

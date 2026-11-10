@@ -5,9 +5,9 @@
  * Settings dashboard, and telemetry.
  */
 
-export const APP_VERSION = 'v1.7.80';
-export const BUILD_DATE = '2026-11-09';
-export const RELEASE_CODENAME = 'CV Auto Fill Image Resume & Vision OCR Parity';
+export const APP_VERSION = 'v1.7.81';
+export const BUILD_DATE = '2026-11-10';
+export const RELEASE_CODENAME = 'AI Candidate Reverse Job Matching Engine';
 
 export const APP_METADATA = {
   name: 'TALENT FLOW',

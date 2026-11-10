@@ -14,6 +14,9 @@ import WhatsAppButton from './WhatsAppButton';
 import { useI18n } from '../lib/i18n-context';
 import { resolveCanonicalPic } from '../lib/identity.mjs';
 import { authFetch } from '../lib/api-client';
+import { MatchService } from '../lib/match-service';
+import CandidateMatchParameterModal from './CandidateMatchParameterModal';
+import CandidateMatchResultPanel from './CandidateMatchResultPanel';
 import {
   buildInterviewReminder,
   isIsoDate,
@@ -106,6 +109,12 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
   const interviewSectionRef = useRef(null);
   const interviewDateInputRef = useRef(null);
 
+  // AI Job Match States (Candidate -> Job Orders Reverse Matching)
+  const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
+  const [isMatchingJobs, setIsMatchingJobs] = useState(false);
+  const [jobMatchResults, setJobMatchResults] = useState(null);
+  const [isApplyingOrder, setIsApplyingOrder] = useState(false);
+
   const showToast = (msg, tone = 'info') => {
     if (showGlobalToast) {
       showGlobalToast(msg, tone);
@@ -176,6 +185,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         setIsEditing(false); // Reset to view mode when opening new candidate
         setActiveTab('profile');
         setShowDrawerAiParser(false);
+        setJobMatchResults(null);
       }
       // 看板拖入「面试考核」时：直接进入编辑模式并滚动到面试日期 / 时间
       if (focusInterview && !isReadOnlyView) {
@@ -880,6 +890,92 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
     }
   };
 
+  const handleStartJobMatch = async (params) => {
+    if (!currentCandidate) return;
+    setIsMatchModalOpen(false);
+    setIsMatchingJobs(true);
+    setJobMatchResults(null);
+    try {
+      const results = await MatchService.matchOrders(currentCandidate, params, 5, 20, teamId);
+      setJobMatchResults(results || []);
+      if (!results || results.length === 0) {
+        showToast(t('candidates.noJobMatchFound', '未检索到匹配度较高的职位，建议放宽筛选条件或在「招聘需求」同步向量库'), 'info');
+      }
+    } catch (e) {
+      console.error("Match jobs error:", e);
+      showToast(e.message, 'error');
+    } finally {
+      setIsMatchingJobs(false);
+    }
+  };
+
+  const handleApplyJobOrder = async (match) => {
+    if (isReadOnlyView) return;
+    if (!currentCandidate || !currentCandidate.id) return;
+    
+    const targetComp = match.company || '';
+    const targetPos = match.position || '';
+    
+    const ok = await confirm(
+      t('candidates.confirmApplyOrderMsg', { name: formData.name, company: targetComp, position: targetPos }, `确定要将候选人 "${formData.name}" 的意向转投至 [${targetComp}] ${targetPos} 吗？`),
+      {
+        title: t('candidates.confirmApplyOrderTitle', '一键转投职位确认'),
+        confirmLabel: t('candidates.confirmApplyOrderBtn', '确认转投')
+      }
+    );
+    if (!ok) return;
+
+    try {
+      setIsApplyingOrder(true);
+      const now = new Date().toISOString();
+      const isCurrentlyRejected = currentCandidate.status === 'rejected';
+
+      const newHistory = [...(currentCandidate.stageHistory || []), {
+        stage: 'screening',
+        movedAt: now,
+        note: `AI 智能配对转投至 [${targetComp}] ${targetPos}`
+      }];
+
+      const updatePayload = {
+        company: targetComp,
+        position: targetPos,
+        stage: 'screening',
+        stageHistory: newHistory
+      };
+
+      if (isCurrentlyRejected) {
+        updatePayload.status = 'active';
+        updatePayload.rejectReason = '';
+        updatePayload.rejectNote = '';
+        updatePayload.rejectedAt = null;
+      }
+
+      await FirestoreStore.updateCandidate(teamId, currentCandidate.id, updatePayload);
+      SystemLogger.audit(teamId, user, 'UPDATE', 'CANDIDATE', currentCandidate.name, {
+        actionDetail: `通过 AI 职位配对转投至 [${targetComp}] ${targetPos}`
+      });
+
+      setCurrentCandidate(prev => ({
+        ...prev,
+        ...updatePayload
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        company: targetComp,
+        position: targetPos,
+        stage: 'screening'
+      }));
+
+      showToast(t('candidates.applyOrderSuccess', { position: targetPos }, `已成功转投至岗位: ${targetPos}`), 'success');
+    } catch (err) {
+      console.error("Apply job order error:", err);
+      showToast(t('candidates.applyOrderFailed', '转投失败: ') + err.message, 'error');
+    } finally {
+      setIsApplyingOrder(false);
+    }
+  };
+
   const handleFileUpload = (e) => {
     if (isReadOnlyView) return;
     const file = e.target.files[0];
@@ -1051,6 +1147,25 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                 {currentCandidate && (
                   <button 
                     type="button"
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.8rem',
+                      padding: '4px 10px'
+                    }}
+                    onClick={() => setIsMatchModalOpen(true)}
+                    title={t('candidates.drawer.matchJobsTooltip', '基于候选人背景反向智能匹配在招职位')}
+                  >
+                    <i className="ph-fill ph-magic-wand"></i>
+                    <span>{t('candidates.drawer.aiMatchJobs', 'AI 匹配岗位')}</span>
+                  </button>
+                )}
+
+                {currentCandidate && (
+                  <button 
+                    type="button"
                     className="btn btn-secondary btn-sm"
                     style={{
                       display: 'inline-flex',
@@ -1153,6 +1268,18 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         )}
 
         <div className="drawer-body">
+          {/* AI Job Match Recommendation Panel */}
+          <CandidateMatchResultPanel 
+            results={jobMatchResults}
+            isLoading={isMatchingJobs}
+            isApplying={isApplyingOrder}
+            onDismiss={() => setJobMatchResults(null)}
+            onViewOrder={(orderId) => {
+              onClose();
+              router.push(`/orders?id=${orderId}`);
+            }}
+            onApplyOrder={handleApplyJobOrder}
+          />
           {currentCandidate?.status === 'rejected' && (
             <div style={{
               background: 'rgba(244, 63, 94, 0.08)',
@@ -2368,6 +2495,13 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
           </div>
         </div>
       )}
+
+      <CandidateMatchParameterModal 
+        isOpen={isMatchModalOpen}
+        onClose={() => setIsMatchModalOpen(false)}
+        candidate={currentCandidate}
+        onStartMatch={handleStartJobMatch}
+      />
     </>,
     document.body
   );

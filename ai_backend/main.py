@@ -38,6 +38,7 @@ from services import (
     sync_orders,
 
     match_candidates_for_order,
+    match_orders_for_candidate,
 
     start_telegram_polling,
 
@@ -186,6 +187,13 @@ class NormalizeInterviewRequest(BaseModel):
 class SyncRequest(BaseModel):
 
     teamId: Optional[str] = "default_team"
+
+class MatchOrdersRequest(BaseModel):
+    candidate: dict
+    topK: Optional[int] = 5
+    preFilterK: Optional[int] = 20
+    filters: Optional[dict] = None
+    teamId: Optional[str] = None
 
 class MatchCandidatesRequest(BaseModel):
 
@@ -578,6 +586,22 @@ async def match_candidates_endpoint(req: MatchCandidatesRequest, auth_user: dict
 
         logger.error(f"Error in /api/match/candidates: {str(e)}", exc_info=True)
 
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/match/orders")
+async def match_orders_endpoint(req: MatchOrdersRequest, auth_user: dict = Depends(verify_user_or_internal_token)):
+    logger.info("Received request at /api/match/orders")
+    try:
+        results = await match_orders_for_candidate(
+            candidate=req.candidate,
+            filters=req.filters,
+            top_k=req.topK,
+            pre_filter_k=req.preFilterK,
+            team_id=req.teamId
+        )
+        return {"status": "success", "matches": results}
+    except Exception as e:
+        logger.error(f"Error in /api/match/orders: {str(e)}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
 @app.post("/api/embeddings/sync")
