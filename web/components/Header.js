@@ -321,9 +321,9 @@ export default function Header({ toggleSidebar }) {
                     width: '100%',
                     padding: '8px 10px',
                     borderRadius: 'var(--radius-md)',
-                    background: activeViewTeamId === myTeamId ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
+                    background: activeViewTeamId === myTeamId ? 'var(--fill-selected)' : 'transparent',
                     border: 'none',
-                    color: activeViewTeamId === myTeamId ? 'var(--accent-blue)' : 'var(--text-primary)',
+                    color: activeViewTeamId === myTeamId ? 'var(--accent)' : 'var(--text-primary)',
                     fontSize: 'var(--text-xs)',
                     fontWeight: activeViewTeamId === myTeamId ? '700' : '500',
                     cursor: 'pointer',
@@ -410,9 +410,8 @@ export default function Header({ toggleSidebar }) {
               width: '6px',
               height: '6px',
               borderRadius: '50%',
-              background: '#10b981',
-              display: 'inline-block',
-              boxShadow: '0 0 6px rgba(16, 185, 129, 0.75)'
+              background: 'var(--color-success)',
+              display: 'inline-block'
             }}
           />
           <span>{APP_VERSION}</span>

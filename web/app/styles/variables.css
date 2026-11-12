@@ -237,10 +237,10 @@ html[data-theme="light"] {
 html[data-theme="dark"] {
   color-scheme: dark;
 
-  --neutral-50: #1c1c1e;
-  --neutral-100: #2c2c2e;
-  --neutral-200: #3a3a3c;
-  --neutral-300: #48484a;
+  --neutral-50: #1e1e1e;
+  --neutral-100: #282828;
+  --neutral-200: #323232;
+  --neutral-300: #3a3a3a;
   --neutral-400: #636366;
   --neutral-500: #8e8e93;
   --neutral-600: #aeaeb2;
@@ -248,18 +248,19 @@ html[data-theme="dark"] {
   --neutral-800: #e5e5ea;
   --neutral-900: #f2f2f7;
 
-  --bg-void: #000000;
-  --bg-window: #1c1c1e;
-  --bg-grouped: #1c1c1e;
-  --bg-elevated: #2c2c2e;
-  --bg-sidebar: rgba(28, 28, 30, 0.78);
-  --bg-toolbar: rgba(28, 28, 30, 0.72);
-  --bg-surface: #1c1c1e;
-  --bg-surface-elevated: #2c2c2e;
-  --bg-surface-overlay: #3a3a3c;
+  /* macOS dark layering: base ~#1E1E1E, content ~#282828, sidebar vibrancy over the base */
+  --bg-void: #1e1e1e;
+  --bg-window: #282828;
+  --bg-grouped: #242424;
+  --bg-elevated: #323232;
+  --bg-sidebar: rgba(40, 40, 40, 0.72);
+  --bg-toolbar: rgba(40, 40, 40, 0.78);
+  --bg-surface: #282828;
+  --bg-surface-elevated: #323232;
+  --bg-surface-overlay: #3a3a3a;
 
-  --card-bg: #1c1c1e;
-  --card-bg-hover: #2c2c2e;
+  --card-bg: #282828;
+  --card-bg-hover: #323232;
   --card-border: rgba(255, 255, 255, 0.1);
   --card-border-hover: rgba(255, 255, 255, 0.16);
 
@@ -335,15 +336,15 @@ html[data-theme="dark"] {
   --bezel-shell-border: rgba(255, 255, 255, 0.1);
   --bezel-shell-padding: 0px;
   --bezel-shell-radius: 10px;
-  --bezel-core-bg: #1c1c1e;
+  --bezel-core-bg: #282828;
   --bezel-core-radius: 10px;
   --bezel-core-shadow: none;
 
-  --input-bg: #2c2c2e;
-  --input-focus-bg: #3a3a3c;
+  --input-bg: #323232;
+  --input-focus-bg: #3a3a3a;
   --input-border: rgba(255, 255, 255, 0.12);
-  --dropdown-bg: #2c2c2e;
-  --toast-bg: #2c2c2e;
+  --dropdown-bg: #323232;
+  --toast-bg: #323232;
   --overlay-bg: rgba(0, 0, 0, 0.55);
   --drawer-overlay-bg: rgba(0, 0, 0, 0.48);
   --badge-neutral-bg: rgba(120, 120, 128, 0.24);

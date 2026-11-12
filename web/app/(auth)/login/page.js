@@ -87,7 +87,11 @@ export default function LoginPage() {
   return (
     <div className="login-card">
       <div className="login-mark" aria-hidden="true">TF</div>
-      <h1 className="login-title">{t('authPages.welcomeTitle', '欢迎使用 TALENT FLOW')}</h1>
+      <h1 className="login-title" aria-label={t('brand.product', 'TALENT FLOW · Sunrise Recruit')}>
+        <span className="login-product-name">{t('brand.name', 'TALENT FLOW')}</span>
+        <span className="login-product-dot" aria-hidden="true">·</span>
+        <span className="login-product-company">{t('brand.subtitle', 'Sunrise Recruit')}</span>
+      </h1>
       <p className="login-subtitle">{t('authPages.welcomeSubtitle', '候选人全生命周期与团队招聘协作')}</p>
 
       {error && (
