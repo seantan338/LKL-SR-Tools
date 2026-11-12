@@ -18,6 +18,7 @@ import OrdersSplitView from '../../../components/orders/OrdersSplitView';
 import OrdersKanbanView from '../../../components/orders/OrdersKanbanView';
 import OrdersCompactView from '../../../components/orders/OrdersCompactView';
 import { useOrdersViewPrefs } from '../../../lib/orders-view-prefs';
+import { EmptyState, Skeleton } from '../../../components/UiStates';
 import { buildFilterOptions, defaultSortDir, groupOrders, matchesFilter, sortOrders } from '../../../lib/order-view.mjs';
 import { useI18n } from '../../../lib/i18n-context';
 
@@ -42,6 +43,7 @@ export default function OrdersPage() {
   const [viewPrefs, updateViewPrefs] = useOrdersViewPrefs();
   const listTopRef = useRef(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(true);
 
   // Modal State for Creation/Editing
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -396,16 +398,19 @@ export default function OrdersPage() {
   };
 
   useEffect(() => {
-    if (!teamId || !user?.uid) return;
-    
+    if (!teamId || !user?.uid) {
+      setOrdersLoading(false);
+      return;
+    }
+    setOrdersLoading(true);
     const unsubscribe = FirestoreStore.subscribeToJobOrders(teamId, role, user.uid, (data) => {
-      // Sort immediately so orders array is consistently newest first
       const sortedData = [...data].sort((a, b) => Utils.getRecordTimestamp(b) - Utils.getRecordTimestamp(a));
       setOrders(sortedData);
       setSelectedOrder(prev => {
         if (!prev) return null;
         return sortedData.find(o => o.id === prev.id) || prev;
       });
+      setOrdersLoading(false);
       setIsSyncing(false);
     });
     
@@ -632,28 +637,26 @@ export default function OrdersPage() {
       </div>
 
       {/* Orders View or Empty State */}
-      {filteredOrders.length === 0 ? (
-        <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
-          <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: 'var(--text-muted)' }}>
-              <i className="ph-light ph-briefcase"></i>
-            </div>
-            <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>{t('orders.emptyTitle') || t('orders.emptyList')}</div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', maxWidth: '420px', margin: 0, lineHeight: 1.6 }}>
-              {t('orders.emptyDesc')}
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'center' }}>
+      {ordersLoading ? (
+        <Skeleton rows={6} />
+      ) : filteredOrders.length === 0 ? (
+        <EmptyState
+          icon="ph-briefcase"
+          title={t('orders.emptyTitle') || t('orders.emptyList')}
+          description={t('orders.emptyDesc')}
+          action={(
+            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'center' }}>
               {hasActiveFilters && (
-                <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
                   <i className="ph-light ph-x"></i> {t('ordersView.clearFilters')}
                 </button>
               )}
-              <button className="btn btn-primary btn-sm" onClick={() => openModal(null)}>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => openModal(null)}>
                 <i className="ph-bold ph-plus"></i> {t('orders.createNow')}
               </button>
             </div>
-          </div>
-        </div>
+          )}
+        />
       ) : (
         <>
           {view === 'cards' && (
@@ -843,7 +846,7 @@ export default function OrdersPage() {
                               <span>#{idx + 1} · {item.position || t('orders.unnamedPosition')}</span>
                             </label>
                             <span className="badge" style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               color: isDup ? 'var(--accent-amber)' : 'var(--accent-emerald)',
                               borderColor: isDup ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)'
                             }}>
@@ -853,7 +856,7 @@ export default function OrdersPage() {
 
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-2)' }}>
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.company')} *</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('orders.company')} *</label>
                               <input
                                 type="text"
                                 className="form-input"
@@ -862,7 +865,7 @@ export default function OrdersPage() {
                               />
                             </div>
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.position')} *</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('orders.position')} *</label>
                               <input
                                 type="text"
                                 className="form-input"
@@ -871,7 +874,7 @@ export default function OrdersPage() {
                               />
                             </div>
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.salary')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('orders.salary')}</label>
                               <input
                                 type="text"
                                 className="form-input"
@@ -880,7 +883,7 @@ export default function OrdersPage() {
                               />
                             </div>
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.location')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('orders.location')}</label>
                               <input
                                 type="text"
                                 className="form-input"
@@ -889,7 +892,7 @@ export default function OrdersPage() {
                               />
                             </div>
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.requirements')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('orders.requirements')}</label>
                               <input
                                 type="text"
                                 className="form-input"
@@ -898,7 +901,7 @@ export default function OrdersPage() {
                               />
                             </div>
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('orders.benefits')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('orders.benefits')}</label>
                               <input
                                 type="text"
                                 className="form-input"
@@ -1040,7 +1043,7 @@ export default function OrdersPage() {
                         {formData.commissionOverride?.enabled && (
                           <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-hairline)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                             <div className="form-group">
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.modeLabel', '专属计费模式')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('commission.modeLabel', '专属计费模式')}</label>
                               <select
                                 className="form-select btn-sm"
                                 style={{ height: '32px', fontSize: '12px' }}
@@ -1058,7 +1061,7 @@ export default function OrdersPage() {
 
                             {formData.commissionOverride?.billingMode === 'DIRECT_FLAT' && (
                               <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.flatAmountShort', '本单固定提成池 (RM)')}</label>
+                                <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('commission.flatAmountShort', '本单固定提成池 (RM)')}</label>
                                 <input
                                   type="number"
                                   className="form-input"
@@ -1076,7 +1079,7 @@ export default function OrdersPage() {
                             {formData.commissionOverride?.billingMode === 'AGENCY_FLAT' && (
                               <>
                                 <div className="form-group">
-                                  <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.agencyFeeShort', '客户固定服务费 (RM)')}</label>
+                                  <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('commission.agencyFeeShort', '客户固定服务费 (RM)')}</label>
                                   <input
                                     type="number"
                                     className="form-input"
@@ -1090,7 +1093,7 @@ export default function OrdersPage() {
                                   />
                                 </div>
                                 <div className="form-group">
-                                  <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.recruiterRateShort', '顾问提成比率 (%)')}</label>
+                                  <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('commission.recruiterRateShort', '顾问提成比率 (%)')}</label>
                                   <input
                                     type="number"
                                     className="form-input"
@@ -1108,7 +1111,7 @@ export default function OrdersPage() {
                             )}
 
                             <div className="form-group">
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('commission.guaranteeDaysShort', '保证期天数')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('commission.guaranteeDaysShort', '保证期天数')}</label>
                               <input
                                 type="number"
                                 className="form-input"
@@ -1194,10 +1197,10 @@ export default function OrdersPage() {
                   display: 'flex', flexDirection: 'column', gap: 'var(--space-3)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       {t('orders.existingOrderLabel')}
                     </span>
-                    <span className={`badge ${Utils.getJobOrderStatusMeta(duplicateMatch.status, t).badgeClass}`} style={{ fontSize: '0.72rem' }}>
+                    <span className={`badge ${Utils.getJobOrderStatusMeta(duplicateMatch.status, t).badgeClass}`} style={{ fontSize: 'var(--text-xs)' }}>
                       {Utils.getJobOrderStatusMeta(duplicateMatch.status, t).label}
                     </span>
                   </div>
@@ -1227,14 +1230,14 @@ export default function OrdersPage() {
                 {/* New Order Data Card */}
                 <div style={{
                   padding: 'var(--space-4)', borderRadius: 'var(--radius-md)',
-                  background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.28)',
+                  background: 'var(--fill-selected)', border: '1px solid var(--fill-selected)',
                   display: 'flex', flexDirection: 'column', gap: 'var(--space-3)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       {t('orders.newOrderLabel')}
                     </span>
-                    <span className={`badge ${Utils.getJobOrderStatusMeta(pendingSaveData.status, t).badgeClass}`} style={{ fontSize: '0.72rem' }}>
+                    <span className={`badge ${Utils.getJobOrderStatusMeta(pendingSaveData.status, t).badgeClass}`} style={{ fontSize: 'var(--text-xs)' }}>
                       {Utils.getJobOrderStatusMeta(pendingSaveData.status, t).label}
                     </span>
                   </div>

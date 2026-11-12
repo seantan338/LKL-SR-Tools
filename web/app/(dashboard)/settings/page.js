@@ -1287,7 +1287,7 @@ function onEdit(e) {
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
                             {t('settingsPage.sheetSyncBoundCompany', '默认归属企业')}
                           </div>
-                          <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)', background: 'var(--fill-selected)', padding: '2px 8px', borderRadius: '4px' }}>
                             🏢 {savedSyncConfig.sheetCompany}
                           </span>
                         </div>
@@ -1325,7 +1325,7 @@ function onEdit(e) {
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        style={{ padding: '2px 8px', fontSize: '0.72rem', height: 'auto' }}
+                        style={{ padding: '2px 8px', fontSize: 'var(--text-xs)', height: 'auto' }}
                         onClick={() => {
                           navigator.clipboard.writeText(getBackendWebhookUrl());
                           setCopiedWebhookUrl(true);
@@ -1350,7 +1350,7 @@ function onEdit(e) {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
-                          background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
+                          background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
                           borderColor: '#3B82F6'
                         }}
                       >
@@ -1390,7 +1390,7 @@ function onEdit(e) {
 
                 {/* Status Message if any */}
                 {sheetStatus && (
-                  <div style={{ marginBottom: 'var(--space-3)', padding: '8px 12px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '0.78rem', color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ marginBottom: 'var(--space-3)', padding: '8px 12px', background: 'var(--fill-selected)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--fill-selected)', fontSize: '0.78rem', color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>
                     {sheetStatus}
                   </div>
                 )}
@@ -1451,7 +1451,7 @@ function onEdit(e) {
                                   <div style={{ marginBottom: '4px', color: 'var(--text-primary)' }}>{header}</div>
                                   <select 
                                     className="form-select" 
-                                    style={{ padding: '2px 4px', fontSize: '11px', height: 'auto' }}
+                                    style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', height: 'auto' }}
                                     value={fieldMapping[idx] || 'skip'}
                                     onChange={(e) => setFieldMapping({...fieldMapping, [idx]: e.target.value})}
                                   >
@@ -1522,7 +1522,7 @@ function onEdit(e) {
                         </h5>
                         
                         {importTarget === 'candidate' && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)', padding: '8px 12px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)', padding: '8px 12px', background: 'var(--fill-selected)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--fill-selected)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: '500' }}>
                                 {t('settingsPage.batchSetCompanyLabel')}
@@ -1538,7 +1538,7 @@ function onEdit(e) {
                               <button 
                                 type="button"
                                 className="btn btn-secondary btn-sm" 
-                                style={{ padding: '3px 10px', fontSize: '11px', height: 'auto' }}
+                                style={{ padding: '3px 10px', fontSize: 'var(--text-xs)', height: 'auto' }}
                                 onClick={() => {
                                   const val = (bulkCompany || sheetCompany).trim();
                                   if (!val) return;
@@ -1589,7 +1589,7 @@ function onEdit(e) {
                                         newData[idx]._assignedTo = e.target.value;
                                         setAiPreviewData(newData);
                                       }}
-                                      style={{ padding: '2px 4px', fontSize: '11px', marginBottom: '4px' }}
+                                      style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', marginBottom: '4px' }}
                                     >
                                       <option value="">{item.picName ? (t('settingsPage.externalAdvisorOption') || '外部/Freelance ({pic})').replace('{pic}', item.picName) : t('settingsPage.noInternalAccountOption', '-- 外部/无内部账号 --')}</option>
                                       {teamMembers.map(m => (
@@ -1600,7 +1600,7 @@ function onEdit(e) {
                                       className="form-input" 
                                       value={item.picName || ''} 
                                       onChange={(e) => { const n = [...aiPreviewData]; n[idx].picName = e.target.value; setAiPreviewData(n); }} 
-                                      style={{ padding: '2px 4px', fontSize: '10px', minHeight: 'auto' }} 
+                                      style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto' }} 
                                       placeholder={t('settingsPage.placeholderAdvisorPic')} 
                                     />
                                   </td>
@@ -1610,8 +1610,8 @@ function onEdit(e) {
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
                                         <input className="form-input" value={item.name || item.candidateName || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].name = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '12px', fontWeight: '600', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderName')} />
                                         <div style={{ display: 'flex', gap: '2px' }}>
-                                          <input className="form-input" value={item.age || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].age = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', width: '45%' }} placeholder={t('settingsPage.placeholderAge')} />
-                                          <input className="form-input" value={item.icNo || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].icNo = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '10px', minHeight: 'auto', width: '55%' }} placeholder={t('settingsPage.placeholderIc')} />
+                                          <input className="form-input" value={item.age || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].age = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', width: '45%' }} placeholder={t('settingsPage.placeholderAge')} />
+                                          <input className="form-input" value={item.icNo || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].icNo = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', width: '55%' }} placeholder={t('settingsPage.placeholderIc')} />
                                         </div>
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
@@ -1619,19 +1619,19 @@ function onEdit(e) {
                                           className="form-input" 
                                           value={item.company || ''} 
                                           onChange={(e) => { const n = [...aiPreviewData]; n[idx].company = e.target.value; setAiPreviewData(n); }} 
-                                          style={{ padding: '2px 4px', fontSize: '11px', fontWeight: '600', minHeight: 'auto', marginBottom: '4px', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.05)' }} 
+                                          style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', fontWeight: '600', minHeight: 'auto', marginBottom: '4px', color: 'var(--accent-blue)', background: 'var(--fill-selected)' }} 
                                           placeholder={t('settingsPage.placeholderTargetCompany')} 
                                         />
-                                        <input className="form-input" value={item.position || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].position = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderPosition')} />
-                                        <input className="form-input" value={item.department || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].department = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '10px', minHeight: 'auto', color: 'var(--text-secondary)' }} placeholder={t('settingsPage.placeholderDept')} />
+                                        <input className="form-input" value={item.position || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].position = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderPosition')} />
+                                        <input className="form-input" value={item.department || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].department = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', color: 'var(--text-secondary)' }} placeholder={t('settingsPage.placeholderDept')} />
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
-                                        <input className="form-input" value={item.interviewDate || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].interviewDate = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderInterviewDate')} />
+                                        <input className="form-input" value={item.interviewDate || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].interviewDate = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderInterviewDate')} />
                                         <select 
                                           className="form-select"
                                           value={item.normalizedStatus || 'pending'}
                                           onChange={(e) => { const n = [...aiPreviewData]; n[idx].normalizedStatus = e.target.value; setAiPreviewData(n); }}
-                                          style={{ padding: '2px 4px', fontSize: '10px', height: 'auto' }}
+                                          style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', height: 'auto' }}
                                         >
                                           <option value="attended">{t('settingsPage.statusAttended')}</option>
                                           <option value="no_show">{t('settingsPage.statusNoShow')}</option>
@@ -1641,33 +1641,33 @@ function onEdit(e) {
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                                          <input className="form-input" value={item.phone || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].phone = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', flex: 1 }} placeholder={t('settingsPage.placeholderPhone')} />
+                                          <input className="form-input" value={item.phone || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].phone = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', flex: 1 }} placeholder={t('settingsPage.placeholderPhone')} />
                                           {item.phone && <WhatsAppButton phone={item.phone} candidateName={item.name} variant="icon" style={{ padding: 0 }} />}
                                         </div>
-                                        <input className="form-input" value={item.location || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].location = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderLocation')} />
+                                        <input className="form-input" value={item.location || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].location = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderLocation')} />
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
-                                        <input className="form-input" value={item.degree || item.qualification || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].degree = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderDegree')} />
-                                        <input className="form-input" value={item.experience || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].experience = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '10px', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderExp')} />
+                                        <input className="form-input" value={item.degree || item.qualification || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].degree = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderDegree')} />
+                                        <input className="form-input" value={item.experience || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].experience = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderExp')} />
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
-                                        <input className="form-input" value={item.offered || item.salary || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].offered = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderOfferedSalary')} />
-                                        <input className="form-input" value={item.remarks || item.rawStatus || item.notes || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].remarks = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderRemarks')} />
+                                        <input className="form-input" value={item.offered || item.salary || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].offered = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderOfferedSalary')} />
+                                        <input className="form-input" value={item.remarks || item.rawStatus || item.notes || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].remarks = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderRemarks')} />
                                       </td>
                                     </>
                                   ) : (
                                     <>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
                                         <input className="form-input" value={item.company || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].company = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '12px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderCompanyName')} />
-                                        <input className="form-input" value={item.position || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].position = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', color: 'var(--text-secondary)' }} placeholder={t('settingsPage.placeholderJobTitle')} />
+                                        <input className="form-input" value={item.position || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].position = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', color: 'var(--text-secondary)' }} placeholder={t('settingsPage.placeholderJobTitle')} />
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
-                                        <input className="form-input" value={item.salary || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].salary = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderSalary')} />
-                                        <input className="form-input" value={item.location || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].location = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderJobLocation')} />
+                                        <input className="form-input" value={item.salary || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].salary = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderSalary')} />
+                                        <input className="form-input" value={item.location || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].location = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderJobLocation')} />
                                       </td>
                                       <td style={{ padding: '8px', borderBottom: '1px solid var(--border-hairline)', verticalAlign: 'top' }}>
-                                        <input className="form-input" value={item.requirements || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].requirements = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderReqs')} />
-                                        <input className="form-input" value={item.benefits || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].benefits = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: '11px', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderBenefits')} />
+                                        <input className="form-input" value={item.requirements || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].requirements = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto', marginBottom: '4px' }} placeholder={t('settingsPage.placeholderReqs')} />
+                                        <input className="form-input" value={item.benefits || ''} onChange={(e) => { const n = [...aiPreviewData]; n[idx].benefits = e.target.value; setAiPreviewData(n); }} style={{ padding: '2px 4px', fontSize: 'var(--text-xs)', minHeight: 'auto' }} placeholder={t('settingsPage.placeholderBenefits')} />
                                       </td>
                                     </>
                                   )}
@@ -1788,7 +1788,7 @@ function onEdit(e) {
                 </div>
                 <div style={{ padding: 'var(--space-5)', background: 'var(--card-bg, #ffffff)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-hairline)', boxShadow: 'var(--shadow-card)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: 'var(--space-4)' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-blue)', flexShrink: 0 }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--fill-selected)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-blue)', flexShrink: 0 }}>
                       <i className="ph-bold ph-identification-badge" style={{ fontSize: '1.4rem' }}></i>
                     </div>
                     <div>
@@ -1936,7 +1936,7 @@ function onEdit(e) {
                       flexDirection: 'column',
                       gap: '12px',
                       position: 'relative',
-                      boxShadow: currentTheme === 'dark' ? '0 0 20px rgba(59, 130, 246, 0.35)' : 'none',
+                      boxShadow: currentTheme === 'dark' ? '0 0 20px var(--fill-selected)' : 'none',
                       transition: 'all 0.2s cubic-bezier(0.32, 0.72, 0, 1)'
                     }}
                   >
@@ -1962,7 +1962,7 @@ function onEdit(e) {
                         <i className="ph-fill ph-moon" style={{ color: '#94a3b8', fontSize: '13px' }}></i>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <div style={{ height: '6px', width: '35%', background: '#3b82f6', borderRadius: '3px' }}></div>
+                        <div style={{ height: '6px', width: '35%', background: 'var(--accent)', borderRadius: '3px' }}></div>
                         <div style={{ height: '6px', width: '25%', background: 'rgba(255,255,255,0.15)', borderRadius: '3px' }}></div>
                       </div>
                     </div>
@@ -1976,13 +1976,13 @@ function onEdit(e) {
                       </div>
                       {currentTheme === 'dark' && (
                         <span style={{
-                          fontSize: '0.72rem',
-                          background: 'rgba(59, 130, 246, 0.15)',
+                          fontSize: 'var(--text-xs)',
+                          background: 'var(--fill-selected)',
                           color: 'var(--accent-blue)',
                           padding: '2px 8px',
                           borderRadius: '999px',
                           fontWeight: 600,
-                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          border: '1px solid var(--border-focus)',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px'
@@ -2017,7 +2017,7 @@ function onEdit(e) {
                     <div style={{
                       height: '70px',
                       borderRadius: '8px',
-                      background: 'radial-gradient(ellipse at 80% 20%, rgba(168, 85, 247, 0.35) 0%, rgba(59, 130, 246, 0.25) 50%, #050716 100%)',
+                      background: 'radial-gradient(ellipse at 80% 20%, rgba(168, 85, 247, 0.35) 0%, var(--fill-selected) 50%, #050716 100%)',
                       border: '1px solid rgba(168, 85, 247, 0.3)',
                       padding: '10px',
                       display: 'flex',
@@ -2035,7 +2035,7 @@ function onEdit(e) {
                         <i className="ph-fill ph-sparkle" style={{ color: '#c084fc', fontSize: '14px', filter: 'drop-shadow(0 0 6px rgba(192, 132, 252, 0.9))' }}></i>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <div style={{ height: '6px', width: '45%', background: 'linear-gradient(90deg, #3b82f6, #a855f7, #ec4899)', borderRadius: '3px' }}></div>
+                        <div style={{ height: '6px', width: '45%', background: 'linear-gradient(90deg, var(--accent), #a855f7, #ec4899)', borderRadius: '3px' }}></div>
                         <div style={{ height: '6px', width: '20%', background: 'rgba(255,255,255,0.2)', borderRadius: '3px' }}></div>
                       </div>
                     </div>
@@ -2049,8 +2049,8 @@ function onEdit(e) {
                       </div>
                       {currentTheme === 'gemini' && (
                         <span style={{
-                          fontSize: '0.72rem',
-                          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(168, 85, 247, 0.25))',
+                          fontSize: 'var(--text-xs)',
+                          background: 'linear-gradient(135deg, var(--fill-selected), rgba(168, 85, 247, 0.25))',
                           color: '#e9d5ff',
                           padding: '2px 8px',
                           borderRadius: '999px',
@@ -2125,7 +2125,7 @@ function onEdit(e) {
                       </div>
                       {currentTheme === 'tactical' && (
                         <span style={{
-                          fontSize: '0.72rem',
+                          fontSize: 'var(--text-xs)',
                           background: 'rgba(16, 185, 129, 0.18)',
                           color: '#10b981',
                           padding: '2px 8px',
@@ -2184,7 +2184,7 @@ function onEdit(e) {
                         <i className="ph-fill ph-sun" style={{ color: '#f59e0b', fontSize: '14px' }}></i>
                       </div>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <div style={{ height: '6px', width: '40%', background: '#3b82f6', borderRadius: '3px' }}></div>
+                        <div style={{ height: '6px', width: '40%', background: 'var(--accent)', borderRadius: '3px' }}></div>
                         <div style={{ height: '6px', width: '25%', background: '#e2e8f0', borderRadius: '3px' }}></div>
                       </div>
                     </div>
@@ -2198,7 +2198,7 @@ function onEdit(e) {
                       </div>
                       {currentTheme === 'light' && (
                         <span style={{
-                          fontSize: '0.72rem',
+                          fontSize: 'var(--text-xs)',
                           background: 'rgba(245, 158, 11, 0.15)',
                           color: '#b45309',
                           padding: '2px 8px',
@@ -2289,11 +2289,11 @@ function onEdit(e) {
                         <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)' }}></i>
                         <span>{t('commission.settingsCardTitle', '团队佣金计算模板与保证期双态风控')}</span>
                         {commissionConfig?.enabled !== false ? (
-                          <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--accent-emerald, #10B981)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                          <span style={{ fontSize: 'var(--text-xs)', background: 'rgba(16, 185, 129, 0.12)', color: 'var(--accent-emerald, #10B981)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
                             {t('common.active', '运行中')}
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                          <span style={{ fontSize: 'var(--text-xs)', background: 'rgba(239, 68, 68, 0.12)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
                             {t('common.disabled', '已停用')}
                           </span>
                         )}
@@ -2307,7 +2307,7 @@ function onEdit(e) {
                       type="button"
                       className="btn-primary"
                       onClick={() => setShowCommissionModal(true)}
-                      style={{ fontSize: '0.84rem', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      style={{ fontSize: 'var(--text-sm)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
                     >
                       <i className="ph-bold ph-sliders"></i>
                       <span>{t('commission.configureRulesBtn', '配置佣金与风控规则')}</span>
@@ -2371,7 +2371,7 @@ function onEdit(e) {
                     <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="ph-bold ph-git-commit" style={{ color: 'var(--accent-blue)' }}></i>
                       <span>{t('brand.product', 'TALENT FLOW · Sunrise Recruit')}</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.25)', padding: '2px 8px', borderRadius: '9999px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent-blue)', background: 'var(--fill-selected)', border: '1px solid var(--fill-selected)', padding: '2px 8px', borderRadius: '9999px' }}>
                         {APP_VERSION}
                       </span>
                     </label>
@@ -2395,7 +2395,7 @@ function onEdit(e) {
                   border: '1px solid var(--border-hairline)'
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('settingsPage.appVersionLabel', '应用版本')}
                     </span>
                     <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
@@ -2404,7 +2404,7 @@ function onEdit(e) {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('settingsPage.buildDateLabel', '构建日期')}
                     </span>
                     <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
@@ -2413,7 +2413,7 @@ function onEdit(e) {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('settingsPage.releaseCodenameLabel', '发行代号')}
                     </span>
                     <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--accent-blue)' }}>
@@ -2422,7 +2422,7 @@ function onEdit(e) {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {t('settingsPage.environmentLabel', '运行环境')}
                     </span>
                     <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
@@ -2461,7 +2461,7 @@ function onEdit(e) {
                     </button>
                   </div>
 
-                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
                     {t('settingsPage.jsonModalStep1Desc')}
                   </p>
 
@@ -2479,7 +2479,7 @@ function onEdit(e) {
                       {t('settingsPage.jsonModalBackupFileLabel', '备份文件：')}<span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{pendingJsonData.filename}</span>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-blue)', background: 'var(--fill-selected)', padding: '2px 8px', borderRadius: '4px' }}>
                         <i className="ph-light ph-users" style={{ marginRight: '4px' }}></i>
                         {t('settingsPage.jsonModalCandCount', '{count} 位候选人').replace('{count}', pendingJsonData.candidates.length)}
                       </span>
@@ -2648,8 +2648,8 @@ function onEdit(e) {
             <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* 3 Step Instruction */}
               <div style={{
-                background: 'rgba(59, 130, 246, 0.08)',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
+                background: 'var(--fill-selected)',
+                border: '1px solid var(--border-focus)',
                 borderRadius: 'var(--radius-md)',
                 padding: '14px 16px',
                 fontSize: '0.85rem',

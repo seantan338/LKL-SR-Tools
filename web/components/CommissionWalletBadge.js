@@ -156,7 +156,7 @@ export default function CommissionWalletBadge() {
         <i className="ph-bold ph-coins" style={{ color: 'var(--accent-amber)', fontSize: '14px' }}></i>
 
         {/* Pending Badge */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
           <i className="ph-bold ph-lock-simple" style={{ color: 'var(--accent-amber)', fontSize: '12px' }}></i>
           <strong style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
             {formatCommissionCurrency(animatedPending, 'MYR')}
@@ -166,7 +166,7 @@ export default function CommissionWalletBadge() {
         <span style={{ width: '1px', height: '12px', background: 'var(--border-subtle)' }} />
 
         {/* Unlocked Badge */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--accent-emerald, #10B981)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--accent-emerald, #10B981)' }}>
           <i className="ph-bold ph-check-circle" style={{ color: 'var(--accent-emerald, #10B981)', fontSize: '12px' }}></i>
           <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
             {formatCommissionCurrency(animatedUnlocked, 'MYR')}
@@ -231,7 +231,7 @@ export default function CommissionWalletBadge() {
           </div>
 
           {/* Active Deals Mini List */}
-          <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
             {t('commission.recentDealsList', '近期成单分成流水')}
           </div>
 

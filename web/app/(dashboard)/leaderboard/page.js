@@ -1119,7 +1119,7 @@ export default function LeaderboardPage() {
           >
             <i className="ph-bold ph-chart-line-up" style={{ color: activeTab === 'sales' ? 'var(--accent-blue)' : 'inherit' }}></i>
             <span>{t('leaderboard.tabSales', '销售业绩榜')}</span>
-            <span className="lb-tab-count" style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+            <span className="lb-tab-count" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: '500' }}>
               ({salesLeaderboard.length})
             </span>
           </button>
@@ -1146,7 +1146,7 @@ export default function LeaderboardPage() {
           >
             <i className="ph-bold ph-calendar-check" style={{ color: activeTab === 'attendance' ? '#8b5cf6' : 'inherit' }}></i>
             <span>{t('leaderboard.tabAttendance', '考勤守时榜')}</span>
-            <span className="lb-tab-count" style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+            <span className="lb-tab-count" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: '500' }}>
               ({attendanceLeaderboard.length})
             </span>
           </button>
@@ -1177,7 +1177,7 @@ export default function LeaderboardPage() {
               <span style={{
                 background: 'var(--accent-amber)',
                 color: '#000',
-                fontSize: '10px',
+                fontSize: 'var(--text-xs)',
                 fontWeight: '800',
                 padding: '1px 6px',
                 borderRadius: '10px'
@@ -1250,7 +1250,7 @@ export default function LeaderboardPage() {
                   color: dateFilter === f.id ? '#ffffff' : 'var(--text-muted)',
                   padding: '4px 12px',
                   borderRadius: 'var(--radius-full)',
-                  fontSize: '11px',
+                  fontSize: 'var(--text-xs)',
                   fontWeight: '600',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease'
@@ -1400,10 +1400,10 @@ export default function LeaderboardPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {top2.onboarded > 0 ? (
                     <div className="lb-podium-score-box" style={{
-                      padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
-                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
+                      padding: '8px', background: 'var(--fill-selected)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid var(--border-focus)'
                     }}>
-                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
                       <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top2.onboarded}</span>
                     </div>
                   ) : (
@@ -1411,11 +1411,11 @@ export default function LeaderboardPage() {
                       padding: '8px', background: 'rgba(245, 158, 11, 0.08)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)'
                     }}>
-                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
                       <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top2.compositeScore}</span>
                     </div>
                   )}
-                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     {top2.onboarded > 0 ? (
                       <>
                         <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compositeScore}</strong></span>
@@ -1435,16 +1435,16 @@ export default function LeaderboardPage() {
                     padding: '8px', background: 'rgba(139, 92, 246, 0.08)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)'
                   }}>
-                    <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
                     <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
                       {top2.daysPresent === 0 ? '-' : `${top2.punctualityRate}%`}
                     </span>
                   </div>
-                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top2.compliantDays}/{top2.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: top2.rank === 1 ? 'var(--accent-amber)' : 'var(--text-primary)' }}>{top2.punctualityScore}</strong></span>
                     {top2.avgEarlyMargin > 0 && (
-                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', color: 'var(--accent-emerald)', fontSize: '11px', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', color: 'var(--accent-emerald)', fontSize: 'var(--text-xs)', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
                         <i className="ph-bold ph-clock-countdown"></i>
                         <span>{t('leaderboard.avgEarlyMargin', '平均提前到岗')}: <strong>+{top2.avgEarlyMargin}m</strong></span>
                       </span>
@@ -1505,7 +1505,7 @@ export default function LeaderboardPage() {
                       padding: '10px', background: 'rgba(16, 185, 129, 0.1)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.3)'
                     }}>
-                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
                       <span className="lb-podium-score-val" style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-emerald)' }}>{top1.onboarded}</span>
                     </div>
                   ) : (
@@ -1513,7 +1513,7 @@ export default function LeaderboardPage() {
                       padding: '10px', background: 'rgba(245, 158, 11, 0.12)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.35)'
                     }}>
-                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
                       <span className="lb-podium-score-val" style={{ fontSize: '1.65rem', fontWeight: '900', color: 'var(--accent-amber)' }}>{top1.compositeScore}</span>
                     </div>
                   )}
@@ -1537,7 +1537,7 @@ export default function LeaderboardPage() {
                     padding: '10px', background: 'rgba(139, 92, 246, 0.12)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.35)'
                   }}>
-                    <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
                     <span className="lb-podium-score-val" style={{ fontSize: '1.65rem', fontWeight: '900', color: '#c084fc' }}>
                       {top1.daysPresent === 0 ? '-' : `${top1.punctualityRate}%`}
                     </span>
@@ -1546,7 +1546,7 @@ export default function LeaderboardPage() {
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top1.compliantDays}/{top1.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: 'var(--accent-amber)' }}>{top1.punctualityScore}</strong></span>
                     {top1.avgEarlyMargin > 0 && (
-                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: 'var(--accent-emerald)', fontSize: '11px', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: 'var(--accent-emerald)', fontSize: 'var(--text-xs)', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
                         <i className="ph-bold ph-clock-countdown"></i>
                         <span>{t('leaderboard.avgEarlyMargin', '平均提前到岗')}: <strong>+{top1.avgEarlyMargin}m</strong></span>
                       </span>
@@ -1605,10 +1605,10 @@ export default function LeaderboardPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {top3.onboarded > 0 ? (
                     <div className="lb-podium-score-box" style={{
-                      padding: '8px', background: 'rgba(59, 130, 246, 0.08)',
-                      borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
+                      padding: '8px', background: 'var(--fill-selected)',
+                      borderRadius: 'var(--radius-md)', border: '1px solid var(--border-focus)'
                     }}>
-                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.onboarded', '成功入职')}</span>
                       <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-emerald)' }}>{top3.onboarded}</span>
                     </div>
                   ) : (
@@ -1616,11 +1616,11 @@ export default function LeaderboardPage() {
                       padding: '8px', background: 'rgba(245, 158, 11, 0.08)',
                       borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)'
                     }}>
-                      <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
+                      <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.compositeScore', '综合积分')}</span>
                       <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--accent-amber)' }}>{top3.compositeScore}</span>
                     </div>
                   )}
-                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     {top3.onboarded > 0 ? (
                       <>
                         <span>{t('leaderboard.compositeScore', '综合积分')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compositeScore}</strong></span>
@@ -1640,16 +1640,16 @@ export default function LeaderboardPage() {
                     padding: '8px', background: 'rgba(139, 92, 246, 0.08)',
                     borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)'
                   }}>
-                    <span className="lb-podium-score-label" style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
+                    <span className="lb-podium-score-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'block' }}>{t('leaderboard.punctualityRate', '准点率')}</span>
                     <span className="lb-podium-score-val" style={{ fontSize: '1.35rem', fontWeight: '800', color: '#c084fc' }}>
                       {top3.daysPresent === 0 ? '-' : `${top3.punctualityRate}%`}
                     </span>
                   </div>
-                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <div className="lb-podium-submetrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     <span>{t('leaderboard.compliantDays', '准点天数')}: <strong style={{ color: 'var(--text-primary)' }}>{top3.compliantDays}/{top3.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</strong></span>
                     <span>{t('leaderboard.punctualityScore', '守时指数')}: <strong style={{ color: top3.rank === 1 ? 'var(--accent-amber)' : 'var(--text-primary)' }}>{top3.punctualityScore}</strong></span>
                     {top3.avgEarlyMargin > 0 && (
-                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', color: 'var(--accent-emerald)', fontSize: '11px', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                      <span style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', color: 'var(--accent-emerald)', fontSize: 'var(--text-xs)', marginTop: '2px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
                         <i className="ph-bold ph-clock-countdown"></i>
                         <span>{t('leaderboard.avgEarlyMargin', '平均提前到岗')}: <strong>+{top3.avgEarlyMargin}m</strong></span>
                       </span>
@@ -1727,19 +1727,19 @@ export default function LeaderboardPage() {
                     );
                     if (displayRank === 1) {
                       rankBadge = (
-                        <span title={tieTooltip} style={{ background: '#f59e0b', color: '#000000', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', boxShadow: '0 2px 6px rgba(245,158,11,0.3)' }}>
+                        <span title={tieTooltip} style={{ background: '#f59e0b', color: '#000000', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: 'var(--text-xs)', boxShadow: '0 2px 6px rgba(245,158,11,0.3)' }}>
                           {item.isTie ? 'T1' : '1'}
                         </span>
                       );
                     } else if (displayRank === 2) {
                       rankBadge = (
-                        <span title={tieTooltip} style={{ background: '#94a3b8', color: '#000000', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', boxShadow: '0 2px 6px rgba(148,163,184,0.3)' }}>
+                        <span title={tieTooltip} style={{ background: '#94a3b8', color: '#000000', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: 'var(--text-xs)', boxShadow: '0 2px 6px rgba(148,163,184,0.3)' }}>
                           {item.isTie ? 'T2' : '2'}
                         </span>
                       );
                     } else if (displayRank === 3) {
                       rankBadge = (
-                        <span title={tieTooltip} style={{ background: '#b45309', color: '#ffffff', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', boxShadow: '0 2px 6px rgba(180,83,9,0.3)' }}>
+                        <span title={tieTooltip} style={{ background: '#b45309', color: '#ffffff', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: 'var(--text-xs)', boxShadow: '0 2px 6px rgba(180,83,9,0.3)' }}>
                           {item.isTie ? 'T3' : '3'}
                         </span>
                       );
@@ -1760,7 +1760,7 @@ export default function LeaderboardPage() {
                                   ? 'linear-gradient(135deg, #94a3b8, #64748b)' 
                                   : displayRank === 3 
                                     ? 'linear-gradient(135deg, #b45309, #78350f)' 
-                                    : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                                    : 'linear-gradient(135deg, var(--accent), #8b5cf6)',
                               color: displayRank === 1 || displayRank === 2 ? '#000' : '#fff',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: '12px', fontWeight: '700',
@@ -1770,7 +1770,7 @@ export default function LeaderboardPage() {
                             </div>
                             <div>
                               <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{item.name}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.email}</div>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{item.email}</div>
                             </div>
                           </div>
                         </td>
@@ -1801,7 +1801,7 @@ export default function LeaderboardPage() {
                                 <div style={{ flex: 1, height: '6px', background: 'var(--input-bg)', borderRadius: '3px', overflow: 'hidden' }}>
                                   <div style={{ width: `${Math.min(100, item.rate * 2)}%`, height: '100%', background: 'var(--accent-emerald)', borderRadius: '3px' }}></div>
                                 </div>
-                                <span style={{ fontSize: '11px', fontWeight: '600', color: item.rate > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', minWidth: '38px', opacity: item.rate > 0 ? 1 : 0.6 }}>
+                                <span style={{ fontSize: 'var(--text-xs)', fontWeight: '600', color: item.rate > 0 ? 'var(--text-secondary)' : 'var(--text-muted)', minWidth: '38px', opacity: item.rate > 0 ? 1 : 0.6 }}>
                                   {item.rate}%
                                 </span>
                               </div>
@@ -1809,7 +1809,7 @@ export default function LeaderboardPage() {
                             {isOwner && (
                               <>
                                 <td style={{ padding: '12px' }}>
-                                  <span style={{ fontSize: '0.84rem', color: (item.pendingCommission || 0) > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontWeight: '600' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
+                                  <span style={{ fontSize: 'var(--text-sm)', color: (item.pendingCommission || 0) > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontWeight: '600' }} title={canViewAllAmounts || item.uid === user?.uid ? '' : t('commission.privacyTooltip', '金额隐私保护，仅展示个人真实金额')}>
                                     {formatLeaderboardAmount(item.pendingCommission || 0, item.uid)}
                                   </span>
                                 </td>
@@ -1852,15 +1852,15 @@ export default function LeaderboardPage() {
                               <span style={{ fontWeight: '700', color: item.compliantDays > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                                 {item.compliantDays}
                               </span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}> / {item.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}> / {item.daysPresent} {t('leaderboard.unitDays', isEn ? 'd' : '天')}</span>
                             </td>
                             <td style={{ padding: '12px' }}>
                               <div style={{ color: item.avgArrivalStr !== '-' ? 'var(--text-secondary)' : 'var(--text-muted)', fontWeight: '600' }}>
                                 {item.avgArrivalStr}
                               </div>
                               {item.avgEarlyMargin > 0 && (
-                                <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
-                                  <i className="ph-bold ph-clock-countdown" style={{ fontSize: '10px' }}></i>
+                                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }} title={t('leaderboard.earlyMarginDesc', '较核定班次起始时间平均提前到达')}>
+                                  <i className="ph-bold ph-clock-countdown" style={{ fontSize: 'var(--text-xs)' }}></i>
                                   <span>+{item.avgEarlyMargin}m</span>
                                 </div>
                               )}
@@ -1916,17 +1916,17 @@ export default function LeaderboardPage() {
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontWeight: '800',
-                          fontSize: '11px',
+                          fontSize: 'var(--text-xs)',
                           flexShrink: 0
                         }}>
                           {item.isTie ? `T${displayRank}` : (isTop3 ? displayRank : `#${displayRank}`)}
                         </span>
                         <div style={{
                           width: '28px', height: '28px', borderRadius: '50%',
-                          background: displayRank === 1 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : displayRank === 2 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : displayRank === 3 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                          background: displayRank === 1 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : displayRank === 2 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : displayRank === 3 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'linear-gradient(135deg, var(--accent), #8b5cf6)',
                           color: displayRank === 1 || displayRank === 2 ? '#000' : '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '11px', fontWeight: '700', flexShrink: 0
+                          fontSize: 'var(--text-xs)', fontWeight: '700', flexShrink: 0
                         }}>
                           {item.name.charAt(0).toUpperCase()}
                         </div>
@@ -1939,7 +1939,7 @@ export default function LeaderboardPage() {
 
                       {/* Right Primary Score Badge */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                           {activeTab === 'sales' ? t('leaderboard.compositeScore', '综合积分') : t('leaderboard.punctualityScore', '守时指数')}
                         </span>
                         <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.14)', color: 'var(--accent-amber)', fontWeight: '800', fontSize: '12px', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 8px' }}>
@@ -1985,7 +1985,7 @@ export default function LeaderboardPage() {
                           <span className="lb-mobile-metric-val">
                             {item.avgArrivalStr}
                             {item.avgEarlyMargin > 0 && (
-                              <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', marginLeft: '3px', fontWeight: '700' }}>
+                              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)', marginLeft: '3px', fontWeight: '700' }}>
                                 (+{item.avgEarlyMargin}m)
                               </span>
                             )}
@@ -2020,7 +2020,7 @@ export default function LeaderboardPage() {
                   width: '36px',
                   height: '36px',
                   borderRadius: '10px',
-                  background: 'rgba(59, 130, 246, 0.15)',
+                  background: 'var(--fill-selected)',
                   color: 'var(--accent-blue)',
                   display: 'flex',
                   alignItems: 'center',
@@ -2113,7 +2113,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                 {myStats.daysPresent} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)', marginTop: '4px' }}>
                 {t('analytics.statFullShiftNote', { count: myStats.fullShiftDays }, `达标工时 ${myStats.fullShiftDays} 天`)}
               </div>
             </div>
@@ -2129,7 +2129,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: '#c084fc', fontFamily: 'monospace' }}>
                 {myStats.attendanceRate}%
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('analytics.statAttendanceRateSub', { expected: myStats.effectiveExpectedDays, leaves: myStats.fullLeaveDaysElapsed }, `计准应出勤 ${myStats.effectiveExpectedDays} 天 (已扣减休假 ${myStats.fullLeaveDaysElapsed} 天)`)}
               </div>
             </div>
@@ -2145,7 +2145,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-blue)', fontFamily: 'monospace' }}>
                 {myStats.daysPresent > 0 ? ((myStats.fullShiftDays / myStats.daysPresent) * 100).toFixed(0) : 0}%
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('analytics.statCompliantSub', { ok: myStats.fullShiftDays, total: myStats.daysPresent }, `${myStats.fullShiftDays} / ${myStats.daysPresent} 天正常`)}
               </div>
             </div>
@@ -2161,7 +2161,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-primary)', fontFamily: 'monospace' }}>
                 {myStats.lateDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
               </div>
-              <div style={{ fontSize: '11px', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', marginTop: '4px' }}>
                 {myStats.lateDays > 0 ? t('analytics.statLateAlert', '存在班次未达底线') : t('analytics.statNoViolation', '无迟到记录')}
               </div>
             </div>
@@ -2177,7 +2177,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
                 {myStats.missingPunchDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
               </div>
-              <div style={{ fontSize: '11px', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
                 {myStats.missingPunchDays > 0 ? t('analytics.statMissingPunchAlert', '可在表格中点击申诉补录') : t('analytics.statAllPunched', '所有打卡均完整')}
               </div>
             </div>
@@ -2193,7 +2193,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-purple)', fontFamily: 'monospace' }}>
                 {myStats.manualAddedDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('analytics.statAdminAddedNote', '特批或申诉核准留痕')}
               </div>
             </div>
@@ -2209,7 +2209,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.pendingCount > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
                 {myStats.pendingCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitCases', '件')}</span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {myStats.pendingCount > 0 ? t('analytics.statPendingAppealsWait', '等待管理员批复中') : t('analytics.statNoPendingAppeals', '暂无在途申诉')}
               </div>
             </div>
@@ -2225,7 +2225,7 @@ export default function LeaderboardPage() {
               <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
                 {myStats.approvedLeaveDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
               </div>
-              <div style={{ fontSize: '11px', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
                 {myStats.pendingLeaveCount > 0
                   ? t('analytics.statLeavesPendingCount', { count: myStats.pendingLeaveCount }, `${myStats.pendingLeaveCount} 件休假待审核`)
                   : t('analytics.statLeavesApprovedDesc', '获批自动免打卡')}
@@ -2243,7 +2243,7 @@ export default function LeaderboardPage() {
                 <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                   {t('attendanceLeave.myLeavesTitle', '我的请假记录与状态')}
                 </h4>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
                   {myLeavesList.length}
                 </span>
               </div>
@@ -2273,7 +2273,7 @@ export default function LeaderboardPage() {
                         <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
                           {dateText}
                         </span>
-                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
                           {leave.leaveType} · {durationLabel} ({leave.daysCount} {t('analytics.unitDays', '天')})
                         </span>
                         {leave.reason && (
@@ -2287,7 +2287,7 @@ export default function LeaderboardPage() {
                         {leave.status === 'PENDING' ? (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               color: 'var(--accent-amber)',
                               background: 'rgba(245, 158, 11, 0.15)',
@@ -2311,7 +2311,7 @@ export default function LeaderboardPage() {
                                 color: '#f87171',
                                 cursor: 'pointer',
                                 padding: '2px 6px',
-                                fontSize: '11px',
+                                fontSize: 'var(--text-xs)',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '2px'
@@ -2323,7 +2323,7 @@ export default function LeaderboardPage() {
                           </div>
                         ) : leave.status === 'APPROVED' ? (
                           <span style={{
-                            fontSize: '11px',
+                            fontSize: 'var(--text-xs)',
                             fontWeight: '600',
                             color: 'var(--accent-emerald)',
                             background: 'rgba(16, 185, 129, 0.15)',
@@ -2340,7 +2340,7 @@ export default function LeaderboardPage() {
                         ) : (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               color: '#f87171',
                               background: 'rgba(239, 68, 68, 0.15)',
@@ -2355,7 +2355,7 @@ export default function LeaderboardPage() {
                               {t('attendanceLeave.statusRejected', '未批准')}
                             </span>
                             {leave.reviewNote && (
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                 ({leave.reviewNote})
                               </span>
                             )}
@@ -2379,7 +2379,7 @@ export default function LeaderboardPage() {
                 <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                   {t('attendanceAppeal.myAppealsTitle', '我的考勤申诉记录')}
                 </h4>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
                   {myAppealsList.length}
                 </span>
               </div>
@@ -2413,7 +2413,7 @@ export default function LeaderboardPage() {
                         <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)', fontSize: '13px' }}>
                           {app.date}
                         </span>
-                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', fontWeight: '600' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', borderRadius: '4px', background: 'var(--fill-selected)', color: 'var(--accent-blue)', fontWeight: '600' }}>
                           {punchTypeLabel}
                         </span>
                         <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -2430,7 +2430,7 @@ export default function LeaderboardPage() {
                         {app.status === 'PENDING' ? (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               color: 'var(--accent-amber)',
                               background: 'rgba(245, 158, 11, 0.15)',
@@ -2448,7 +2448,7 @@ export default function LeaderboardPage() {
                               type="button"
                               onClick={() => handleCancelAppeal(app.id)}
                               className="btn btn-sm btn-ghost"
-                              style={{ color: '#f87171', fontSize: '11px', padding: '2px 8px', gap: '2px' }}
+                              style={{ color: '#f87171', fontSize: 'var(--text-xs)', padding: '2px 8px', gap: '2px' }}
                               title={t('attendanceAppeal.withdrawTooltip', '撤销此申诉')}
                             >
                               <i className="ph-bold ph-x"></i>
@@ -2457,7 +2457,7 @@ export default function LeaderboardPage() {
                           </div>
                         ) : app.status === 'APPROVED' ? (
                           <span style={{
-                            fontSize: '11px',
+                            fontSize: 'var(--text-xs)',
                             fontWeight: '600',
                             color: 'var(--accent-emerald)',
                             background: 'rgba(16, 185, 129, 0.15)',
@@ -2474,7 +2474,7 @@ export default function LeaderboardPage() {
                         ) : (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               color: '#f87171',
                               background: 'rgba(239, 68, 68, 0.15)',
@@ -2489,7 +2489,7 @@ export default function LeaderboardPage() {
                               {t('attendanceAppeal.statusRejected', '未通过')}
                             </span>
                             {app.reviewNote && (
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                 ({app.reviewNote})
                               </span>
                             )}
@@ -2513,7 +2513,7 @@ export default function LeaderboardPage() {
                 <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                   {t('analytics.myDailyTableTitle', { month: myAttendanceMonth }, `${myAttendanceMonth} 每日打卡与出勤流水`)}
                 </h4>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
                   {t('analytics.myRecordCount', { count: myMonthlyAttendance.length }, `共 ${myMonthlyAttendance.length} 天记录`)}
                 </span>
               </div>
@@ -2561,12 +2561,12 @@ export default function LeaderboardPage() {
                                 {item.date}
                               </span>
                               {dayWeekday && (
-                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                                   {dayWeekday}
                                 </span>
                               )}
                               {item.isToday && (
-                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', fontWeight: '700' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'var(--fill-selected)', color: 'var(--accent-blue)', fontWeight: '700' }}>
                                   {t('analytics.todayTagShort', '今日')}
                                 </span>
                               )}
@@ -2588,7 +2588,7 @@ export default function LeaderboardPage() {
                               {isInManual && (
                                 <span
                                   style={{
-                                    fontSize: '10px',
+                                    fontSize: 'var(--text-xs)',
                                     fontWeight: '700',
                                     padding: '1px 6px',
                                     borderRadius: '4px',
@@ -2607,7 +2607,7 @@ export default function LeaderboardPage() {
                                 </span>
                               )}
                               {item.isWfh && !isInManual && (
-                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                   <i className="ph-bold ph-house-line"></i>
                                   WFH
                                 </span>
@@ -2625,7 +2625,7 @@ export default function LeaderboardPage() {
                                 {isOutManual && (
                                   <span
                                     style={{
-                                      fontSize: '10px',
+                                      fontSize: 'var(--text-xs)',
                                       fontWeight: '700',
                                       padding: '1px 6px',
                                       borderRadius: '4px',
@@ -2671,7 +2671,7 @@ export default function LeaderboardPage() {
                                 {item.analysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
                               </span>
                               {item.analysis?.shift?.endStr && (
-                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                                   {t('analytics.shiftCutoffPrefix', '底线')} {item.analysis.shift.endStr}
                                 </span>
                               )}
@@ -2683,7 +2683,7 @@ export default function LeaderboardPage() {
                             <span style={{
                               padding: '2px 8px',
                               borderRadius: '4px',
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               color: item.statusColor,
                               background: `${item.statusColor}18`,
@@ -2700,7 +2700,7 @@ export default function LeaderboardPage() {
                           <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
                             {item.analysis?.isOnLeave ? (
                               <span style={{
-                                fontSize: '11px',
+                                fontSize: 'var(--text-xs)',
                                 fontWeight: '600',
                                 color: 'var(--accent-emerald)',
                                 background: 'rgba(16, 185, 129, 0.12)',
@@ -2718,7 +2718,7 @@ export default function LeaderboardPage() {
                               appeal.status === 'PENDING' ? (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                   <span style={{
-                                    fontSize: '11px',
+                                    fontSize: 'var(--text-xs)',
                                     fontWeight: '600',
                                     color: 'var(--accent-amber)',
                                     background: 'rgba(245, 158, 11, 0.15)',
@@ -2751,7 +2751,7 @@ export default function LeaderboardPage() {
                                 </div>
                               ) : appeal.status === 'APPROVED' ? (
                                 <span style={{
-                                  fontSize: '11px',
+                                  fontSize: 'var(--text-xs)',
                                   fontWeight: '600',
                                   color: 'var(--accent-emerald)',
                                   background: 'rgba(16, 185, 129, 0.15)',
@@ -2768,7 +2768,7 @@ export default function LeaderboardPage() {
                               ) : (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                   <span style={{
-                                    fontSize: '11px',
+                                    fontSize: 'var(--text-xs)',
                                     fontWeight: '600',
                                     color: '#f87171',
                                     background: 'rgba(239, 68, 68, 0.15)',
@@ -2785,7 +2785,7 @@ export default function LeaderboardPage() {
                                   <button
                                     type="button"
                                     className="btn btn-sm btn-ghost"
-                                    style={{ fontSize: '10px', padding: '1px 6px', color: 'var(--accent-amber)', border: '1px solid rgba(245, 158, 11, 0.3)' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '1px 6px', color: 'var(--accent-amber)', border: '1px solid rgba(245, 158, 11, 0.3)' }}
                                     onClick={() => {
                                       setAppealTargetDate(item.date);
                                       setAppealTargetPunchType('CLOCK_OUT');
@@ -2802,7 +2802,7 @@ export default function LeaderboardPage() {
                                   type="button"
                                   className="btn btn-sm btn-ghost"
                                   style={{
-                                    fontSize: '11px',
+                                    fontSize: 'var(--text-xs)',
                                     padding: '3px 8px',
                                     gap: '4px',
                                     color: 'var(--accent-amber)',

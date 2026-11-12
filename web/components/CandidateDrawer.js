@@ -971,7 +971,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
         
         <div className="drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '1.25rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--fill-selected)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '1.25rem' }}>
               {formData.name ? formData.name.charAt(0) : '?'}
             </div>
             <div>
@@ -980,7 +980,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                   {currentCandidate ? formData.name : t('candidates.drawer.newCandidate')}
                 </h3>
                 {formData.company && (
-                  <span className="tag-pill" style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="tag-pill" style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: 'var(--fill-selected)', color: 'var(--accent-blue)', border: '1px solid var(--fill-selected)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                     <i className="ph ph-buildings"></i> {formData.company}
                   </span>
                 )}
@@ -1196,8 +1196,8 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
               {/* AI Auto-Fill Widget */}
               {isEditing && (
                 <div style={{
-                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(139, 92, 246, 0.08))',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  background: 'linear-gradient(135deg, var(--fill-selected), rgba(139, 92, 246, 0.08))',
+                  border: '1px solid var(--border-focus)',
                   borderRadius: 'var(--radius-md)',
                   padding: 'var(--space-3) var(--space-4)',
                   transition: 'all 0.2s ease'
@@ -1206,7 +1206,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{
                         width: '28px', height: '28px', borderRadius: '8px',
-                        background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)',
+                        background: 'var(--fill-selected)', color: 'var(--accent-blue)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px'
                       }}>
                         <i className="ph-fill ph-sparkle"></i>
@@ -1214,7 +1214,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                       <div>
                         <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {t('candidates.drawer.aiWidgetTitle')}
-                          <span style={{ fontSize: '10px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', padding: '1px 6px', borderRadius: '10px', fontWeight: '500' }}>{t('candidates.drawer.aiWidgetBadge')}</span>
+                          <span style={{ fontSize: 'var(--text-xs)', background: 'var(--fill-selected)', color: 'var(--accent-blue)', padding: '1px 6px', borderRadius: '10px', fontWeight: '500' }}>{t('candidates.drawer.aiWidgetBadge')}</span>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           {t('candidates.drawer.aiWidgetSubtitle')}
@@ -1225,7 +1225,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                       type="button"
                       className="btn btn-sm btn-secondary"
                       onClick={() => setShowDrawerAiParser(!showDrawerAiParser)}
-                      style={{ fontSize: '11px', padding: '3px 10px', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}
+                      style={{ fontSize: 'var(--text-xs)', padding: '3px 10px', color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}
                     >
                       {showDrawerAiParser ? t('candidates.drawer.aiCollapse') : t('candidates.drawer.aiExpand')}
                     </button>
@@ -1251,7 +1251,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                             padding: '4px 10px', borderRadius: 'var(--radius-pill)', border: 'none',
                             background: aiParseTab === 'file' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
                             color: aiParseTab === 'file' ? '#fff' : 'var(--text-muted)',
-                            fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                            fontSize: 'var(--text-xs)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
                           }}
                         >
                           <i className="ph-light ph-file-arrow-up"></i> {t('candidates.drawer.aiUploadFileTab')}
@@ -1263,7 +1263,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                             padding: '4px 10px', borderRadius: 'var(--radius-pill)', border: 'none',
                             background: aiParseTab === 'text' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
                             color: aiParseTab === 'text' ? '#fff' : 'var(--text-muted)',
-                            fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                            fontSize: 'var(--text-xs)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
                           }}
                         >
                           <i className="ph-light ph-textbox"></i> {t('candidates.drawer.aiPasteTextTab')}
@@ -1296,9 +1296,9 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                               padding: aiFile ? '10px 14px' : '16px 12px',
                               textAlign: 'center',
                               background: isDraggingAiFile
-                                ? 'rgba(59, 130, 246, 0.12)'
+                                ? 'var(--fill-selected)'
                                 : aiFile
-                                ? 'rgba(59, 130, 246, 0.05)'
+                                ? 'var(--fill-selected)'
                                 : 'rgba(0,0,0,0.15)',
                               cursor: 'pointer',
                               transition: 'all 0.2s ease'
@@ -1331,7 +1331,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                                       width: '40px',
                                       height: '40px',
                                       borderRadius: '6px',
-                                      background: 'rgba(59, 130, 246, 0.15)',
+                                      background: 'var(--fill-selected)',
                                       color: 'var(--accent-blue)',
                                       display: 'flex',
                                       alignItems: 'center',
@@ -1353,13 +1353,13 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                                     }}>
                                       {aiFile.name}
                                     </div>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                                       <span>{(aiFile.size / 1024).toFixed(1)} KB</span>
                                       <span style={{
-                                        fontSize: '10px',
+                                        fontSize: 'var(--text-xs)',
                                         padding: '0 5px',
                                         borderRadius: '4px',
-                                        background: aiFilePreview ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                        background: aiFilePreview ? 'rgba(16, 185, 129, 0.15)' : 'var(--fill-selected)',
                                         color: aiFilePreview ? 'var(--accent-emerald)' : 'var(--accent-blue)'
                                       }}>
                                         {aiFilePreview ? t('candidates.drawer.aiImageCvBadge') : t('candidates.drawer.aiDocCvBadge')}
@@ -1387,7 +1387,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                                   onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-rose)'; e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                                 >
-                                  <i className="ph-bold ph-x" style={{ fontSize: '11px' }}></i>
+                                  <i className="ph-bold ph-x" style={{ fontSize: 'var(--text-xs)' }}></i>
                                 </button>
                               </div>
                             ) : (
@@ -1420,7 +1420,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           className="btn btn-primary btn-sm"
                           onClick={handleDrawerAiParse}
                           disabled={isAiParsing || (aiParseTab === 'file' ? !aiFile : !aiText.trim())}
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)' }}
                         >
                           {isAiParsing ? (
                             <><i className="ph-light ph-spinner ph-spin"></i> {t('candidates.drawer.aiExtracting')}</>
@@ -1526,7 +1526,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                       >
                         {Array.isArray(formData.languages) && formData.languages.length > 0 ? (
                           formData.languages.map((lang, lIdx) => (
-                            <span key={lIdx} className="tag-pill" style={{ background: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)', fontSize: '11px', padding: '2px 8px' }}>
+                            <span key={lIdx} className="tag-pill" style={{ background: 'var(--fill-selected)', color: 'var(--accent-blue)', border: '1px solid var(--fill-selected)', fontSize: 'var(--text-xs)', padding: '2px 8px' }}>
                               {lang}
                             </span>
                           ))
@@ -1671,7 +1671,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                   {(formData.stage === 'interview' || formData.interviewDate) && (
                     <>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }} ref={interviewSectionRef}>
-                        <div className="form-grid-2" style={{ padding: 'var(--space-4)', background: 'rgba(59, 130, 246, 0.05)', borderRadius: 'var(--radius-md)', border: '1px dashed rgba(59, 130, 246, 0.3)' }}>
+                        <div className="form-grid-2" style={{ padding: 'var(--space-4)', background: 'var(--fill-selected)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--fill-selected)' }}>
                           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h5 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <i className="ph-fill ph-calendar-check"></i> {t('candidates.drawer.sectionInterview')}
@@ -1681,13 +1681,13 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                                 type="button"
                                 className="btn btn-secondary btn-xs"
                                 style={{
-                                  fontSize: '11px',
+                                  fontSize: 'var(--text-xs)',
                                   padding: '2px 8px',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
                                   color: 'var(--accent-blue)',
-                                  borderColor: 'rgba(59, 130, 246, 0.3)'
+                                  borderColor: 'var(--border-focus)'
                                 }}
                                 onClick={handleSyncInterviewToGCal}
                                 title={t('candidates.drawer.gcalTooltip')}
@@ -1710,7 +1710,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                               disabled={!isEditing}
                             />
                             {formData.interviewDate && !isIsoDate(formData.interviewDate) && (
-                              <div style={{ fontSize: '11px', color: 'var(--accent-amber)', marginTop: '4px' }}>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-amber)', marginTop: '4px' }}>
                                 {t('candidates.drawer.legacyInterviewDateHint', { value: String(formData.interviewDate) }, '原始记录「{value}」无法识别为日期，请重新选择')}
                               </div>
                             )}
@@ -1782,7 +1782,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                       type="button"
                       className="btn btn-xs btn-secondary"
                       onClick={handleAddWorkExp}
-                      style={{ fontSize: '11px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)' }}
+                      style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)' }}
                     >
                       <i className="ph ph-plus"></i> {t('candidates.drawer.addWorkHistoryBtn')}
                     </button>
@@ -1795,7 +1795,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                         onClose();
                         router.push(`/cv-autofill?candidateId=${currentCandidate.id}`);
                       }}
-                      style={{ fontSize: '11px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)' }}
+                      style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-purple)', borderColor: 'rgba(168, 85, 247, 0.3)' }}
                       title={t('candidates.drawer.pushToCvAutofillTitle', '将该候选人推送到 CV Auto Fill 并导出模板')}
                     >
                       <i className="ph ph-file-doc"></i> {t('candidates.drawer.exportSunriseCvBtn', '在 CV Auto Fill 中导出 Sunrise 模板')}
@@ -1836,15 +1836,15 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           {isEditing ? (
                             <>
                               <div>
-                                <label className="form-label" style={{ fontSize: '11px' }}>{t('extraUi.companyNameLabel', '公司名称')}</label>
+                                <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('extraUi.companyNameLabel', '公司名称')}</label>
                                 <input type="text" className="form-input" value={job.company || ''} onChange={(e) => handleWorkExpChange(jIdx, 'company', e.target.value)} placeholder={t('candidates.drawer.placeholderWorkCompany', '如 Company Name')} />
                               </div>
                               <div>
-                                <label className="form-label" style={{ fontSize: '11px' }}>{t('extraUi.jobPositionLabel', '任职岗位')}</label>
+                                <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('extraUi.jobPositionLabel', '任职岗位')}</label>
                                 <input type="text" className="form-input" value={job.position || ''} onChange={(e) => handleWorkExpChange(jIdx, 'position', e.target.value)} placeholder={t('candidates.drawer.placeholderWorkPosition', '如 Position')} />
                               </div>
                               <div>
-                                <label className="form-label" style={{ fontSize: '11px' }}>{t('candidates.drawer.labelPeriod')}</label>
+                                <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('candidates.drawer.labelPeriod')}</label>
                                 <input type="text" className="form-input" value={job.period || ''} onChange={(e) => handleWorkExpChange(jIdx, 'period', e.target.value)} placeholder={t('candidates.drawer.placeholderPeriod')} />
                               </div>
                             </>
@@ -1859,7 +1859,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('extraUi.salaryPrefix', '薪资: ')}{job.last_drawn_salary}</span>
                                 )}
                               </div>
-                              <span className="tag-pill" style={{ background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)', fontSize: '11px', padding: '2px 8px' }}>
+                              <span className="tag-pill" style={{ background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', padding: '2px 8px' }}>
                                 {job.period || t('extraUi.periodPending', '时间待补充')}
                               </span>
                             </>
@@ -1870,7 +1870,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                         <div>
                           {isEditing ? (
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px', color: 'var(--accent-amber)' }}>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-amber)' }}>
                                 <i className="ph ph-door-open"></i> {t('candidates.drawer.labelReasonForLeaving')}
                               </label>
                               <input
@@ -1896,7 +1896,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                         <div>
                           {isEditing ? (
                             <div>
-                              <label className="form-label" style={{ fontSize: '11px' }}>{t('candidates.drawer.labelResponsibilities')}</label>
+                              <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('candidates.drawer.labelResponsibilities')}</label>
                               <textarea
                                 className="form-textarea"
                                 rows="3"
@@ -1978,7 +1978,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                   style={{ minHeight: '120px' }}
                 ></textarea>
                 {isEditing && (
-                  <div style={{ color: 'var(--text-faint)', fontSize: '11px', marginTop: '6px' }}>
+                  <div style={{ color: 'var(--text-faint)', fontSize: 'var(--text-xs)', marginTop: '6px' }}>
                     {t('candidates.drawer.saveReminderHint')}
                   </div>
                 )}
@@ -2015,13 +2015,13 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                           >
                             {resume.filename}
                           </div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {resume.fileSize && `${Math.round(resume.fileSize / 1024)} KB · `}{t('candidates.drawer.uploadedAtPrefix')}{Utils.formatDateTime(resume.uploadedAt)}
                           </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '12px' }}>
-                        <a href={resume.dataUrl || resume.url} download={resume.filename} className="btn btn-sm btn-secondary" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>
+                        <a href={resume.dataUrl || resume.url} download={resume.filename} className="btn btn-sm btn-secondary" style={{ color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}>
                           {t('candidates.drawer.downloadResumeBtn')}
                         </a>
                         {!isReadOnlyView && (
@@ -2062,7 +2062,7 @@ export default function CandidateDrawer({ isOpen, onClose, candidate, focusInter
                         }}
                       />
                     </div>
-                    <div style={{ color: 'var(--text-faint)', fontSize: '11px', marginTop: '6px' }}>
+                    <div style={{ color: 'var(--text-faint)', fontSize: 'var(--text-xs)', marginTop: '6px' }}>
                       {t('candidates.drawer.uploadResumeHint')}
                     </div>
                   </>

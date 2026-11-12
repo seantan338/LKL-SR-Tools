@@ -162,7 +162,7 @@ export default function P0NoticeModal() {
                     color: '#ffffff',
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    fontSize: '0.72rem',
+                    fontSize: 'var(--text-xs)',
                     fontWeight: viewLang === 'zh' ? '700' : '400',
                     cursor: 'pointer'
                   }}
@@ -178,7 +178,7 @@ export default function P0NoticeModal() {
                     color: '#ffffff',
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    fontSize: '0.72rem',
+                    fontSize: 'var(--text-xs)',
                     fontWeight: viewLang === 'en' ? '700' : '400',
                     cursor: 'pointer'
                   }}

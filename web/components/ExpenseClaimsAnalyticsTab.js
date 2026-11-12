@@ -233,7 +233,7 @@ export default function ExpenseClaimsAnalyticsTab({
 
             {/* Batch Actions Bar (Owner Only) */}
             {isOwner && selectedClaimIdsForBatch.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(59, 130, 246, 0.1)', padding: '4px 12px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--fill-selected)', padding: '4px 12px', borderRadius: '8px', border: '1px solid var(--fill-selected)' }}>
                 <span style={{ fontSize: '12px', color: 'var(--accent-blue)', fontWeight: '700' }}>
                   {t('claims.selectedCount', { count: selectedClaimIdsForBatch.length }, `已选 ${selectedClaimIdsForBatch.length} 笔`)} (MYR {
                     expenseClaims
@@ -247,7 +247,7 @@ export default function ExpenseClaimsAnalyticsTab({
                   disabled={isBatchProcessing}
                   onClick={() => handleBatchAction('BATCH_PAYOUT')}
                   className="btn btn-xs btn-primary"
-                  style={{ gap: '4px', fontSize: '11px', padding: '4px 10px' }}
+                  style={{ gap: '4px', fontSize: 'var(--text-xs)', padding: '4px 10px' }}
                 >
                   <i className="ph-bold ph-bank"></i>
                   {t('claims.batchPayoutBtn', '生成放款批次')}
@@ -258,7 +258,7 @@ export default function ExpenseClaimsAnalyticsTab({
                   onClick={() => handleBatchAction('PAYROLL')}
                   className="btn btn-xs"
                   style={{
-                    gap: '4px', fontSize: '11px', padding: '4px 10px',
+                    gap: '4px', fontSize: 'var(--text-xs)', padding: '4px 10px',
                     background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
                     color: '#fff', border: 'none', fontWeight: '700'
                   }}
@@ -316,7 +316,7 @@ export default function ExpenseClaimsAnalyticsTab({
 
                     const statusColors = {
                       SUBMITTED: { bg: 'rgba(245, 158, 11, 0.15)', text: 'var(--accent-amber)', label: t('claims.statusSubmitted', '待主管初审') },
-                      MANAGER_APPROVED: { bg: 'rgba(59, 130, 246, 0.15)', text: 'var(--accent-blue)', label: t('claims.statusManagerApproved', '待财务终审') },
+                      MANAGER_APPROVED: { bg: 'var(--fill-selected)', text: 'var(--accent-blue)', label: t('claims.statusManagerApproved', '待财务终审') },
                       APPROVED_PENDING_PAYOUT: { bg: 'rgba(16, 185, 129, 0.15)', text: 'var(--accent-emerald)', label: t('claims.statusApprovedPendingPayout', '已批准 · 待放款') },
                       PAID: { bg: 'rgba(16, 185, 129, 0.25)', text: '#10b981', label: t('claims.statusPaid', '已放款结清') },
                       LOCKED_IN_PAYROLL: { bg: 'rgba(139, 92, 246, 0.2)', text: '#a78bfa', label: t('claims.statusLockedInPayroll', '已并入薪资单锁定') },
@@ -330,7 +330,7 @@ export default function ExpenseClaimsAnalyticsTab({
                         <tr
                           style={{
                             borderBottom: '1px solid var(--border-hairline)',
-                            background: isSelected ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+                            background: isSelected ? 'var(--fill-selected)' : 'transparent',
                             cursor: 'pointer'
                           }}
                           onClick={() => setExpandedClaimId(isExpanded ? null : claim.id)}
@@ -377,14 +377,14 @@ export default function ExpenseClaimsAnalyticsTab({
                           </td>
 
                           <td style={{ padding: '10px', textAlign: 'center' }}>
-                            <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
+                            <span style={{ fontSize: 'var(--text-xs)', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
                               {claim.payoutChannel === 'PAYROLL' ? t('claims.channelPayrollShort', '随薪') : t('claims.channelBatchShort', '批次')}
                             </span>
                           </td>
 
                           <td style={{ padding: '10px', textAlign: 'center' }}>
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               padding: '2px 8px',
                               borderRadius: '4px',
@@ -416,7 +416,7 @@ export default function ExpenseClaimsAnalyticsTab({
                                     type="button"
                                     onClick={() => onApproveManager && onApproveManager(claim)}
                                     className="btn btn-xs btn-primary"
-                                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '3px 8px' }}
                                   >
                                     {t('claims.actionApproveManager', '初审通过')}
                                   </button>
@@ -428,7 +428,7 @@ export default function ExpenseClaimsAnalyticsTab({
                                       setClaimRejectModalOpen(true);
                                     }}
                                     className="btn btn-xs btn-ghost"
-                                    style={{ fontSize: '11px', padding: '3px 6px', color: '#f87171' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '3px 6px', color: '#f87171' }}
                                   >
                                     {t('claims.actionReject', '驳回')}
                                   </button>
@@ -443,7 +443,7 @@ export default function ExpenseClaimsAnalyticsTab({
                                     onClick={() => onApproveFinance && onApproveFinance(claim)}
                                     className="btn btn-xs"
                                     style={{
-                                      fontSize: '11px', padding: '3px 8px',
+                                      fontSize: 'var(--text-xs)', padding: '3px 8px',
                                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                       color: '#fff', border: 'none', fontWeight: '700'
                                     }}
@@ -458,7 +458,7 @@ export default function ExpenseClaimsAnalyticsTab({
                                       setClaimRejectModalOpen(true);
                                     }}
                                     className="btn btn-xs btn-ghost"
-                                    style={{ fontSize: '11px', padding: '3px 6px', color: '#f87171' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '3px 6px', color: '#f87171' }}
                                   >
                                     {t('claims.actionReject', '驳回')}
                                   </button>
@@ -466,13 +466,13 @@ export default function ExpenseClaimsAnalyticsTab({
                               )}
 
                               {claim.status === 'PAID' && (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                   {claim.payoutBatchId ? `${t('claims.batchPrefix', '批次')}: ${claim.payoutBatchId.slice(-6)}` : t('claims.statusSettledShort', '已结清')}
                                 </span>
                               )}
 
                               {claim.status === 'LOCKED_IN_PAYROLL' && (
-                                <span style={{ fontSize: '11px', color: '#a78bfa' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: '#a78bfa' }}>
                                   {claim.payrollPeriod ? `${t('claims.lockPrefix', '锁定')}: ${claim.payrollPeriod}` : t('claims.statusLockedShort', '已入薪')}
                                 </span>
                               )}
@@ -503,29 +503,29 @@ export default function ExpenseClaimsAnalyticsTab({
                                     }}
                                   >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>#{idx + 1}</span>
+                                      <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>#{idx + 1}</span>
                                       <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{it.merchantName}</span>
-                                      <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
+                                      <span style={{ fontSize: 'var(--text-xs)', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
                                         {it.category}
                                       </span>
                                       {it.invoiceNo && (
-                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('claims.invoiceNoLabel', '单号')}: {it.invoiceNo}</span>
+                                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('claims.invoiceNoLabel', '单号')}: {it.invoiceNo}</span>
                                       )}
                                       {it.ocrExtracted && (
-                                        <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><i className="ph-bold ph-scan"></i>AI OCR</span>
+                                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><i className="ph-bold ph-scan"></i>AI OCR</span>
                                       )}
                                       {it.notes && (
-                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({it.notes})</span>
+                                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>({it.notes})</span>
                                       )}
                                     </div>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                       {it.warnings && it.warnings.length > 0 && (
-                                        <span style={{ fontSize: '11px', color: 'var(--accent-red)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-red)', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                           <i className="ph-bold ph-warning"></i>{it.warnings.join(', ')}
                                         </span>
                                       )}
-                                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{it.receiptDate}</span>
+                                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{it.receiptDate}</span>
                                       <span style={{ fontWeight: '800', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                                         MYR {Number(it.amount || 0).toFixed(2)}
                                       </span>

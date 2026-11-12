@@ -165,7 +165,7 @@ export default function CVBuilderPage() {
             <h3 style={{ fontSize: 'var(--text-md)', marginBottom: 'var(--space-4)', color: 'var(--text-primary)' }}>{t('cvBuilder.dataAdjustment', '数据调整')}</h3>
             
             {statusMessage && (
-              <div style={{ marginBottom: 'var(--space-4)', fontSize: '0.8rem', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '8px', borderRadius: '4px' }}>
+              <div style={{ marginBottom: 'var(--space-4)', fontSize: '0.8rem', color: 'var(--accent-blue)', background: 'var(--fill-selected)', padding: '8px', borderRadius: '4px' }}>
                 {statusMessage}
               </div>
             )}

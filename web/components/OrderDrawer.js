@@ -51,7 +51,7 @@ export default function OrderDrawer({ order, isOpen, onClose, onEdit, onQuickSta
               {onQuickStatusChange && order && (
                 <select 
                   className="form-select btn-sm" 
-                  style={{ fontSize: '11px', padding: '2px 8px', height: '28px', background: 'var(--bg-card)', borderColor: 'var(--border-subtle)', cursor: 'pointer' }}
+                  style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', height: '28px', background: 'var(--bg-card)', borderColor: 'var(--border-subtle)', cursor: 'pointer' }}
                   value={order?.status || 'open'}
                   onChange={(e) => onQuickStatusChange(order.id, e.target.value, order.position)}
                   title={t('components.orderDrawer.quickStatus')}

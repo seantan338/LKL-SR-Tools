@@ -215,7 +215,7 @@ export default function ManualPunchModal({
                 <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                   {isReviewMode ? t('manualPunch.reviewTitle', '考勤申诉审核与补录') : t('manualPunch.directTitle', '管理员手动补录考勤')}
                 </h3>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
                   {isReviewMode ? t('manualPunch.reviewSub', '核实员工申报信息，核准生成带审计留痕的补录记录') : t('manualPunch.directSub', '为员工补录历史遗漏考勤，所有操作将终身不可篡改留痕')}
                 </p>
               </div>
@@ -255,7 +255,7 @@ export default function ManualPunchModal({
                   <i className="ph-bold ph-user" style={{ marginRight: '4px' }}></i>
                   {appealToReview.picName} ({appealToReview.userEmail})
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                   {appealToReview.date}
                 </span>
               </div>
@@ -346,7 +346,7 @@ export default function ManualPunchModal({
                 onChange={(e) => setTimeStr(e.target.value)}
                 required
               />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('manualPunch.punchTimeHint', '系统将生成此精确时间戳的打卡记录并自动重算当日班次达标状态')}
               </div>
             </div>
@@ -397,7 +397,7 @@ export default function ManualPunchModal({
               border: '1px solid rgba(168, 85, 247, 0.25)',
               borderRadius: 'var(--radius-sm)',
               padding: '8px 12px',
-              fontSize: '11px',
+              fontSize: 'var(--text-xs)',
               color: 'var(--text-secondary)',
               lineHeight: '1.4'
             }}>
@@ -431,7 +431,7 @@ export default function ManualPunchModal({
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px' }}
+                    style={{ fontSize: 'var(--text-xs)' }}
                     onClick={() => setIsRejecting(false)}
                   >
                     {t('common.cancel', '取消')}
@@ -439,7 +439,7 @@ export default function ManualPunchModal({
                   <button
                     type="button"
                     className="btn btn-sm"
-                    style={{ background: '#ef4444', color: '#fff', fontSize: '11px', border: 'none' }}
+                    style={{ background: '#ef4444', color: '#fff', fontSize: 'var(--text-xs)', border: 'none' }}
                     onClick={handleRejectAppeal}
                     disabled={isSubmitting}
                   >

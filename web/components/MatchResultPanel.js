@@ -75,7 +75,7 @@ export default function MatchResultPanel({ results, isLoading, onDismiss, onView
                     right: '16px',
                     background: 'var(--accent-amber)',
                     color: '#000',
-                    fontSize: '10px',
+                    fontSize: 'var(--text-xs)',
                     fontWeight: 'bold',
                     padding: '2px 8px',
                     borderRadius: '10px',

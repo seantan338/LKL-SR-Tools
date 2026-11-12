@@ -367,10 +367,10 @@ export default function AIParserPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                       {new Date(v.createdAt?.toDate ? v.createdAt.toDate() : v.createdAt).toLocaleString()}
                     </span>
-                    {v.orderId && <span style={{ fontSize: '10px', background: 'var(--badge-neutral-bg, rgba(255,255,255,0.05))', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: '4px' }}>{t('aiParserPage.boundOrder')}</span>}
+                    {v.orderId && <span style={{ fontSize: 'var(--text-xs)', background: 'var(--badge-neutral-bg, rgba(255,255,255,0.05))', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: '4px' }}>{t('aiParserPage.boundOrder')}</span>}
                   </div>
                 </div>
               ))}

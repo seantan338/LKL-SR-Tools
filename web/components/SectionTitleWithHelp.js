@@ -104,7 +104,7 @@ export default function SectionTitleWithHelp({
         className="section-help-icon-btn"
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: isOpen ? 'var(--accent-blue, #3b82f6)' : 'none',
+          background: isOpen ? 'var(--accent-blue, var(--accent))' : 'none',
           border: 'none',
           padding: '4px',
           cursor: 'pointer',
@@ -115,10 +115,10 @@ export default function SectionTitleWithHelp({
           transition: 'all 0.2s ease',
           outline: 'none',
           borderRadius: '50%',
-          boxShadow: isOpen ? '0 0 0 2px rgba(59, 130, 246, 0.3)' : 'none'
+          boxShadow: isOpen ? '0 0 0 2px var(--fill-selected)' : 'none'
         }}
         onMouseOver={(e) => {
-          if (!isOpen) e.currentTarget.style.color = 'var(--accent-blue, #3b82f6)';
+          if (!isOpen) e.currentTarget.style.color = 'var(--accent-blue, var(--accent))';
         }}
         onMouseOut={(e) => {
           if (!isOpen) e.currentTarget.style.color = 'var(--text-muted)';
@@ -211,8 +211,8 @@ export default function SectionTitleWithHelp({
                   justifyContent: 'space-between',
                   padding: '8px 12px',
                   borderRadius: 'var(--radius-md, 8px)',
-                  background: 'rgba(59, 130, 246, 0.08)',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  background: 'var(--fill-selected)',
+                  border: '1px solid var(--border-focus)',
                   color: 'var(--accent-blue)',
                   textDecoration: 'none',
                   fontSize: '0.8rem',
@@ -220,12 +220,12 @@ export default function SectionTitleWithHelp({
                   transition: 'all 0.2s ease'
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'rgba(59, 130, 246, 0.18)';
+                  e.currentTarget.style.background = 'var(--fill-selected)';
                   e.currentTarget.style.borderColor = 'var(--accent-blue)';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)';
-                  e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.25)';
+                  e.currentTarget.style.background = 'var(--fill-selected)';
+                  e.currentTarget.style.borderColor = 'var(--border-focus)';
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

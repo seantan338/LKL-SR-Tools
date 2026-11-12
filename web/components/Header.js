@@ -8,7 +8,7 @@ import { useAuth } from '../lib/auth-context';
 import SectionTitleWithHelp from './SectionTitleWithHelp';
 import CommissionWalletBadge from './CommissionWalletBadge';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../lib/version';
-import { activeTheme, cycleTheme } from '../lib/theme-preference';
+import { LanguageToggle, ThemeToggle } from './ChromeToggles';
 
 const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL || '/docs';
 
@@ -181,7 +181,7 @@ const PAGE_TITLES = {
 export default function Header({ toggleSidebar }) {
   const pathname = usePathname();
   const { unreadCount, setIsPanelOpen } = useNotifications();
-  const { lang, toggleLang, t } = useI18n();
+  const { t } = useI18n();
   const { 
     isOwner,
     myTeamId, 
@@ -192,7 +192,6 @@ export default function Header({ toggleSidebar }) {
     switchActiveTeam 
   } = useAuth();
   
-  const [theme, setTheme] = useState('dark');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const switcherRef = useRef(null);
@@ -223,27 +222,6 @@ export default function Header({ toggleSidebar }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    setTheme(activeTheme());
-    const onThemeChange = (event) => {
-      setTheme(event?.detail?.theme || activeTheme());
-    };
-    window.addEventListener('themechange', onThemeChange);
-    return () => window.removeEventListener('themechange', onThemeChange);
-  }, []);
-
-  const toggleTheme = () => {
-    setTheme(cycleTheme(theme));
-  };
-
-  const themeTitle = t(
-    theme === 'gemini' ? 'extraUi.themeTitleGemini'
-      : theme === 'tactical' ? 'extraUi.themeTitleTactical'
-      : theme === 'light' ? 'extraUi.themeTitleLight'
-      : 'extraUi.themeTitleDark',
-    t('extraUi.switchTheme', '切换主题')
-  );
 
   return (
     <header className="app-header">
@@ -290,7 +268,7 @@ export default function Header({ toggleSidebar }) {
               <span className="header-team-switcher-name" style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {activeViewTeamId === myTeamId ? t('team.myHqTeamShort', activeTeamName) : activeTeamName}
               </span>
-              <i className="ph-bold ph-caret-down" style={{ fontSize: '10px', opacity: 0.7 }}></i>
+              <i className="ph-bold ph-caret-down" style={{ fontSize: 'var(--text-xs)', opacity: 0.7 }}></i>
             </button>
 
             {isSwitcherOpen && (
@@ -307,7 +285,7 @@ export default function Header({ toggleSidebar }) {
                 zIndex: 1000,
                 backdropFilter: 'blur(16px)'
               }}>
-                <div style={{ padding: '6px 10px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ padding: '6px 10px', fontSize: 'var(--text-xs)', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {t('team.teamSwitcherTitle', '团队视图切换')}
                 </div>
                 
@@ -339,7 +317,7 @@ export default function Header({ toggleSidebar }) {
 
                 <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '6px 0' }} />
 
-                <div style={{ padding: '4px 10px 6px', fontSize: '11px', fontWeight: '700', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ padding: '4px 10px 6px', fontSize: 'var(--text-xs)', fontWeight: '700', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <i className="ph-bold ph-handshake" style={{ fontSize: '13px' }}></i>
                   <span>{t('team.partnerTeamsHeader', '合作人团队 (单向只读)')}</span>
                 </div>
@@ -393,7 +371,7 @@ export default function Header({ toggleSidebar }) {
             borderRadius: 'var(--radius-md)',
             background: 'var(--fill-selected)',
             border: '0.5px solid transparent',
-            fontSize: '11px',
+            fontSize: 'var(--text-xs)',
             fontWeight: '600',
             color: 'var(--accent-blue)',
             letterSpacing: '0.02em',
@@ -431,53 +409,8 @@ export default function Header({ toggleSidebar }) {
         </button>
 
         {/* Quick Language Toggle Button */}
-        <button
-          className="lang-toggle-btn header-lang-btn"
-          onClick={toggleLang}
-          title={lang === 'zh' ? 'Switch to English / 切换至英文' : '切换为中文 / Switch to Chinese'}
-          aria-label={t('header.switchLang', '切换语言')}
-        >
-          <span className="lang-code">{lang === 'zh' ? 'EN' : '中'}</span>
-          <i className="ph-light ph-translate"></i>
-        </button>
-
-        {/* Quick Theme Toggle Button */}
-        <button 
-          className="theme-toggle-btn header-theme-btn" 
-          onClick={toggleTheme} 
-          title={themeTitle}
-          aria-label={t('extraUi.switchTheme', '切换主题')}
-          style={theme === 'gemini' ? {
-            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(168, 85, 247, 0.28) 50%, rgba(236, 72, 153, 0.22) 100%)',
-            borderColor: 'rgba(168, 85, 247, 0.55)',
-            boxShadow: '0 0 14px rgba(168, 85, 247, 0.4)'
-          } : theme === 'tactical' ? {
-            background: 'rgba(16, 185, 129, 0.15)',
-            borderColor: 'rgba(16, 185, 129, 0.6)',
-            boxShadow: '0 0 14px rgba(16, 185, 129, 0.35)'
-          } : undefined}
-        >
-          {theme === 'dark' && <i className="ph-light ph-moon"></i>}
-          {theme === 'gemini' && (
-            <i 
-              className="ph-fill ph-sparkle" 
-              style={{ 
-                color: '#c084fc', 
-                filter: 'drop-shadow(0 0 6px rgba(192, 132, 252, 0.85))' 
-              }}
-            ></i>
-          )}
-          {theme === 'tactical' && (
-            <i 
-              className="ph-bold ph-crosshair" 
-              style={{ 
-                color: '#10b981', 
-                filter: 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.8))' 
-              }}
-            ></i>
-          )}
-          {theme === 'light' && <i className="ph-light ph-sun" style={{ color: '#d97706' }}></i>}
-        </button>
+        <LanguageToggle className="lang-toggle-btn header-lang-btn" />
+        <ThemeToggle className="theme-toggle-btn header-theme-btn" />
 
         {/* Global Notification Bell */}
         <button type="button" className="header-bell-btn" onClick={() => setIsPanelOpen(true)} title={t('header.notifications', '通知中心')} aria-label={t('header.notifications', '通知中心')}>

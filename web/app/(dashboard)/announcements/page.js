@@ -194,7 +194,7 @@ function SimpleMarkdownRenderer({ content }) {
               color: 'var(--text-primary, #f8fafc)',
               fontSize: '1rem',
               fontWeight: '700',
-              borderLeft: '3px solid var(--accent-blue, #3b82f6)',
+              borderLeft: '3px solid var(--accent-blue, var(--accent))',
               paddingLeft: '10px'
             }}>
               {trimmed.replace('### ', '')}
@@ -217,7 +217,7 @@ function SimpleMarkdownRenderer({ content }) {
           const itemText = trimmed.substring(2);
           return (
             <div key={idx} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px', paddingLeft: '4px' }}>
-              <span style={{ color: 'var(--accent-blue, #3b82f6)', fontSize: '0.8rem' }}>●</span>
+              <span style={{ color: 'var(--accent-blue, var(--accent))', fontSize: '0.8rem' }}>●</span>
               <span>{renderFormattedInline(itemText)}</span>
             </div>
           );
@@ -767,9 +767,9 @@ export default function AnnouncementsPage() {
       case 'P2_NORMAL':
         return (
           <span style={{
-            background: 'rgba(59, 130, 246, 0.15)',
+            background: 'var(--fill-selected)',
             color: '#60a5fa',
-            border: '1px solid rgba(59, 130, 246, 0.25)',
+            border: '1px solid var(--border-focus)',
             padding: '2px 8px',
             borderRadius: '6px',
             fontSize: '0.75rem',
@@ -846,9 +846,9 @@ export default function AnnouncementsPage() {
                       {hasBilingual(notice) && (
                         <span style={{
                           fontSize: '0.7rem',
-                          background: 'rgba(59, 130, 246, 0.18)',
+                          background: 'var(--fill-selected)',
                           color: 'var(--accent-blue, #60a5fa)',
-                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          border: '1px solid var(--border-focus)',
                           padding: '1px 5px',
                           borderRadius: '4px',
                           fontWeight: '600'
@@ -948,7 +948,7 @@ export default function AnnouncementsPage() {
               <button
                 onClick={() => setCategoryTab('ALL')}
                 style={{
-                  background: categoryTab === 'ALL' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                  background: categoryTab === 'ALL' ? 'var(--accent-blue, var(--accent))' : 'transparent',
                   color: categoryTab === 'ALL' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
                   border: 'none',
                   padding: '6px 14px',
@@ -963,7 +963,7 @@ export default function AnnouncementsPage() {
               <button
                 onClick={() => setCategoryTab('EXECUTIVE')}
                 style={{
-                  background: categoryTab === 'EXECUTIVE' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                  background: categoryTab === 'EXECUTIVE' ? 'var(--accent-blue, var(--accent))' : 'transparent',
                   color: categoryTab === 'EXECUTIVE' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
                   border: 'none',
                   padding: '6px 14px',
@@ -978,7 +978,7 @@ export default function AnnouncementsPage() {
               <button
                 onClick={() => setCategoryTab('SUPERVISOR')}
                 style={{
-                  background: categoryTab === 'SUPERVISOR' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                  background: categoryTab === 'SUPERVISOR' ? 'var(--accent-blue, var(--accent))' : 'transparent',
                   color: categoryTab === 'SUPERVISOR' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
                   border: 'none',
                   padding: '6px 14px',
@@ -1050,7 +1050,7 @@ export default function AnnouncementsPage() {
                 <button
                   onClick={handleOpenCreate}
                   style={{
-                    background: 'var(--accent-blue, #3b82f6)',
+                    background: 'var(--accent-blue, var(--accent))',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '8px',
@@ -1145,9 +1145,9 @@ export default function AnnouncementsPage() {
                         {isBilingualItem && (
                           <span style={{
                             fontSize: '0.7rem',
-                            background: 'rgba(59, 130, 246, 0.18)',
+                            background: 'var(--fill-selected)',
                             color: 'var(--accent-blue, #60a5fa)',
-                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            border: '1px solid var(--border-focus)',
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontWeight: '600'
@@ -1179,8 +1179,8 @@ export default function AnnouncementsPage() {
                           width: '8px',
                           height: '8px',
                           borderRadius: '50%',
-                          background: 'var(--accent-blue, #3b82f6)',
-                          boxShadow: '0 0 6px var(--accent-blue, #3b82f6)',
+                          background: 'var(--accent-blue, var(--accent))',
+                          boxShadow: '0 0 6px var(--accent-blue, var(--accent))',
                           flexShrink: 0
                         }}></span>
                       )}
@@ -1238,7 +1238,7 @@ export default function AnnouncementsPage() {
                             {t('announcements.readCountText', { read: item.readCount || 0, total: totalMembers }, `已读 ${item.readCount || 0}/${totalMembers} 人`)}
                           </span>
                           {canManage && (
-                            <span style={{ color: 'var(--accent-blue, #3b82f6)', fontSize: '0.75rem', fontWeight: '600' }}>
+                            <span style={{ color: 'var(--accent-blue, var(--accent))', fontSize: '0.75rem', fontWeight: '600' }}>
                               {t('announcements.trackerBtn', '查岗名单 ▾')}
                             </span>
                           )}
@@ -1254,8 +1254,8 @@ export default function AnnouncementsPage() {
                               onClick={() => handleOpenEdit(item)}
                               title={t('announcements.btnEdit', '编辑')}
                               style={{
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                border: '1px solid rgba(59, 130, 246, 0.25)',
+                                background: 'var(--fill-selected)',
+                                border: '1px solid var(--border-focus)',
                                 color: 'var(--accent-blue, #60a5fa)',
                                 padding: '5px 10px',
                                 borderRadius: '6px',
@@ -1313,7 +1313,7 @@ export default function AnnouncementsPage() {
                             onClick={() => handleAcknowledge(item)}
                             disabled={isAcked}
                             style={{
-                              background: isAcked ? 'rgba(34, 197, 94, 0.15)' : 'var(--accent-blue, #3b82f6)',
+                              background: isAcked ? 'rgba(34, 197, 94, 0.15)' : 'var(--accent-blue, var(--accent))',
                               border: isAcked ? '1px solid rgba(34, 197, 94, 0.3)' : 'none',
                               color: isAcked ? '#4ade80' : '#ffffff',
                               padding: '5px 14px',
@@ -1363,8 +1363,8 @@ export default function AnnouncementsPage() {
                 width: '28px',
                 height: '28px',
                 borderRadius: '6px',
-                background: 'rgba(59, 130, 246, 0.15)',
-                color: 'var(--accent-blue, #3b82f6)',
+                background: 'var(--fill-selected)',
+                color: 'var(--accent-blue, var(--accent))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1380,8 +1380,8 @@ export default function AnnouncementsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{
                 fontSize: '0.75rem',
-                color: 'var(--accent-blue, #3b82f6)',
-                background: 'rgba(59, 130, 246, 0.1)',
+                color: 'var(--accent-blue, var(--accent))',
+                background: 'var(--fill-selected)',
                 padding: '2px 8px',
                 borderRadius: '4px',
                 fontWeight: '600'
@@ -1398,7 +1398,7 @@ export default function AnnouncementsPage() {
                   setIsMobileChangelogOpen(prev => !prev);
                 }}
                 style={{
-                  background: isMobileChangelogOpen ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  background: isMobileChangelogOpen ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.08)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                   color: isMobileChangelogOpen ? 'var(--accent-blue, #60a5fa)' : 'var(--text-secondary, #cbd5e1)',
                   borderRadius: '6px',
@@ -1426,7 +1426,7 @@ export default function AnnouncementsPage() {
               top: '8px',
               bottom: '8px',
               width: '2px',
-              background: 'linear-gradient(180deg, var(--accent-blue, #3b82f6) 0%, rgba(255,255,255,0.06) 100%)'
+              background: 'linear-gradient(180deg, var(--accent-blue, var(--accent)) 0%, rgba(255,255,255,0.06) 100%)'
             }}></div>
 
             {systemChangelogs.map((log, index) => {
@@ -1445,9 +1445,9 @@ export default function AnnouncementsPage() {
                     width: '12px',
                     height: '12px',
                     borderRadius: '50%',
-                    background: isLatest ? 'var(--accent-blue, #3b82f6)' : 'var(--bg-surface, #1e293b)',
-                    border: isLatest ? '2px solid #ffffff' : '2px solid var(--accent-blue, #3b82f6)',
-                    boxShadow: isLatest ? '0 0 8px var(--accent-blue, #3b82f6)' : 'none'
+                    background: isLatest ? 'var(--accent-blue, var(--accent))' : 'var(--bg-surface, #1e293b)',
+                    border: isLatest ? '2px solid #ffffff' : '2px solid var(--accent-blue, var(--accent))',
+                    boxShadow: isLatest ? '0 0 8px var(--accent-blue, var(--accent))' : 'none'
                   }}></div>
 
                   {/* 节点卡片 */}
@@ -1465,7 +1465,7 @@ export default function AnnouncementsPage() {
                           fontSize: '0.85rem',
                           fontWeight: '700',
                           color: 'var(--accent-blue, #60a5fa)',
-                          background: 'rgba(59, 130, 246, 0.12)',
+                          background: 'var(--fill-selected)',
                           padding: '1px 6px',
                           borderRadius: '4px'
                         }}>
@@ -1492,7 +1492,7 @@ export default function AnnouncementsPage() {
                           </div>
                         )}
                       </div>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted, #94a3b8)' }}>
                         {log.createdAt ? new Date(log.createdAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN') : ''}
                       </span>
                     </div>
@@ -1500,17 +1500,17 @@ export default function AnnouncementsPage() {
                     {/* 更新类型语义 Tag */}
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
                       {log.changeTypes?.includes('feat') && (
-                        <span style={{ fontSize: '0.68rem', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '1px 5px', borderRadius: '3px' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '1px 5px', borderRadius: '3px' }}>
                           {t('announcements.tagFeat', '新功能')}
                         </span>
                       )}
                       {log.changeTypes?.includes('opt') && (
-                        <span style={{ fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '1px 5px', borderRadius: '3px' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', background: 'var(--fill-selected)', color: '#60a5fa', padding: '1px 5px', borderRadius: '3px' }}>
                           {t('announcements.tagOpt', '优化')}
                         </span>
                       )}
                       {log.changeTypes?.includes('fix') && (
-                        <span style={{ fontSize: '0.68rem', background: 'rgba(148, 163, 184, 0.15)', color: '#cbd5e1', padding: '1px 5px', borderRadius: '3px' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', background: 'rgba(148, 163, 184, 0.15)', color: '#cbd5e1', padding: '1px 5px', borderRadius: '3px' }}>
                           {t('announcements.tagFix', '修复')}
                         </span>
                       )}
@@ -1644,7 +1644,7 @@ export default function AnnouncementsPage() {
                           <div style={{
                             width: `${teamMembers.length ? (ackedList.length / teamMembers.length) * 100 : 0}%`,
                             height: '100%',
-                            background: 'linear-gradient(90deg, #3b82f6 0%, #22c55e 100%)',
+                            background: 'linear-gradient(90deg, var(--accent) 0%, #22c55e 100%)',
                             transition: 'width 0.3s ease'
                           }}></div>
                         </div>
@@ -1690,7 +1690,7 @@ export default function AnnouncementsPage() {
                                   background: 'rgba(239, 68, 68, 0.15)',
                                   border: 'none',
                                   color: '#f87171',
-                                  fontSize: '0.72rem',
+                                  fontSize: 'var(--text-xs)',
                                   padding: '2px 6px',
                                   borderRadius: '4px',
                                   cursor: 'pointer'
@@ -1789,7 +1789,7 @@ export default function AnnouncementsPage() {
                       type="button"
                       onClick={() => setDetailViewLang('en')}
                       style={{
-                        background: detailViewLang === 'en' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                        background: detailViewLang === 'en' ? 'var(--accent-blue, var(--accent))' : 'transparent',
                         color: detailViewLang === 'en' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
                         border: 'none',
                         padding: '2px 8px',
@@ -1805,7 +1805,7 @@ export default function AnnouncementsPage() {
                       type="button"
                       onClick={() => setDetailViewLang('zh')}
                       style={{
-                        background: detailViewLang === 'zh' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                        background: detailViewLang === 'zh' ? 'var(--accent-blue, var(--accent))' : 'transparent',
                         color: detailViewLang === 'zh' ? '#ffffff' : 'var(--text-secondary, #94a3b8)',
                         border: 'none',
                         padding: '2px 8px',
@@ -1895,7 +1895,7 @@ export default function AnnouncementsPage() {
                   }}
                   disabled={Boolean(myReads[detailNotice.id]?.ackAt)}
                   style={{
-                    background: Boolean(myReads[detailNotice.id]?.ackAt) ? 'rgba(34, 197, 94, 0.2)' : 'var(--accent-blue, #3b82f6)',
+                    background: Boolean(myReads[detailNotice.id]?.ackAt) ? 'rgba(34, 197, 94, 0.2)' : 'var(--accent-blue, var(--accent))',
                     border: 'none',
                     color: '#ffffff',
                     padding: '8px 18px',
@@ -1976,7 +1976,7 @@ export default function AnnouncementsPage() {
                       key={tab.id}
                       onClick={() => setNewNotice({ ...newNotice, category: tab.id })}
                       style={{
-                        background: newNotice.category === tab.id ? 'var(--accent-blue, #3b82f6)' : 'rgba(255,255,255,0.05)',
+                        background: newNotice.category === tab.id ? 'var(--accent-blue, var(--accent))' : 'rgba(255,255,255,0.05)',
                         border: '1px solid rgba(255,255,255,0.1)',
                         color: newNotice.category === tab.id ? '#ffffff' : 'var(--text-secondary)',
                         padding: '8px',
@@ -2060,9 +2060,9 @@ export default function AnnouncementsPage() {
                     padding: '8px 12px',
                     borderRadius: '7px',
                     border: 'none',
-                    fontSize: '0.84rem',
+                    fontSize: 'var(--text-sm)',
                     fontWeight: formLangTab === 'en' ? '700' : '500',
-                    background: formLangTab === 'en' ? 'var(--accent-blue, #3b82f6)' : 'transparent',
+                    background: formLangTab === 'en' ? 'var(--accent-blue, var(--accent))' : 'transparent',
                     color: formLangTab === 'en' ? '#ffffff' : 'var(--text-muted, #94a3b8)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
@@ -2071,7 +2071,7 @@ export default function AnnouncementsPage() {
                   <span>🌐</span>
                   <span>{t('announcements.tabEnglishDefault', 'English (Default / Primary)')}</span>
                   {(newNotice.titleEn.trim() && newNotice.contentEn.trim()) && (
-                    <span style={{ fontSize: '0.68rem', background: 'rgba(255,255,255,0.25)', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', background: 'rgba(255,255,255,0.25)', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
                       ✓
                     </span>
                   )}
@@ -2089,9 +2089,9 @@ export default function AnnouncementsPage() {
                     padding: '8px 12px',
                     borderRadius: '7px',
                     border: 'none',
-                    fontSize: '0.84rem',
+                    fontSize: 'var(--text-sm)',
                     fontWeight: formLangTab === 'zh' ? '700' : '500',
-                    background: formLangTab === 'zh' ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                    background: formLangTab === 'zh' ? 'var(--fill-selected)' : 'transparent',
                     color: formLangTab === 'zh' ? '#ffffff' : 'var(--text-muted, #94a3b8)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
@@ -2100,7 +2100,7 @@ export default function AnnouncementsPage() {
                   <span>🇨🇳</span>
                   <span>{t('announcements.tabChineseOptional', '中文版 (Optional)')}</span>
                   {(newNotice.titleZh.trim() || newNotice.contentZh.trim()) && (
-                    <span style={{ fontSize: '0.68rem', background: '#22c55e', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', background: '#22c55e', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
                       ✓
                     </span>
                   )}
@@ -2160,7 +2160,7 @@ export default function AnnouncementsPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(59, 130, 246, 0.08)', padding: '8px 12px', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'var(--fill-selected)', padding: '8px 12px', borderRadius: '6px' }}>
                     {t('announcements.chineseOptionalTip', '可选填。若填写中文版，切换为中文界面的员工将看到此中文版本；未填写则默认呈现英文。')}
                   </div>
 
@@ -2252,7 +2252,7 @@ export default function AnnouncementsPage() {
                   type="submit"
                   disabled={isSubmitting}
                   style={{
-                    background: 'var(--accent-blue, #3b82f6)',
+                    background: 'var(--accent-blue, var(--accent))',
                     border: 'none',
                     color: '#ffffff',
                     padding: '9px 24px',
@@ -2260,7 +2260,7 @@ export default function AnnouncementsPage() {
                     fontSize: '0.88rem',
                     fontWeight: '700',
                     cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 2px 10px rgba(59, 130, 246, 0.4)'
+                    boxShadow: '0 2px 10px var(--fill-selected)'
                   }}
                 >
                   {isSubmitting

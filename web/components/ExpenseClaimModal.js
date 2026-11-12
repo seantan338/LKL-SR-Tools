@@ -362,8 +362,8 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                 width: '36px',
                 height: '36px',
                 borderRadius: '8px',
-                background: 'rgba(59, 130, 246, 0.15)',
-                color: 'var(--accent-blue, #3b82f6)',
+                background: 'var(--fill-selected)',
+                color: 'var(--accent-blue, var(--accent))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -487,7 +487,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{
-                            fontSize: '11px',
+                            fontSize: 'var(--text-xs)',
                             fontWeight: '700',
                             padding: '2px 8px',
                             borderRadius: '4px',
@@ -498,7 +498,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                           </span>
                           {item.ocrExtracted && (
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               padding: '2px 8px',
                               borderRadius: '4px',
@@ -520,7 +520,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             onClick={() => triggerOcrUpload(idx)}
                             disabled={isOcrLoading}
                             className="btn btn-xs btn-primary"
-                            style={{ gap: '4px', fontSize: '11px', padding: '3px 8px' }}
+                            style={{ gap: '4px', fontSize: 'var(--text-xs)', padding: '3px 8px' }}
                             title="上传发票或收据照片，AI 自动填写金额、日期与商户"
                           >
                             <i className={isOcrLoading && activeItemIndexForOcr === idx ? "ph-bold ph-spinner ph-spin" : "ph-bold ph-scan"}></i>
@@ -549,8 +549,8 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             justifyContent: 'space-between',
                             padding: '8px 12px',
                             borderRadius: '8px',
-                            background: 'rgba(59, 130, 246, 0.08)',
-                            border: '1px solid rgba(59, 130, 246, 0.25)'
+                            background: 'var(--fill-selected)',
+                            border: '1px solid var(--border-focus)'
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                               {item.receiptPreviewUrl ? (
@@ -585,7 +585,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                                 <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                   {item.receiptFileName || '已关联发票图片 / Receipt attached'}
                                 </span>
-                                <span style={{ fontSize: '11px', color: 'var(--accent-emerald, #10b981)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald, #10b981)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <i className="ph-bold ph-check-circle"></i>
                                   {t('claims.ocrSuccessBadge', '发票凭证已就绪 · AI 已提取字段')}
                                 </span>
@@ -596,7 +596,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                                 type="button"
                                 onClick={() => triggerOcrUpload(idx)}
                                 className="btn btn-xs btn-ghost"
-                                style={{ fontSize: '11px', color: 'var(--accent-blue)' }}
+                                style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-blue)' }}
                               >
                                 {t('claims.reuploadBtn', '重新上传')}
                               </button>
@@ -604,7 +604,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                                 type="button"
                                 onClick={() => handleRemoveReceiptAttachment(idx)}
                                 className="btn btn-xs btn-ghost"
-                                style={{ fontSize: '11px', color: 'var(--accent-red, #ef4444)' }}
+                                style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-red, #ef4444)' }}
                               >
                                 {t('claims.removeAttachmentBtn', '移除')}
                               </button>
@@ -631,7 +631,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                                 {t('claims.uploadReceiptPrompt', '📷 点击上传发票或收据照片 · AI 自动识别并反填金额商户')}
                               </span>
                             </div>
-                            <span style={{ fontSize: '11px', color: 'var(--accent-blue)', fontWeight: '600' }}>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-blue)', fontWeight: '600' }}>
                               {t('claims.selectFileAction', '选择文件 →')}
                             </span>
                           </div>
@@ -641,7 +641,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                       {/* Item Main Form Fields */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                         <div>
-                          <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                          <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
                             {t('claims.categoryField', '费用类别')}
                           </label>
                           <select
@@ -661,7 +661,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                         </div>
 
                         <div>
-                          <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                          <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
                             {t('claims.receiptDateField', '开票/发生日期')}
                           </label>
                           <input
@@ -674,7 +674,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                         </div>
 
                         <div>
-                          <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                          <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
                             {t('claims.merchantField', '商户名称 / 路线')} <span style={{ color: 'var(--accent-red)' }}>*</span>
                           </label>
                           <input
@@ -689,7 +689,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                         </div>
 
                         <div>
-                          <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                          <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
                             {t('claims.invoiceNoField', '发票号 / 收据号')}
                           </label>
                           <input
@@ -703,7 +703,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                         </div>
 
                         <div>
-                          <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                          <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: '600', marginBottom: '4px', color: 'var(--text-secondary)' }}>
                             {t('claims.amountField', '报销金额 (MYR)')} <span style={{ color: 'var(--accent-red)' }}>*</span>
                           </label>
                           <input
@@ -726,8 +726,8 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                           marginTop: '12px',
                           padding: '12px',
                           borderRadius: '8px',
-                          background: 'rgba(59, 130, 246, 0.05)',
-                          border: '1px dashed rgba(59, 130, 246, 0.3)',
+                          background: 'var(--fill-selected)',
+                          border: '1px dashed var(--border-focus)',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '10px'
@@ -739,7 +739,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
 
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
                             <div>
-                              <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                              <label style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: '2px' }}>
                                 {t('claims.mileageVehicleField', '出行车型')}
                               </label>
                               <select
@@ -754,7 +754,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             </div>
 
                             <div>
-                              <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                              <label style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: '2px' }}>
                                 {t('claims.mileageDistance', '行驶里程 (KM)')}
                               </label>
                               <input
@@ -770,7 +770,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             </div>
 
                             <div>
-                              <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                              <label style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: '2px' }}>
                                 {t('claims.mileageToll', '过路费 (Toll)')}
                               </label>
                               <input
@@ -786,7 +786,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                             </div>
 
                             <div>
-                              <label style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                              <label style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginBottom: '2px' }}>
                                 {t('claims.mileageParking', '停车费 (Parking)')}
                               </label>
                               <input
@@ -827,7 +827,7 @@ export default function ExpenseClaimModal({ isOpen, onClose, existingClaims = []
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '4px',
-                          fontSize: '11px',
+                          fontSize: 'var(--text-xs)',
                           color: 'var(--accent-amber, #f59e0b)'
                         }}>
                           {warnings.includes('DUPLICATE_SUSPECTED') && (

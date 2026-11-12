@@ -232,7 +232,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                 onClick={() => setConfig({ ...config, defaultBillingMode: 'DIRECT_FLAT' })}
                 style={{
                   border: `2px solid ${config.defaultBillingMode === 'DIRECT_FLAT' ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
-                  background: config.defaultBillingMode === 'DIRECT_FLAT' ? 'rgba(59, 130, 246, 0.08)' : 'var(--card-bg)',
+                  background: config.defaultBillingMode === 'DIRECT_FLAT' ? 'var(--fill-selected)' : 'var(--card-bg)',
                   borderRadius: 'var(--radius-md)',
                   padding: '14px',
                   cursor: 'pointer',
@@ -260,7 +260,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                 onClick={() => setConfig({ ...config, defaultBillingMode: 'AGENCY_FLAT' })}
                 style={{
                   border: `2px solid ${config.defaultBillingMode === 'AGENCY_FLAT' ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
-                  background: config.defaultBillingMode === 'AGENCY_FLAT' ? 'rgba(59, 130, 246, 0.08)' : 'var(--card-bg)',
+                  background: config.defaultBillingMode === 'AGENCY_FLAT' ? 'var(--fill-selected)' : 'var(--card-bg)',
                   borderRadius: 'var(--radius-md)',
                   padding: '14px',
                   cursor: 'pointer',
@@ -288,7 +288,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                 onClick={() => setConfig({ ...config, defaultBillingMode: 'PERCENTAGE' })}
                 style={{
                   border: `2px solid ${config.defaultBillingMode === 'PERCENTAGE' ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
-                  background: config.defaultBillingMode === 'PERCENTAGE' ? 'rgba(59, 130, 246, 0.08)' : 'var(--card-bg)',
+                  background: config.defaultBillingMode === 'PERCENTAGE' ? 'var(--fill-selected)' : 'var(--card-bg)',
                   borderRadius: 'var(--radius-md)',
                   padding: '14px',
                   cursor: 'pointer',
@@ -496,7 +496,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                     <input
                       type="text"
                       className="form-control"
-                      style={{ fontSize: '0.84rem' }}
+                      style={{ fontSize: 'var(--text-sm)' }}
                       placeholder={t('commission.splitRolePlaceholder', '角色名称 (如 交付顾问 / BD)')}
                       value={isEn ? split.labelEn : split.labelZh}
                       onChange={(e) => {
@@ -509,7 +509,7 @@ export default function CommissionRuleModal({ isOpen, onClose, teamId, userId, c
                     <input
                       type="number"
                       className="form-control"
-                      style={{ fontSize: '0.84rem', textAlign: 'right', width: '100%' }}
+                      style={{ fontSize: 'var(--text-sm)', textAlign: 'right', width: '100%' }}
                       min="0"
                       max="100"
                       value={split.ratio}
