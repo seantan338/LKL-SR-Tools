@@ -18,6 +18,7 @@ import { resolveCanonicalPic } from '../../../lib/identity.mjs';
 import { detectJobOrderColumns, mapSheetRowsToJobOrders, findExistingJobOrder, jobOrderSheetKey } from '../../../lib/job-order-sheet.mjs';
 import { authFetch } from '../../../lib/api-client';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../../../lib/version';
+import { activeTheme, applyTheme } from '../../../lib/theme-preference';
 import CommissionRuleModal from '../../../components/CommissionRuleModal';
 
 export default function SettingsPage() {
@@ -100,28 +101,17 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    const active = document.documentElement.getAttribute('data-theme') || (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 'dark';
-    setCurrentTheme(active);
+    setCurrentTheme(activeTheme());
 
-    const onThemeChange = () => {
-      const updated = document.documentElement.getAttribute('data-theme') || 'dark';
-      setCurrentTheme(updated);
+    const onThemeChange = (event) => {
+      setCurrentTheme(event?.detail?.theme || activeTheme());
     };
     window.addEventListener('themechange', onThemeChange);
     return () => window.removeEventListener('themechange', onThemeChange);
   }, []);
 
   const handleSelectTheme = (newTheme) => {
-    if (newTheme === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', newTheme);
-    }
-    try {
-      localStorage.setItem('talent_flow_theme', newTheme);
-    } catch (e) {}
-    setCurrentTheme(newTheme);
-    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: newTheme } }));
+    setCurrentTheme(applyTheme(newTheme));
   };
 
   useEffect(() => {
@@ -2380,7 +2370,7 @@ function onEdit(e) {
                   <div>
                     <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="ph-bold ph-git-commit" style={{ color: 'var(--accent-blue)' }}></i>
-                      <span>TALENT FLOW Cloud Suite</span>
+                      <span>{t('brand.product', 'TALENT FLOW · Sunrise Recruit')}</span>
                       <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.25)', padding: '2px 8px', borderRadius: '9999px' }}>
                         {APP_VERSION}
                       </span>

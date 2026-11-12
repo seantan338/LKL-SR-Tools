@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { activeTheme } from '../lib/theme-preference';
 
 export default function CosmicBackground() {
   const canvasRef = useRef(null);
@@ -9,10 +10,7 @@ export default function CosmicBackground() {
   // Track global theme
   useEffect(() => {
     const checkTheme = () => {
-      const active = document.documentElement.getAttribute('data-theme') || 
-                     (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 
-                     'dark';
-      setTheme(active);
+      setTheme(activeTheme());
     };
 
     checkTheme();

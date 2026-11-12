@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useLayoutEffect, useCallback } from 'react';
 import { zh, en } from './i18n';
 
 const dictionaries = { zh, en };
@@ -15,7 +15,7 @@ const I18nContext = createContext({
 export function I18nProvider({ children }) {
   const [lang, setLangState] = useState('en');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     try {
       const stored = localStorage.getItem('talent_flow_lang');
       if (stored === 'en' || stored === 'zh') {

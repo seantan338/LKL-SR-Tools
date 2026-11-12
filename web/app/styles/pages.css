@@ -2154,10 +2154,11 @@
   transition: all var(--duration-fast) var(--ease-spring);
 }
 
-.job-search-input:focus {
+.job-search-input:focus,
+.job-search-input:focus-visible {
   outline: none;
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
   background: var(--surface-tertiary);
 }
 

@@ -7,8 +7,8 @@ import { useI18n } from '../../../lib/i18n-context';
 import CachePrefetchEngine from '../../../components/CachePrefetchEngine';
 
 export default function LoginPage() {
-  const { signInWithGoogle, loading, user } = useAuth();
-  const { t } = useI18n();
+  const { signInWithGoogle, user } = useAuth();
+  const { t, lang, setLang } = useI18n();
   const router = useRouter();
   const [error, setError] = useState('');
   const [infoNotice, setInfoNotice] = useState('');
@@ -35,7 +35,6 @@ export default function LoginPage() {
     setError('');
     setInfoNotice('');
 
-    // Safety timeout: if popup is closed and Firebase SDK delays polling, auto-reset after 10s
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setIsSigningIn(false);
@@ -71,134 +70,79 @@ export default function LoginPage() {
     }
   };
 
-  // If already logged in (and not currently signing in), show loader while AuthGuard redirects
   if (user && !isSigningIn && !runPrefetch) {
     return (
-      <div className="bezel-shell modal-bezel" style={{ width: '400px', maxWidth: '90vw' }}>
-        <div className="bezel-core modal-core" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
-          <i className="ph-light ph-spinner-gap" style={{ fontSize: '2rem', color: 'var(--accent-blue)', animation: 'pulse 2s infinite' }}></i>
-        </div>
+      <div className="login-card" style={{ textAlign: 'center' }}>
+        <i className="ph-light ph-spinner-gap" style={{ fontSize: '2rem', color: 'var(--accent)' }} aria-hidden="true"></i>
       </div>
     );
   }
 
   if (runPrefetch) {
     return (
-      <CachePrefetchEngine onComplete={() => router.replace('/overview')} text="Talent Flow" />
+      <CachePrefetchEngine onComplete={() => router.replace('/overview')} text="TALENT FLOW" />
     );
   }
 
   return (
-    <div className="bezel-shell modal-bezel" style={{ width: '440px', maxWidth: '90vw', animation: 'modalEnter 0.5s cubic-bezier(0.32, 0.72, 0, 1)' }}>
-      <div className="bezel-core modal-core" style={{ padding: 'var(--space-10) var(--space-8)' }}>
-        
-        <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
-          <div className="brand-symbol" style={{ width: '56px', height: '56px', fontSize: '1.75rem', margin: '0 auto var(--space-4)' }}>
-            <i className="ph-bold ph-intersect-three"></i>
-          </div>
-          <h1 style={{ fontSize: 'var(--text-xl)', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-            Welcome to Talent Flow
-          </h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            Internship Recruitment & Candidate Management
-          </p>
-        </div>
+    <div className="login-card">
+      <div className="login-mark" aria-hidden="true">TF</div>
+      <h1 className="login-title">{t('authPages.welcomeTitle', '欢迎使用 TALENT FLOW')}</h1>
+      <p className="login-subtitle">{t('authPages.welcomeSubtitle', '候选人全生命周期与团队招聘协作')}</p>
 
-        {error && (
-          <div className="agy-style-alert" style={{ 
-            padding: 'var(--space-3)', 
-            background: 'rgba(244, 63, 94, 0.1)', 
-            border: '1px solid rgba(244, 63, 94, 0.2)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--accent-rose)',
-            fontSize: 'var(--text-sm)',
-            marginBottom: 'var(--space-5)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)'
-          }}>
-            <i className="ph-fill ph-warning-circle"></i>
-            {error}
-          </div>
+      {error && (
+        <div className="login-alert error" role="alert">
+          <i className="ph-fill ph-warning-circle" aria-hidden="true"></i>
+          {error}
+        </div>
+      )}
+
+      {infoNotice && !error && (
+        <div className="login-alert info" role="status">
+          <i className="ph-fill ph-info" aria-hidden="true"></i>
+          {infoNotice}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="login-google"
+        onClick={handleGoogleSignIn}
+        disabled={isSigningIn}
+      >
+        {isSigningIn ? (
+          <>
+            <i className="ph-light ph-spinner-gap ph-spin" aria-hidden="true"></i>
+            {t('authPages.signingIn', '正在登录...')}
+          </>
+        ) : (
+          <>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            {t('authPages.continueWithGoogle', '使用 Google 继续')}
+          </>
         )}
+      </button>
 
-        {infoNotice && !error && (
-          <div className="agy-style-alert" style={{ 
-            padding: 'var(--space-3)', 
-            background: 'rgba(245, 158, 11, 0.1)', 
-            border: '1px solid rgba(245, 158, 11, 0.25)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--accent-amber)',
-            fontSize: 'var(--text-sm)',
-            marginBottom: 'var(--space-5)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)'
-          }}>
-            <i className="ph-fill ph-info"></i>
-            {infoNotice}
-          </div>
-        )}
+      {isSigningIn && (
+        <button type="button" className="login-cancel" onClick={resetSignInState}>
+          {t('authPages.cancelWaitRetry', '取消等待并重新尝试')}
+        </button>
+      )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', alignItems: 'center' }}>
-          <button 
-            className="btn btn-primary" 
-            style={{ 
-              width: '100%', 
-              justifyContent: 'center', 
-              padding: '0.875rem', 
-              fontSize: 'var(--text-base)',
-              background: '#ffffff',
-              color: '#000000',
-              boxShadow: '0 4px 14px rgba(255,255,255,0.1)'
-            }}
-            onClick={handleGoogleSignIn}
-            disabled={isSigningIn}
-          >
-            {isSigningIn ? (
-              <>
-                <i className="ph-light ph-spinner-gap" style={{ animation: 'spin 1s linear infinite' }}></i>
-                Signing in...
-              </>
-            ) : (
-              <>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Continue with Google
-              </>
-            )}
-          </button>
+      <p className="login-footnote">{t('authPages.secureNote', '通过 Firebase Authentication 安全登录')}</p>
 
-          {isSigningIn && (
-            <button
-              type="button"
-              onClick={resetSignInState}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: 'var(--text-xs)',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: '2px 8px',
-                transition: 'color 0.2s'
-              }}
-            >
-              {t('authPages.cancelWaitRetry', '取消等待并重新尝试')}
-            </button>
-          )}
-        </div>
-
-        <div style={{ marginTop: 'var(--space-6)', textAlign: 'center' }}>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Securely authenticate via Firebase Auth.
-          </p>
-        </div>
-
+      <div className="login-seg" role="group" aria-label={t('authPages.languageGroup', '语言')}>
+        <button type="button" aria-pressed={lang === 'zh'} onClick={() => setLang('zh')}>
+          {t('authPages.langZh', '中文')}
+        </button>
+        <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>
+          {t('authPages.langEn', 'EN')}
+        </button>
       </div>
     </div>
   );
