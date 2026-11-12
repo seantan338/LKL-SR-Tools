@@ -1,7 +1,7 @@
 {
   "name": "talent-flow",
   "version": "2.1.0",
-  "description": "TALENT FLOW - Cloud-native Internship Recruitment & Candidate Management Web App",
+  "description": "TALENT FLOW · Sunrise Recruit — recruitment operations for Sunrise Recruit consultants in Malaysia and Singapore.",
   "private": true,
   "scripts": {
     "dev": "next dev",

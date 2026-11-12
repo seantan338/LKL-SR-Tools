@@ -6,13 +6,12 @@ import { useI18n } from '../lib/i18n-context';
 
 export default function MobileTabBar({ onOpenMenu }) {
   const pathname = usePathname();
-  const { lang, t } = useI18n();
-  const isEn = lang === 'en';
+  const { t } = useI18n();
 
   const tabs = [
-    { path: '/overview', label: isEn ? 'Home' : '概览', icon: 'ph-squares-four' },
-    { path: '/orders', label: isEn ? 'Jobs' : '订单', icon: 'ph-briefcase' },
-    { path: '/candidates', label: isEn ? 'Talent' : '人才', icon: 'ph-users' },
+    { path: '/overview', label: t('nav.mobileHome', '概览'), icon: 'ph-squares-four' },
+    { path: '/orders', label: t('nav.mobileJobs', '订单'), icon: 'ph-briefcase' },
+    { path: '/candidates', label: t('nav.mobileTalent', '人才'), icon: 'ph-users' },
   ];
 
   return (
@@ -36,10 +35,10 @@ export default function MobileTabBar({ onOpenMenu }) {
           type="button"
           onClick={onOpenMenu}
           className="mobile-tab-item mobile-tab-menu-btn"
-          aria-label={isEn ? 'More' : '更多菜单'}
+          aria-label={t('nav.mobileMore', '更多')}
         >
           <i className="ph-bold ph-list mobile-tab-icon"></i>
-          <span className="mobile-tab-label">{isEn ? 'More' : '更多'}</span>
+          <span className="mobile-tab-label">{t('nav.mobileMore', '更多')}</span>
         </button>
       </div>
     </nav>

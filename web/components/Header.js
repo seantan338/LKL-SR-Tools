@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth-context';
 import SectionTitleWithHelp from './SectionTitleWithHelp';
 import CommissionWalletBadge from './CommissionWalletBadge';
 import { APP_VERSION, BUILD_DATE, RELEASE_CODENAME } from '../lib/version';
+import { activeTheme, cycleTheme } from '../lib/theme-preference';
 
 const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL || '/docs';
 
@@ -24,7 +25,7 @@ const PAGE_TITLES = {
   },
   '/overview': { 
     title: '工作台概览', 
-    subtitle: 'Internship 招聘看板与核心数据指标',
+    subtitle: '招聘看板与核心数据指标',
     docSlug: 'overview',
     helpGuide: [
       '核心指标看板：聚合展现总候选人、进行中流程、近期面试与关键转化率',
@@ -224,45 +225,30 @@ export default function Header({ toggleSidebar }) {
   }, []);
 
   useEffect(() => {
-    const current = document.documentElement.getAttribute('data-theme') || (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 'dark';
-    setTheme(current);
-
-    const onThemeChange = () => {
-      const updated = document.documentElement.getAttribute('data-theme') || 'dark';
-      setTheme(updated);
+    setTheme(activeTheme());
+    const onThemeChange = (event) => {
+      setTheme(event?.detail?.theme || activeTheme());
     };
     window.addEventListener('themechange', onThemeChange);
     return () => window.removeEventListener('themechange', onThemeChange);
   }, []);
 
   const toggleTheme = () => {
-    let nextTheme = 'dark';
-    if (theme === 'dark') {
-      nextTheme = 'gemini';
-    } else if (theme === 'gemini') {
-      nextTheme = 'tactical';
-    } else if (theme === 'tactical') {
-      nextTheme = 'light';
-    } else {
-      nextTheme = 'dark';
-    }
-
-    if (nextTheme === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', nextTheme);
-    }
-    try {
-      localStorage.setItem('talent_flow_theme', nextTheme);
-    } catch (e) {}
-    setTheme(nextTheme);
-    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: nextTheme } }));
+    setTheme(cycleTheme(theme));
   };
+
+  const themeTitle = t(
+    theme === 'gemini' ? 'extraUi.themeTitleGemini'
+      : theme === 'tactical' ? 'extraUi.themeTitleTactical'
+      : theme === 'light' ? 'extraUi.themeTitleLight'
+      : 'extraUi.themeTitleDark',
+    t('extraUi.switchTheme', '切换主题')
+  );
 
   return (
     <header className="app-header">
       <div className="header-left">
-        <button className="mobile-nav-toggle" onClick={toggleSidebar}>
+        <button className="mobile-nav-toggle" onClick={toggleSidebar} type="button" aria-label={t('header.openNavigation', '打开导航')}>
           <i className="ph-light ph-list"></i>
         </button>
         <div className="view-heading-box">
@@ -270,7 +256,7 @@ export default function Header({ toggleSidebar }) {
             title={pageMeta.title} 
             helpText={pageMeta.helpGuide || pageMeta.subtitle} 
             docUrl={docUrl}
-            titleStyle={{ fontSize: 'var(--text-lg)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }} 
+            titleStyle={{ fontSize: '15px', fontWeight: 650, letterSpacing: '-0.02em', color: 'var(--text-primary)' }} 
           />
           <span className="view-subheading">{pageMeta.subtitle}</span>
         </div>
@@ -288,7 +274,7 @@ export default function Header({ toggleSidebar }) {
                 alignItems: 'center',
                 gap: '7px',
                 padding: '6px 14px',
-                borderRadius: 'var(--radius-full)',
+                borderRadius: 'var(--radius-md)',
                 background: isReadOnlyView ? 'rgba(245, 158, 11, 0.15)' : 'var(--input-bg)',
                 border: `1px solid ${isReadOnlyView ? 'rgba(245, 158, 11, 0.45)' : 'var(--border-interactive)'}`,
                 color: isReadOnlyView ? 'var(--accent-amber)' : 'var(--text-primary)',
@@ -404,9 +390,9 @@ export default function Header({ toggleSidebar }) {
             alignItems: 'center',
             gap: '6px',
             padding: '5px 11px',
-            borderRadius: '9999px',
-            background: 'rgba(59, 130, 246, 0.08)',
-            border: '1px solid rgba(59, 130, 246, 0.22)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--fill-selected)',
+            border: '0.5px solid transparent',
             fontSize: '11px',
             fontWeight: '600',
             color: 'var(--accent-blue)',
@@ -440,7 +426,7 @@ export default function Header({ toggleSidebar }) {
           className="theme-toggle-btn header-refresh-btn"
           onClick={handleManualRefresh}
           title={t('header.refreshData', '刷新数据')}
-          aria-label="Refresh Data"
+          aria-label={t('header.refreshData', '刷新数据')}
         >
           <i className={`ph-light ph-arrows-clockwise ${isRefreshing ? 'ph-spin' : ''}`}></i>
         </button>
@@ -450,7 +436,7 @@ export default function Header({ toggleSidebar }) {
           className="lang-toggle-btn header-lang-btn"
           onClick={toggleLang}
           title={lang === 'zh' ? 'Switch to English / 切换至英文' : '切换为中文 / Switch to Chinese'}
-          aria-label="Toggle Language"
+          aria-label={t('header.switchLang', '切换语言')}
         >
           <span className="lang-code">{lang === 'zh' ? 'EN' : '中'}</span>
           <i className="ph-light ph-translate"></i>
@@ -460,16 +446,8 @@ export default function Header({ toggleSidebar }) {
         <button 
           className="theme-toggle-btn header-theme-btn" 
           onClick={toggleTheme} 
-          title={
-            theme === 'dark' 
-              ? (lang === 'en' ? 'Current: OLED Dark (Click to switch to Gemini Cosmos)' : '当前: OLED 深空 (点击切换为 Gemini 宇宙)')
-              : theme === 'gemini'
-                ? (lang === 'en' ? 'Current: Gemini Cosmos (Click to switch to Tactical Command)' : '当前: Gemini 宇宙 (点击切换为战术指挥)')
-                : theme === 'tactical'
-                  ? (lang === 'en' ? 'Current: Tactical Command (Click to switch to Daylight Light)' : '当前: 战术指挥 (点击切换为日间清爽)')
-                  : (lang === 'en' ? 'Current: Daylight (Click to switch to OLED Dark)' : '当前: 日间清爽 (点击切换为 OLED 深空)')
-          }
-          aria-label="Toggle Theme"
+          title={themeTitle}
+          aria-label={t('extraUi.switchTheme', '切换主题')}
           style={theme === 'gemini' ? {
             background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(168, 85, 247, 0.28) 50%, rgba(236, 72, 153, 0.22) 100%)',
             borderColor: 'rgba(168, 85, 247, 0.55)',
@@ -503,7 +481,7 @@ export default function Header({ toggleSidebar }) {
         </button>
 
         {/* Global Notification Bell */}
-        <button className="header-bell-btn" onClick={() => setIsPanelOpen(true)} title={t('header.notifications', '通知中心')}>
+        <button type="button" className="header-bell-btn" onClick={() => setIsPanelOpen(true)} title={t('header.notifications', '通知中心')} aria-label={t('header.notifications', '通知中心')}>
           <i className={`ph-light ph-bell ${unreadCount > 0 ? 'bell-shake' : ''}`}></i>
           {unreadCount > 0 && <span className="bell-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
         </button>

@@ -1,108 +1,35 @@
 /**
- * Candidate Follow-up Management System
- * Design Tokens & Variables (Ethereal Glass Archetype)
+ * TALENT FLOW · Sunrise Recruit
+ * macOS / Apple HIG tokens (Phase 1)
+ *
+ * Default follows the system: :root is Light, html[data-theme="dark"] is Dark,
+ * and the boot script sets data-theme from prefers-color-scheme when nothing is stored.
+ * A stored talent_flow_theme (light | dark | gemini | tactical) is applied as data-theme
+ * and wins over the system.
+ *
+ * Legacy names (--accent-primary, --bg-card, --radius-full, …) are aliases of the
+ * new tokens so pages that still reference them keep working.
  */
 
 :root {
-  /* Color Palette - OLED Void & Surface */
-  --bg-void: #050508;
-  --bg-surface: #090a0f;
-  --bg-surface-elevated: #0f1017;
-  --bg-surface-overlay: #141622;
+  color-scheme: light;
 
-  /* Double-Bezel Architecture */
-  --bezel-shell-bg: rgba(255, 255, 255, 0.025);
-  --bezel-shell-border: rgba(255, 255, 255, 0.07);
-  --bezel-shell-padding: 6px;
-  --bezel-shell-radius: 1.5rem;
-  
-  --bezel-core-bg: #0b0c13;
-  --bezel-core-radius: calc(var(--bezel-shell-radius) - var(--bezel-shell-padding));
-  --bezel-core-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  /* Type — system stack with Chinese coverage. Tactical overrides this. */
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
 
-  /* Card and Panel Colors */
-  --card-bg: #0e1019;
-  --card-bg-hover: #131622;
-  --card-border: rgba(255, 255, 255, 0.06);
-  --card-border-hover: rgba(255, 255, 255, 0.12);
-  --header-bg: rgba(14, 16, 25, 0.45);
+  /* Type scale: caption 11 / body 13 / callout 14 / title 15 / title2 17 / title3 20 / large 22 */
+  --text-xs: 0.6875rem;   /* 11px caption */
+  --text-sm: 0.8125rem;   /* 13px body */
+  --text-base: 0.875rem;  /* 14px callout */
+  --text-md: 0.9375rem;   /* 15px title */
+  --text-lg: 1.0625rem;   /* 17px title2 */
+  --text-xl: 1.25rem;     /* 20px title3 */
+  --text-2xl: 1.375rem;   /* 22px large title */
+  --text-3xl: 1.75rem;    /* 28px display */
 
-  /* Inputs, Overlays & Interactive Surfaces */
-  --input-bg: #090a10;
-  --input-focus-bg: #0d0f17;
-  --input-border: rgba(255, 255, 255, 0.08);
-  --dropdown-bg: #0f111c;
-  --btn-secondary-bg: rgba(255, 255, 255, 0.04);
-  --btn-secondary-hover-bg: rgba(255, 255, 255, 0.08);
-  --btn-secondary-border: rgba(255, 255, 255, 0.15);
-  --btn-icon-bg: rgba(255, 255, 255, 0.03);
-  --btn-icon-hover-bg: rgba(255, 255, 255, 0.07);
-  --empty-icon-bg: rgba(255, 255, 255, 0.04);
-
-  /* Typography Colors */
-  --text-primary: #f4f5f9;
-  --text-secondary: #9497ab;
-  --text-muted: #565972;
-  --text-faint: #34374b;
-
-  /* Accent & State Colors */
-  --accent-blue: #3b82f6;
-  --accent-blue-glow: rgba(59, 130, 246, 0.25);
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-emerald-glow: rgba(16, 185, 129, 0.25);
-  --accent-amber: #f59e0b;
-  --accent-amber-glow: rgba(245, 158, 11, 0.25);
-  --accent-rose: #f43f5e;
-  --accent-rose-glow: rgba(244, 63, 94, 0.25);
-  --accent-violet: #8b5cf6;
-  --accent-violet-glow: rgba(139, 92, 246, 0.25);
-  --accent-purple: #8b5cf6;
-  --accent-purple-glow: rgba(139, 92, 246, 0.25);
-
-  /* Recruitment Pipeline Stage Colors */
-  --stage-screening: #6366f1;
-  --stage-screening-bg: rgba(99, 102, 241, 0.12);
-  --stage-screening-border: rgba(99, 102, 241, 0.28);
-
-  --stage-phone: #3b82f6;
-  --stage-phone-bg: rgba(59, 130, 246, 0.12);
-  --stage-phone-border: rgba(59, 130, 246, 0.28);
-
-  --stage-interview: #f59e0b;
-  --stage-interview-bg: rgba(245, 158, 11, 0.12);
-  --stage-interview-border: rgba(245, 158, 11, 0.28);
-
-  --stage-offer: #8b5cf6;
-  --stage-offer-bg: rgba(139, 92, 246, 0.12);
-  --stage-offer-border: rgba(139, 92, 246, 0.28);
-
-  --stage-onboarding: #10b981;
-  --stage-onboarding-bg: rgba(16, 185, 129, 0.12);
-  --stage-onboarding-border: rgba(16, 185, 129, 0.28);
-
-  /* Hairlines & Borders */
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-interactive: rgba(255, 255, 255, 0.15);
-  --border-focus: rgba(59, 130, 246, 0.6);
-
-  /* Typography Stack */
-  --font-display: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-
-  /* Font Scales */
-  --text-xs: 0.75rem;     /* 12px */
-  --text-sm: 0.84375rem;  /* 13.5px */
-  --text-base: 0.9375rem; /* 15px */
-  --text-md: 1.0625rem;   /* 17px */
-  --text-lg: 1.25rem;     /* 20px */
-  --text-xl: 1.5rem;      /* 24px */
-  --text-2xl: 1.875rem;   /* 30px */
-  --text-3xl: 2.25rem;    /* 36px */
-
-  /* Spacing Scale */
+  /* 4px spacing grid */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -114,181 +41,384 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  /* Border Radii */
-  --radius-xs: 0.375rem;
-  --radius-sm: 0.625rem;
-  --radius-md: 0.875rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.75rem;
-  --radius-2xl: 2.25rem;
-  --radius-pill: 9999px;
+  /* Continuous 6–12px radii. Controls use md (8). Windows use xl (12). */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-pill: 999px;
 
-  /* Ambient Shadows */
-  --shadow-ambient: 0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border-hairline);
-  --shadow-card: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
-  --shadow-popup: 0 24px 64px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--border-hairline);
-  --shadow-glow-blue: 0 0 32px -4px var(--accent-blue-glow);
-  --shadow-inset-top: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  /* Motion — calm, no overshoot. Legacy ease names point here. */
+  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-spring: var(--ease-standard);
+  --ease-snappy: var(--ease-standard);
+  --ease-haptic: var(--ease-standard);
+  --duration-instant: 80ms;
+  --duration-fast: 160ms;
+  --duration-normal: 240ms;
+  --duration-slow: 400ms;
 
-  /* Fluid Motion - Custom Cubic Beziers (Anti-Default) */
-  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-snappy: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-haptic: cubic-bezier(0.34, 1.4, 0.64, 1);
+  /* Materials */
+  --vibrancy: saturate(180%) blur(20px);
+  --vibrancy-sidebar: saturate(180%) blur(24px);
 
-  --duration-instant: 120ms;
-  --duration-fast: 220ms;
-  --duration-normal: 380ms;
-  --duration-slow: 650ms;
-
-  /* Layout Constants */
-  --sidebar-width: 268px;
-  --header-height: 72px;
+  /* Layout */
+  --sidebar-width: 220px;
+  --header-height: 52px;
+  --toolbar-height: 52px;
+  --inspector-width: 300px;
   --content-max-width: 1480px;
+
+  /*
+   * Legacy aliases. Resolved against whichever theme wins the cascade
+   * for the underlying token on this same html element.
+   */
+  --accent-primary: var(--accent);
+  --bg-card: var(--bg-window);
+  --bg-subtle: var(--bg-grouped);
+  --bg-secondary: var(--bg-grouped);
+  --bg-tertiary: var(--bg-elevated);
+  --bg-hover: var(--fill-hover);
+  --bg-badge: var(--badge-neutral-bg);
+  --bg-card-header: var(--bg-grouped);
+  --border-color: var(--border-hairline);
+  --surface-color: var(--bg-window);
+  --surface-primary: var(--bg-window);
+  --surface-secondary: var(--bg-grouped);
+  --surface-tertiary: var(--bg-elevated);
+  --text-tertiary: var(--text-muted);
+  --radius-full: var(--radius-pill);
+  --shadow-xl: var(--shadow-popup);
+  --shadow-2xl: var(--shadow-popup);
+  --shadow-modal: var(--shadow-popup);
+  --shadow-lg: var(--shadow-card);
+  --shadow-sm: var(--shadow-subtle);
+  --transition-fast: var(--duration-fast);
+  --accent-red: var(--color-danger);
+  --accent-green: var(--color-success);
+  --accent-teal: var(--accent-cyan);
+  --font-sans: var(--font-body);
+  --font-geist-sans: var(--font-display);
+  --font-geist-mono: var(--font-mono);
+  --header-bg: var(--bg-toolbar);
+  --bottom-nav-bg: var(--bg-toolbar);
 }
 
 /* ==========================================================================
-   Light Theme Override (亮色 / 日间模式 - Clean Daylight Archetype)
+   Light — macOS system (also the unset :root, before the boot script runs)
    ========================================================================== */
-html[data-theme="light"],
-[data-theme="light"] {
-  /* Color Scheme property for browser controls & scrollbars */
+:root,
+html[data-theme="light"] {
   color-scheme: light;
 
-  /* Color Palette - Light Void & Surface */
-  --bg-void: #f8fafc;
+  --neutral-50: #f5f5f7;
+  --neutral-100: #f2f2f7;
+  --neutral-200: #e5e5ea;
+  --neutral-300: #d1d1d6;
+  --neutral-400: #c7c7cc;
+  --neutral-500: #aeaeb2;
+  --neutral-600: #8e8e93;
+  --neutral-700: #636366;
+  --neutral-800: #3a3a3c;
+  --neutral-900: #1c1c1e;
+
+  --bg-void: #f5f5f7;
+  --bg-window: #ffffff;
+  --bg-grouped: #f2f2f7;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: rgba(246, 246, 246, 0.78);
+  --bg-toolbar: rgba(255, 255, 255, 0.72);
   --bg-surface: #ffffff;
-  --bg-surface-elevated: #f1f5f9;
-  --bg-surface-overlay: #e2e8f0;
+  --bg-surface-elevated: #f2f2f7;
+  --bg-surface-overlay: #e5e5ea;
 
-  /* Double-Bezel Architecture */
-  --bezel-shell-bg: rgba(0, 0, 0, 0.025);
-  --bezel-shell-border: rgba(0, 0, 0, 0.08);
-  --bezel-core-bg: #ffffff;
-  --bezel-core-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 14px -2px rgba(0, 0, 0, 0.03);
-
-  /* Card and Panel Colors */
   --card-bg: #ffffff;
-  --card-bg-hover: #f8fafc;
+  --card-bg-hover: #f5f5f7;
   --card-border: rgba(0, 0, 0, 0.08);
-  --card-border-hover: rgba(0, 0, 0, 0.16);
+  --card-border-hover: rgba(0, 0, 0, 0.14);
 
-  /* Typography Colors */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
+  --fill: rgba(120, 120, 128, 0.12);
+  --fill-hover: rgba(120, 120, 128, 0.18);
+  --fill-selected: rgba(0, 122, 255, 0.12);
 
-  /* Hairlines & Borders */
+  --text-primary: rgba(0, 0, 0, 0.85);
+  --text-secondary: rgba(60, 60, 67, 0.64);
+  --text-muted: rgba(60, 60, 67, 0.48);
+  --text-faint: rgba(60, 60, 67, 0.36);
+
+  --accent: #007aff;
+  --accent-hover: #0077ed;
+  --accent-on: #ffffff;
+  --accent-blue: #007aff;
+  --accent-blue-glow: rgba(0, 122, 255, 0.18);
+  --accent-cyan: #64d2ff;
+  --accent-emerald: #34c759;
+  --accent-emerald-glow: rgba(52, 199, 89, 0.18);
+  --accent-amber: #ff9500;
+  --accent-amber-glow: rgba(255, 149, 0, 0.18);
+  --accent-rose: #ff3b30;
+  --accent-rose-glow: rgba(255, 59, 48, 0.16);
+  --accent-violet: #5856d6;
+  --accent-violet-glow: rgba(88, 86, 214, 0.16);
+  --accent-purple: #af52de;
+  --accent-purple-glow: rgba(175, 82, 222, 0.16);
+  --color-success: #34c759;
+  --color-warning: #ff9500;
+  --color-danger: #ff3b30;
+  --accent-wash: rgba(0, 122, 255, 0.08);
+  --focus-ring: 0 0 0 3px rgba(0, 122, 255, 0.32);
+
+  --stage-screening: #5856d6;
+  --stage-screening-bg: rgba(88, 86, 214, 0.12);
+  --stage-screening-border: rgba(88, 86, 214, 0.28);
+  --stage-phone: #007aff;
+  --stage-phone-bg: rgba(0, 122, 255, 0.12);
+  --stage-phone-border: rgba(0, 122, 255, 0.28);
+  --stage-interview: #ff9500;
+  --stage-interview-bg: rgba(255, 149, 0, 0.14);
+  --stage-interview-border: rgba(255, 149, 0, 0.3);
+  --stage-offer: #af52de;
+  --stage-offer-bg: rgba(175, 82, 222, 0.12);
+  --stage-offer-border: rgba(175, 82, 222, 0.28);
+  --stage-pre-onboarding: #32ade6;
+  --stage-pre-onboarding-bg: rgba(100, 210, 255, 0.2);
+  --stage-pre-onboarding-border: rgba(50, 173, 230, 0.35);
+  --stage-onboarding: #34c759;
+  --stage-onboarding-bg: rgba(52, 199, 89, 0.12);
+  --stage-onboarding-border: rgba(52, 199, 89, 0.28);
+  --stage-post-onboarding: #ff375f;
+  --stage-post-onboarding-bg: rgba(255, 55, 95, 0.12);
+  --stage-post-onboarding-border: rgba(255, 55, 95, 0.28);
+  --stage-rejected: #8e8e93;
+  --stage-rejected-bg: rgba(142, 142, 147, 0.12);
+  --stage-rejected-border: rgba(142, 142, 147, 0.28);
+
   --border-hairline: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-interactive: rgba(0, 0, 0, 0.16);
-  --border-focus: rgba(59, 130, 246, 0.6);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-interactive: rgba(0, 0, 0, 0.14);
+  --border-focus: rgba(0, 122, 255, 0.7);
 
-  /* Ambient Shadows */
-  --shadow-ambient: 0 16px 40px -8px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border-hairline);
-  --shadow-card: 0 2px 8px -1px rgba(0, 0, 0, 0.05);
-  --shadow-popup: 0 16px 40px -8px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-hairline);
-  --shadow-glow-blue: 0 0 24px -4px rgba(59, 130, 246, 0.15);
-  --shadow-inset-top: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-ambient: 0 18px 40px -16px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-popup: 0 12px 32px -8px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-glow-blue: 0 0 0 1px rgba(0, 122, 255, 0.12);
+  --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
-  /* Accent Glows (adjusted for light contrast) */
-  --accent-blue-glow: rgba(59, 130, 246, 0.18);
-  --accent-emerald-glow: rgba(16, 185, 129, 0.18);
-  --accent-amber-glow: rgba(245, 158, 11, 0.18);
-  --accent-rose-glow: rgba(244, 63, 94, 0.18);
-  --accent-violet-glow: rgba(139, 92, 246, 0.18);
-  --accent-purple: #7c3aed;
-  --accent-purple-glow: rgba(124, 58, 237, 0.15);
+  --bezel-shell-bg: transparent;
+  --bezel-shell-border: rgba(0, 0, 0, 0.08);
+  --bezel-shell-padding: 0px;
+  --bezel-shell-radius: 10px;
+  --bezel-core-bg: #ffffff;
+  --bezel-core-radius: 10px;
+  --bezel-core-shadow: none;
 
-  /* Recruitment Pipeline Stage Backgrounds & Borders */
-  --stage-screening: #4f46e5;
-  --stage-screening-bg: rgba(99, 102, 241, 0.08);
-  --stage-screening-border: rgba(99, 102, 241, 0.22);
-
-  --stage-phone: #2563eb;
-  --stage-phone-bg: rgba(59, 130, 246, 0.08);
-  --stage-phone-border: rgba(59, 130, 246, 0.22);
-
-  --stage-interview: #d97706;
-  --stage-interview-bg: rgba(245, 158, 11, 0.08);
-  --stage-interview-border: rgba(245, 158, 11, 0.22);
-
-  --stage-offer: #7c3aed;
-  --stage-offer-bg: rgba(139, 92, 246, 0.08);
-  --stage-offer-border: rgba(139, 92, 246, 0.22);
-
-  --stage-pre-onboarding: #0284c7;
-  --stage-onboarding: #059669;
-  --stage-onboarding-bg: rgba(16, 185, 129, 0.08);
-  --stage-onboarding-border: rgba(16, 185, 129, 0.22);
-
-  --stage-post-onboarding: #db2777;
-
-  /* Inputs, Overlays & Interactive Surfaces */
   --input-bg: #ffffff;
   --input-focus-bg: #ffffff;
-  --input-border: rgba(0, 0, 0, 0.14);
+  --input-border: rgba(0, 0, 0, 0.12);
   --dropdown-bg: #ffffff;
   --toast-bg: #ffffff;
-  --header-bg: rgba(255, 255, 255, 0.82);
-  --overlay-bg: rgba(15, 23, 42, 0.45);
-  --drawer-overlay-bg: rgba(15, 23, 42, 0.4);
-  --badge-neutral-bg: rgba(0, 0, 0, 0.04);
-  --btn-secondary-bg: #ffffff;
-  --btn-secondary-hover-bg: #f8fafc;
-  --btn-secondary-border: rgba(0, 0, 0, 0.12);
-  --btn-icon-bg: rgba(0, 0, 0, 0.03);
-  --btn-icon-hover-bg: rgba(0, 0, 0, 0.06);
-  --empty-icon-bg: rgba(0, 0, 0, 0.03);
+  --overlay-bg: rgba(0, 0, 0, 0.32);
+  --drawer-overlay-bg: rgba(0, 0, 0, 0.28);
+  --badge-neutral-bg: rgba(120, 120, 128, 0.12);
+  --btn-secondary-bg: rgba(120, 120, 128, 0.12);
+  --btn-secondary-hover-bg: rgba(120, 120, 128, 0.18);
+  --btn-secondary-border: rgba(0, 0, 0, 0.08);
+  --btn-icon-bg: rgba(120, 120, 128, 0.12);
+  --btn-icon-hover-bg: rgba(120, 120, 128, 0.18);
+  --empty-icon-bg: rgba(120, 120, 128, 0.12);
 }
 
 /* ==========================================================================
-   Gemini & Cosmos Theme Override (双子座星云与深空宇宙 - Cosmic Nebula Archetype)
+   Dark — macOS system
    ========================================================================== */
-html[data-theme="gemini"],
-[data-theme="gemini"] {
-  /* Color Scheme property for browser controls & scrollbars */
+html[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Color Palette - Cosmic Void & Deep Space Stellar Surfaces */
+  --neutral-50: #1c1c1e;
+  --neutral-100: #2c2c2e;
+  --neutral-200: #3a3a3c;
+  --neutral-300: #48484a;
+  --neutral-400: #636366;
+  --neutral-500: #8e8e93;
+  --neutral-600: #aeaeb2;
+  --neutral-700: #c7c7cc;
+  --neutral-800: #e5e5ea;
+  --neutral-900: #f2f2f7;
+
+  --bg-void: #000000;
+  --bg-window: #1c1c1e;
+  --bg-grouped: #1c1c1e;
+  --bg-elevated: #2c2c2e;
+  --bg-sidebar: rgba(28, 28, 30, 0.78);
+  --bg-toolbar: rgba(28, 28, 30, 0.72);
+  --bg-surface: #1c1c1e;
+  --bg-surface-elevated: #2c2c2e;
+  --bg-surface-overlay: #3a3a3c;
+
+  --card-bg: #1c1c1e;
+  --card-bg-hover: #2c2c2e;
+  --card-border: rgba(255, 255, 255, 0.1);
+  --card-border-hover: rgba(255, 255, 255, 0.16);
+
+  --fill: rgba(120, 120, 128, 0.24);
+  --fill-hover: rgba(120, 120, 128, 0.32);
+  --fill-selected: rgba(10, 132, 255, 0.22);
+
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(235, 235, 245, 0.62);
+  --text-muted: rgba(235, 235, 245, 0.48);
+  --text-faint: rgba(235, 235, 245, 0.38);
+
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-on: #ffffff;
+  --accent-blue: #0a84ff;
+  --accent-blue-glow: rgba(10, 132, 255, 0.28);
+  --accent-cyan: #64d2ff;
+  --accent-emerald: #30d158;
+  --accent-emerald-glow: rgba(48, 209, 88, 0.24);
+  --accent-amber: #ff9f0a;
+  --accent-amber-glow: rgba(255, 159, 10, 0.24);
+  --accent-rose: #ff453a;
+  --accent-rose-glow: rgba(255, 69, 58, 0.24);
+  --accent-violet: #5e5ce6;
+  --accent-violet-glow: rgba(94, 92, 230, 0.24);
+  --accent-purple: #bf5af2;
+  --accent-purple-glow: rgba(191, 90, 242, 0.24);
+  --color-success: #30d158;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff453a;
+  --accent-wash: rgba(10, 132, 255, 0.16);
+  --focus-ring: 0 0 0 3px rgba(10, 132, 255, 0.4);
+
+  --stage-screening: #5e5ce6;
+  --stage-screening-bg: rgba(94, 92, 230, 0.2);
+  --stage-screening-border: rgba(94, 92, 230, 0.4);
+  --stage-phone: #0a84ff;
+  --stage-phone-bg: rgba(10, 132, 255, 0.2);
+  --stage-phone-border: rgba(10, 132, 255, 0.4);
+  --stage-interview: #ff9f0a;
+  --stage-interview-bg: rgba(255, 159, 10, 0.18);
+  --stage-interview-border: rgba(255, 159, 10, 0.4);
+  --stage-offer: #bf5af2;
+  --stage-offer-bg: rgba(191, 90, 242, 0.18);
+  --stage-offer-border: rgba(191, 90, 242, 0.4);
+  --stage-pre-onboarding: #64d2ff;
+  --stage-pre-onboarding-bg: rgba(100, 210, 255, 0.16);
+  --stage-pre-onboarding-border: rgba(100, 210, 255, 0.4);
+  --stage-onboarding: #30d158;
+  --stage-onboarding-bg: rgba(48, 209, 88, 0.16);
+  --stage-onboarding-border: rgba(48, 209, 88, 0.4);
+  --stage-post-onboarding: #ff375f;
+  --stage-post-onboarding-bg: rgba(255, 55, 95, 0.18);
+  --stage-post-onboarding-border: rgba(255, 55, 95, 0.4);
+  --stage-rejected: #8e8e93;
+  --stage-rejected-bg: rgba(142, 142, 147, 0.18);
+  --stage-rejected-border: rgba(142, 142, 147, 0.35);
+
+  --border-hairline: rgba(255, 255, 255, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-interactive: rgba(255, 255, 255, 0.16);
+  --border-focus: rgba(10, 132, 255, 0.75);
+
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-ambient: 0 22px 48px -16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-popup: 0 16px 36px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-glow-blue: 0 0 0 1px rgba(10, 132, 255, 0.28);
+  --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --bezel-shell-bg: transparent;
+  --bezel-shell-border: rgba(255, 255, 255, 0.1);
+  --bezel-shell-padding: 0px;
+  --bezel-shell-radius: 10px;
+  --bezel-core-bg: #1c1c1e;
+  --bezel-core-radius: 10px;
+  --bezel-core-shadow: none;
+
+  --input-bg: #2c2c2e;
+  --input-focus-bg: #3a3a3c;
+  --input-border: rgba(255, 255, 255, 0.12);
+  --dropdown-bg: #2c2c2e;
+  --toast-bg: #2c2c2e;
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+  --drawer-overlay-bg: rgba(0, 0, 0, 0.48);
+  --badge-neutral-bg: rgba(120, 120, 128, 0.24);
+  --btn-secondary-bg: rgba(120, 120, 128, 0.24);
+  --btn-secondary-hover-bg: rgba(120, 120, 128, 0.32);
+  --btn-secondary-border: rgba(255, 255, 255, 0.1);
+  --btn-icon-bg: rgba(120, 120, 128, 0.24);
+  --btn-icon-hover-bg: rgba(120, 120, 128, 0.32);
+  --empty-icon-bg: rgba(120, 120, 128, 0.24);
+}
+
+/* ==========================================================================
+   Gemini — optional cosmic theme. Kept, not the default.
+   ========================================================================== */
+html[data-theme="gemini"] {
+  color-scheme: dark;
+
+  --neutral-50: #0a0e27;
+  --neutral-100: #11173d;
+  --neutral-200: #171f4e;
+  --neutral-300: #2a3270;
+  --neutral-400: #64748b;
+  --neutral-500: #94a3b8;
+  --neutral-600: #cbd5e1;
+  --neutral-700: #e2e8f0;
+  --neutral-800: #f1f5f9;
+  --neutral-900: #f8fafc;
+
   --bg-void: #050716;
+  --bg-window: #0a0e27;
+  --bg-grouped: #11173d;
+  --bg-elevated: #171f4e;
+  --bg-sidebar: rgba(10, 14, 39, 0.78);
+  --bg-toolbar: rgba(10, 14, 39, 0.72);
   --bg-surface: #0a0e27;
   --bg-surface-elevated: #11173d;
   --bg-surface-overlay: #171f4e;
 
-  /* Double-Bezel Architecture */
   --bezel-shell-bg: rgba(139, 92, 246, 0.05);
   --bezel-shell-border: rgba(168, 85, 247, 0.22);
+  --bezel-shell-padding: 0px;
+  --bezel-shell-radius: 12px;
   --bezel-core-bg: #0b0f2d;
-  --bezel-core-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.14), 0 8px 32px -4px rgba(5, 7, 22, 0.8);
+  --bezel-core-radius: 12px;
+  --bezel-core-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.14);
 
-  /* Card and Panel Colors (Ethereal Cosmic Glassmorphism) */
   --card-bg: rgba(12, 17, 46, 0.75);
   --card-bg-hover: rgba(19, 26, 68, 0.85);
   --card-border: rgba(168, 85, 247, 0.22);
   --card-border-hover: rgba(192, 132, 252, 0.45);
-  --header-bg: rgba(10, 14, 39, 0.78);
 
-  /* Typography Colors - Starlight & Nebula Luminescence */
+  --fill: rgba(168, 85, 247, 0.12);
+  --fill-hover: rgba(168, 85, 247, 0.2);
+  --fill-selected: rgba(79, 139, 249, 0.22);
+
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
   --text-faint: #64748b;
 
-  /* Hairlines & Borders */
   --border-hairline: rgba(168, 85, 247, 0.18);
   --border-subtle: rgba(168, 85, 247, 0.08);
   --border-interactive: rgba(168, 85, 247, 0.32);
   --border-focus: rgba(236, 72, 153, 0.65);
 
-  /* Ambient Shadows & Cosmic Aura */
+  --shadow-subtle: 0 1px 2px rgba(5, 7, 22, 0.5);
   --shadow-ambient: 0 20px 48px -10px rgba(5, 7, 22, 0.85), 0 0 0 1px var(--border-hairline);
   --shadow-card: 0 8px 28px -4px rgba(5, 7, 22, 0.75), 0 0 18px -4px rgba(139, 92, 246, 0.25);
   --shadow-popup: 0 24px 64px -12px rgba(5, 7, 22, 0.95), 0 0 0 1px var(--border-hairline);
   --shadow-glow-blue: 0 0 32px 0 rgba(79, 139, 249, 0.35);
   --shadow-inset-top: inset 0 1px 1px rgba(255, 255, 255, 0.12);
 
-  /* Gemini Signature Multi-Spectral Accents & Cosmic Nebulae */
+  --accent: #4f8bf9;
+  --accent-hover: #6ea2ff;
+  --accent-on: #ffffff;
   --accent-blue: #4f8bf9;
   --accent-blue-glow: rgba(79, 139, 249, 0.35);
   --accent-purple: #a855f7;
@@ -305,32 +435,37 @@ html[data-theme="gemini"],
   --accent-amber-glow: rgba(251, 191, 36, 0.28);
   --accent-rose: #f43f5e;
   --accent-rose-glow: rgba(244, 63, 94, 0.28);
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f43f5e;
+  --accent-wash: rgba(168, 85, 247, 0.16);
+  --focus-ring: 0 0 0 3px rgba(79, 139, 249, 0.4);
 
-  /* Recruitment Pipeline Stage Backgrounds & Borders */
   --stage-screening: #818cf8;
   --stage-screening-bg: rgba(129, 140, 248, 0.15);
   --stage-screening-border: rgba(129, 140, 248, 0.35);
-
   --stage-phone: #38bdf8;
   --stage-phone-bg: rgba(56, 189, 248, 0.15);
   --stage-phone-border: rgba(56, 189, 248, 0.35);
-
   --stage-interview: #fbbf24;
   --stage-interview-bg: rgba(251, 191, 36, 0.15);
   --stage-interview-border: rgba(251, 191, 36, 0.35);
-
   --stage-offer: #c084fc;
   --stage-offer-bg: rgba(192, 132, 252, 0.15);
   --stage-offer-border: rgba(192, 132, 252, 0.35);
-
   --stage-pre-onboarding: #22d3ee;
+  --stage-pre-onboarding-bg: rgba(34, 211, 238, 0.15);
+  --stage-pre-onboarding-border: rgba(34, 211, 238, 0.35);
   --stage-onboarding: #34d399;
   --stage-onboarding-bg: rgba(52, 211, 153, 0.15);
   --stage-onboarding-border: rgba(52, 211, 153, 0.35);
-
   --stage-post-onboarding: #f472b6;
+  --stage-post-onboarding-bg: rgba(244, 114, 182, 0.15);
+  --stage-post-onboarding-border: rgba(244, 114, 182, 0.35);
+  --stage-rejected: #94a3b8;
+  --stage-rejected-bg: rgba(148, 163, 184, 0.12);
+  --stage-rejected-border: rgba(148, 163, 184, 0.3);
 
-  /* Inputs, Overlays & Interactive Surfaces */
   --input-bg: rgba(17, 23, 61, 0.85);
   --input-focus-bg: rgba(23, 30, 77, 0.95);
   --input-border: rgba(168, 85, 247, 0.3);
@@ -348,44 +483,70 @@ html[data-theme="gemini"],
 }
 
 /* ==========================================================================
-   Tactical Command Theme Override (战术指挥舱 - C4ISR Military HUD Archetype)
+   Tactical — optional HUD theme. Kept, not the default.
+   Mono for Latin, PingFang / YaHei so Chinese still draws.
    ========================================================================== */
-html[data-theme="tactical"],
-[data-theme="tactical"] {
+html[data-theme="tactical"] {
   color-scheme: dark;
 
-  /* 主色基准：深墨绿暗渊底舱与战术面板 */
+  --font-display: 'Share Tech Mono', 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', ui-monospace, monospace;
+  --font-body: 'JetBrains Mono', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Share Tech Mono', ui-monospace, monospace;
+
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-pill: 2px;
+  --bezel-shell-radius: 0px;
+  --bezel-core-radius: 0px;
+
+  --neutral-50: #060b08;
+  --neutral-100: #08100c;
+  --neutral-200: #0a140f;
+  --neutral-300: #0e1c15;
+  --neutral-400: #2d4537;
+  --neutral-500: #4b6b58;
+  --neutral-600: #8ab09a;
+  --neutral-700: #c6e6d4;
+  --neutral-800: #e6f4ed;
+  --neutral-900: #f4fff8;
+
   --bg-void: #060b08;
+  --bg-window: #08100c;
+  --bg-grouped: #0a140f;
+  --bg-elevated: #0e1c15;
+  --bg-sidebar: rgba(6, 11, 8, 0.88);
+  --bg-toolbar: rgba(6, 11, 8, 0.88);
   --bg-surface: #08100c;
   --bg-surface-elevated: #0a140f;
   --bg-surface-overlay: #0e1c15;
 
-  /* Double-Bezel 军工装甲外壳 */
   --bezel-shell-bg: rgba(16, 185, 129, 0.22);
   --bezel-shell-border: rgba(16, 185, 129, 0.35);
   --bezel-shell-padding: 1px;
-  --bezel-shell-radius: 0px;
   --bezel-core-bg: rgba(10, 20, 15, 0.92);
-  --bezel-core-radius: 0px;
   --bezel-core-shadow: inset 0 0 18px rgba(16, 185, 129, 0.05);
 
-  /* 卡片与面板 */
   --card-bg: rgba(10, 20, 15, 0.85);
   --card-bg-hover: rgba(14, 28, 21, 0.92);
   --card-border: rgba(16, 185, 129, 0.25);
   --card-border-hover: rgba(16, 185, 129, 0.6);
-  --header-bg: rgba(6, 11, 8, 0.88);
-  --surface-primary: rgba(10, 20, 15, 0.85);
-  --surface-secondary: rgba(8, 16, 12, 0.9);
-  --surface-tertiary: rgba(14, 28, 21, 0.95);
 
-  /* 文字色阶：荧光白绿与冷苔藓暗灰 */
+  --fill: rgba(16, 185, 129, 0.1);
+  --fill-hover: rgba(16, 185, 129, 0.16);
+  --fill-selected: rgba(16, 185, 129, 0.2);
+
   --text-primary: #e6f4ed;
   --text-secondary: #8ab09a;
   --text-muted: #4b6b58;
   --text-faint: #2d4537;
 
-  /* 全面去蓝光：将所有主色/蓝色变量重定向为 Phosphor 荧光绿与 Amber 琥珀警戒黄 */
+  --accent: #10b981;
+  --accent-hover: #34d399;
+  --accent-on: #06281a;
   --accent-blue: #10b981;
   --accent-blue-glow: rgba(16, 185, 129, 0.25);
   --accent-cyan: #10b981;
@@ -400,56 +561,49 @@ html[data-theme="tactical"],
   --accent-violet-glow: rgba(16, 185, 129, 0.22);
   --accent-purple: #10b981;
   --accent-purple-glow: rgba(16, 185, 129, 0.22);
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --accent-wash: rgba(16, 185, 129, 0.1);
+  --focus-ring: 0 0 0 3px rgba(16, 185, 129, 0.4);
 
-  /* 招聘漏斗阶段色（战术荧光与琥珀光谱） */
   --stage-screening: #34d399;
   --stage-screening-bg: rgba(52, 211, 153, 0.1);
   --stage-screening-border: rgba(52, 211, 153, 0.3);
-
   --stage-phone: #10b981;
   --stage-phone-bg: rgba(16, 185, 129, 0.12);
   --stage-phone-border: rgba(16, 185, 129, 0.35);
-
   --stage-interview: #f59e0b;
   --stage-interview-bg: rgba(245, 158, 11, 0.12);
   --stage-interview-border: rgba(245, 158, 11, 0.35);
-
   --stage-offer: #fbbf24;
   --stage-offer-bg: rgba(251, 191, 36, 0.12);
   --stage-offer-border: rgba(251, 191, 36, 0.35);
-
+  --stage-pre-onboarding: #6ee7b7;
+  --stage-pre-onboarding-bg: rgba(110, 231, 183, 0.12);
+  --stage-pre-onboarding-border: rgba(110, 231, 183, 0.35);
   --stage-onboarding: #10b981;
   --stage-onboarding-bg: rgba(16, 185, 129, 0.16);
   --stage-onboarding-border: rgba(16, 185, 129, 0.45);
+  --stage-post-onboarding: #f87171;
+  --stage-post-onboarding-bg: rgba(248, 113, 113, 0.12);
+  --stage-post-onboarding-border: rgba(248, 113, 113, 0.35);
+  --stage-rejected: #4b6b58;
+  --stage-rejected-bg: rgba(75, 107, 88, 0.2);
+  --stage-rejected-border: rgba(75, 107, 88, 0.4);
 
-  /* 边框与分割线 */
   --border-hairline: rgba(16, 185, 129, 0.2);
   --border-subtle: rgba(16, 185, 129, 0.12);
   --border-interactive: rgba(16, 185, 129, 0.45);
   --border-focus: rgba(16, 185, 129, 0.85);
 
-  /* 仪表盘等宽字体体系 */
-  --font-display: 'Share Tech Mono', 'JetBrains Mono', 'Geist Mono', monospace;
-  --font-body: 'JetBrains Mono', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Share Tech Mono', 'Geist Mono', monospace;
-
-  /* 摒弃传统大圆角，采用硬朗军工直角 */
-  --radius-xs: 2px;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 2px;
-  --radius-2xl: 2px;
-  --radius-pill: 2px;
-
-  /* 战术阴影 */
+  --shadow-subtle: 0 1px 0 rgba(16, 185, 129, 0.15);
   --shadow-ambient: 0 16px 40px -8px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(16, 185, 129, 0.22);
   --shadow-card: 0 8px 24px -4px rgba(0, 0, 0, 0.7), 0 0 12px rgba(16, 185, 129, 0.06);
   --shadow-popup: 0 24px 64px -12px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(16, 185, 129, 0.35);
   --shadow-glow-blue: 0 0 18px 0 rgba(16, 185, 129, 0.28);
   --shadow-inset-top: inset 0 1px 0 rgba(16, 185, 129, 0.15);
 
-  /* 表单与交互表面 */
   --input-bg: rgba(6, 11, 8, 0.9);
   --input-focus-bg: rgba(10, 20, 15, 0.98);
   --input-border: rgba(16, 185, 129, 0.28);
@@ -464,6 +618,4 @@ html[data-theme="tactical"],
   --btn-icon-bg: rgba(10, 20, 15, 0.8);
   --btn-icon-hover-bg: rgba(16, 185, 129, 0.16);
   --empty-icon-bg: rgba(16, 185, 129, 0.08);
-  --bottom-nav-bg: rgba(6, 11, 8, 0.95);
 }
-

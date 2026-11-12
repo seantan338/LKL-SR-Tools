@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '../../lib/i18n-context';
 import { sectionsEn } from './docs_content_en';
+import { activeTheme, cycleTheme } from '../../lib/theme-preference';
 
 export default function StandaloneDocsPage() {
   const router = useRouter();
@@ -17,37 +18,17 @@ export default function StandaloneDocsPage() {
 
   // Sync theme
   useEffect(() => {
-    const current = document.documentElement.getAttribute('data-theme') || (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 'dark';
-    setTheme(current);
+    setTheme(activeTheme());
 
-    const onThemeChange = () => {
-      const updated = document.documentElement.getAttribute('data-theme') || 'dark';
-      setTheme(updated);
+    const onThemeChange = (event) => {
+      setTheme(event?.detail?.theme || activeTheme());
     };
     window.addEventListener('themechange', onThemeChange);
     return () => window.removeEventListener('themechange', onThemeChange);
   }, []);
 
   const toggleTheme = () => {
-    let nextTheme = 'dark';
-    if (theme === 'dark') {
-      nextTheme = 'gemini';
-    } else if (theme === 'gemini') {
-      nextTheme = 'light';
-    } else {
-      nextTheme = 'dark';
-    }
-
-    if (nextTheme === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', nextTheme);
-    }
-    try {
-      localStorage.setItem('talent_flow_theme', nextTheme);
-    } catch (e) {}
-    setTheme(nextTheme);
-    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: nextTheme } }));
+    setTheme(cycleTheme(theme));
   };
 
   // Back to top scroll listener
@@ -2455,7 +2436,7 @@ export default function StandaloneDocsPage() {
             </div>
             <div className="docs-brand-text">
               <span className="brand-name">TALENT FLOW</span>
-              <span className="brand-sub">OMNI RECRUIT</span>
+              <span className="brand-sub">{t('brand.subtitle', 'Sunrise Recruit')}</span>
             </div>
           </Link>
           <div className="nav-separator">/</div>
@@ -2475,7 +2456,7 @@ export default function StandaloneDocsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
-              <button className="search-clear-btn" onClick={() => setSearchQuery('')}>
+              <button type="button" className="search-clear-btn" onClick={() => setSearchQuery('')} aria-label={lang === 'en' ? 'Clear search' : '清除搜索'}>
                 <i className="ph-bold ph-x"></i>
               </button>
             )}
@@ -2487,17 +2468,21 @@ export default function StandaloneDocsPage() {
             type="button" 
             className="docs-icon-btn" 
             onClick={toggleTheme}
-            title={
-              theme === 'dark' 
-                ? (lang === 'en' ? 'Current: OLED Dark (Click for Gemini Cosmos)' : '当前: OLED 深空 (点击切换为 Gemini 宇宙)')
-                : theme === 'gemini'
-                  ? (lang === 'en' ? 'Current: Gemini Cosmos (Click for Daylight Light)' : '当前: Gemini 宇宙 (点击切换为日间清爽)')
-                  : (lang === 'en' ? 'Current: Daylight (Click for OLED Dark)' : '当前: 日间清爽 (点击切换为 OLED 深空)')
-            }
+            title={t(
+              theme === 'gemini' ? 'extraUi.themeTitleGemini'
+                : theme === 'tactical' ? 'extraUi.themeTitleTactical'
+                : theme === 'light' ? 'extraUi.themeTitleLight'
+                : 'extraUi.themeTitleDark',
+              t('extraUi.switchTheme', '切换主题')
+            )}
+            aria-label={t('extraUi.switchTheme', '切换主题')}
             style={theme === 'gemini' ? {
               background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(168, 85, 247, 0.28) 50%, rgba(236, 72, 153, 0.22) 100%)',
               borderColor: 'rgba(168, 85, 247, 0.55)',
               boxShadow: '0 0 14px rgba(168, 85, 247, 0.4)'
+            } : theme === 'tactical' ? {
+              background: 'rgba(16, 185, 129, 0.15)',
+              borderColor: 'rgba(16, 185, 129, 0.6)'
             } : undefined}
           >
             {theme === 'dark' && <i className="ph-light ph-moon"></i>}
@@ -2510,6 +2495,7 @@ export default function StandaloneDocsPage() {
                 }}
               ></i>
             )}
+            {theme === 'tactical' && <i className="ph-bold ph-crosshair" style={{ color: '#10b981' }}></i>}
             {theme === 'light' && <i className="ph-light ph-sun" style={{ color: '#d97706' }}></i>}
           </button>
 

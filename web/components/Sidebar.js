@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth-context';
 import { useI18n } from '../lib/i18n-context';
 import { APP_VERSION } from '../lib/version';
 import { FirestoreStore } from '../lib/firestore-store';
+import { activeTheme, cycleTheme } from '../lib/theme-preference';
 
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
@@ -54,34 +55,16 @@ export default function Sidebar({ isOpen, closeSidebar }) {
   }, [user?.uid, userProfile?.uid, userProfile?.id, authTeamId, userProfile?.teamId]);
 
   useEffect(() => {
-    const current = document.documentElement.getAttribute('data-theme') || (typeof window !== 'undefined' ? localStorage.getItem('talent_flow_theme') : null) || 'dark';
-    setTheme(current);
-
-    const onThemeChange = () => {
-      const updated = document.documentElement.getAttribute('data-theme') || 'dark';
-      setTheme(updated);
+    setTheme(activeTheme());
+    const onThemeChange = (event) => {
+      setTheme(event?.detail?.theme || activeTheme());
     };
     window.addEventListener('themechange', onThemeChange);
     return () => window.removeEventListener('themechange', onThemeChange);
   }, []);
 
   const toggleTheme = () => {
-    let nextTheme = 'dark';
-    if (theme === 'dark') nextTheme = 'gemini';
-    else if (theme === 'gemini') nextTheme = 'tactical';
-    else if (theme === 'tactical') nextTheme = 'light';
-    else nextTheme = 'dark';
-
-    if (nextTheme === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', nextTheme);
-    }
-    try {
-      localStorage.setItem('talent_flow_theme', nextTheme);
-    } catch (e) {}
-    setTheme(nextTheme);
-    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: nextTheme } }));
+    setTheme(cycleTheme(theme));
   };
 
   const handleLogoClick = () => {
@@ -117,20 +100,24 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       <div className="sidebar-bezel-outer">
         <div className="sidebar-bezel-inner">
           <div>
-            <div className="sidebar-brand" onClick={handleLogoClick} style={{ cursor: 'pointer', userSelect: 'none' }} title="TALENT FLOW">
-              <div className="brand-symbol">
-                <i className="ph-bold ph-intersect-three"></i>
-              </div>
+            <button
+              type="button"
+              className="sidebar-brand"
+              onClick={handleLogoClick}
+              title={t('brand.product', 'TALENT FLOW · Sunrise Recruit')}
+              aria-label={t('brand.product', 'TALENT FLOW · Sunrise Recruit')}
+            >
+              <div className="brand-symbol" aria-hidden="true">TF</div>
               <div className="brand-text">
-                <span className="brand-title">OMNI RECRUIT</span>
-                <span className="brand-subtitle">MANAGEMENT</span>
+                <span className="brand-title">{t('brand.name', 'TALENT FLOW')}</span>
+                <span className="brand-subtitle">{t('brand.subtitle', 'Sunrise Recruit')}</span>
               </div>
-            </div>
+            </button>
 
-            <nav className="sidebar-nav">
+            <nav className="sidebar-nav" aria-label={t('nav.sectionManagement', '管理视图')}>
               <span className="nav-section-label">{t('nav.sectionManagement', '管理视图')}</span>
 
-              {visibleNavItems.map((item) => {
+              {visibleNavItems.filter((item) => item.path !== '/team' && item.path !== '/feedback').map((item) => {
                 const isActive = pathname === item.path;
                 return (
                   <Link
@@ -145,8 +132,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                       {item.path === '/announcements' && unreadAnnouncementsCount > 0 && (
                         <span style={{
                           fontSize: '10px',
-                          background: '#ef4444',
-                          color: '#ffffff',
+                          background: 'var(--color-danger)',
+                          color: 'var(--accent-on)',
                           padding: '1px 6px',
                           borderRadius: '10px',
                           marginLeft: 'auto',
@@ -161,6 +148,24 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                           Owner
                         </span>
                       )}
+                    </div>
+                  </Link>
+                );
+              })}
+
+              <span className="nav-section-label">{t('nav.sectionTeam', '团队')}</span>
+              {visibleNavItems.filter((item) => item.path === '/team' || item.path === '/feedback').map((item) => {
+                const isActive = pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    className={`nav-item ${isActive ? 'active' : ''}`}
+                    onClick={closeSidebar}
+                  >
+                    <div className="nav-item-content">
+                      <i className={`ph-light ${item.icon}`}></i>
+                      <span>{t(item.labelKey, item.fallback)}</span>
                     </div>
                   </Link>
                 );
@@ -208,8 +213,9 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 type="button" 
                 className="sidebar-action-btn" 
                 onClick={toggleLang}
-                style={{ justifyContent: 'center', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-sm)' }}
+                style={{ justifyContent: 'center', background: 'var(--fill)', borderRadius: 'var(--radius-md)' }}
                 title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
+                aria-label={lang === 'zh' ? t('header.switchLang', '切换为英文') : t('header.switchLang', 'Switch to Chinese')}
               >
                 <i className="ph-light ph-translate"></i>
                 <span>{lang === 'zh' ? 'EN / 英文' : '中 / 中文'}</span>
@@ -219,8 +225,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 type="button" 
                 className="sidebar-action-btn" 
                 onClick={toggleTheme}
-                style={{ justifyContent: 'center', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-sm)' }}
-                title={t('extraUi.switchTheme', '切换主题')}
+                style={{ justifyContent: 'center', background: 'var(--fill)', borderRadius: 'var(--radius-md)' }}
+                title={t(
+                  theme === 'gemini' ? 'extraUi.themeTitleGemini'
+                    : theme === 'tactical' ? 'extraUi.themeTitleTactical'
+                    : theme === 'light' ? 'extraUi.themeTitleLight'
+                    : 'extraUi.themeTitleDark',
+                  t('extraUi.switchTheme', '切换主题')
+                )}
+                aria-label={t('extraUi.switchTheme', '切换主题')}
               >
                 {theme === 'dark' && <><i className="ph-light ph-moon"></i><span>{t('extraUi.themeDark', '深色')}</span></>}
                 {theme === 'gemini' && <><i className="ph-fill ph-sparkle" style={{ color: '#c084fc' }}></i><span>{t('extraUi.themeGemini', '宇宙')}</span></>}
@@ -229,13 +242,13 @@ export default function Sidebar({ isOpen, closeSidebar }) {
               </button>
             </div>
 
-            <button className="sidebar-action-btn" onClick={() => signOut()}>
+            <button type="button" className="sidebar-action-btn" onClick={() => signOut()}>
               <i className="ph-light ph-sign-out"></i>
               {t('nav.signOut', '退出账号')}
             </button>
 
             {userProfile && (
-              <div style={{ padding: 'var(--space-3)', marginTop: 'var(--space-2)', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <div style={{ padding: 'var(--space-3)', marginTop: 'var(--space-2)', background: 'var(--fill)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                 <img src={userProfile.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'} alt="Avatar" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 'var(--text-xs)', fontWeight: '600', color: 'var(--text-primary)' }}>{userProfile.displayName || 'User'}</span>
