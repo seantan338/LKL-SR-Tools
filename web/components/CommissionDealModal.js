@@ -305,7 +305,7 @@ export default function CommissionDealModal({
                   🎉 {t('commission.dealCelebration', '成单入职核定')}
                 </span>
                 {effectiveRule.isJobOverridden && (
-                  <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+                  <span className="badge" style={{ background: 'var(--fill-selected)', color: 'var(--accent-blue)', borderColor: 'var(--fill-selected)' }}>
                     🎯 {t('commission.jobOverrideActive', '职位专属规则生效')}
                   </span>
                 )}
@@ -350,7 +350,7 @@ export default function CommissionDealModal({
                   setIsOverrideMode(true);
                 }}
               />
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
                 {guaranteeDays > 0 ? `${t('commission.unlockDate', '预计解锁日')}: ${calculatedResult.unlockDate}` : t('commission.instantUnlock', '秒级解锁 (0天)')}
               </div>
             </div>
@@ -392,8 +392,8 @@ export default function CommissionDealModal({
 
           {/* Commission Pool Hero Box */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(16, 185, 129, 0.12) 100%)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
+            background: 'linear-gradient(135deg, var(--fill-selected) 0%, rgba(16, 185, 129, 0.12) 100%)',
+            border: '1px solid var(--border-focus)',
             borderRadius: 'var(--radius-lg)',
             padding: '16px 20px',
             display: 'flex',
@@ -443,7 +443,7 @@ export default function CommissionDealModal({
                   type="button"
                   className="btn-text"
                   onClick={() => setManualPoolAmount(null)}
-                  style={{ fontSize: '0.72rem', color: 'var(--accent-blue)', cursor: 'pointer' }}
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-blue)', cursor: 'pointer' }}
                 >
                   {t('commission.revertToAuto', '恢复系统自动计算')}
                 </button>
@@ -572,9 +572,9 @@ export default function CommissionDealModal({
                 placeholder={t('commission.auditReasonPlaceholder', '例如：客户回款协商特批折扣 / 跨部门联合寻访特批拆单')}
                 value={overrideReason}
                 onChange={(e) => setOverrideReason(e.target.value)}
-                style={{ fontSize: '0.84rem' }}
+                style={{ fontSize: 'var(--text-sm)' }}
               />
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('commission.auditReasonHint', '本操作将作为不可篡改审计记录永久留存于系统日志。')}
               </div>
             </div>

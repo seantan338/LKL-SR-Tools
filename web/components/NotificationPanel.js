@@ -147,7 +147,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
             </div>
             <button 
               className="btn btn-primary btn-xs" 
-              style={{ fontSize: '0.72rem', padding: '3px 8px', flexShrink: 0, background: 'var(--accent-amber)', borderColor: 'var(--accent-amber)', color: '#000', fontWeight: '600' }}
+              style={{ fontSize: 'var(--text-xs)', padding: '3px 8px', flexShrink: 0, background: 'var(--accent-amber)', borderColor: 'var(--accent-amber)', color: '#000', fontWeight: '600' }}
               onClick={requestDesktopNotification}
             >
               {t('components.notification.enableDesktop', '开启通知')}
@@ -162,7 +162,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            fontSize: '0.72rem',
+            fontSize: 'var(--text-xs)',
             color: 'var(--accent-emerald)'
           }}>
             <i className="ph-bold ph-check-circle"></i>
@@ -244,7 +244,7 @@ export default function NotificationPanel({ onOpenCandidate }) {
                         style={{ cursor: 'pointer' }}
                       >
                         {notif.body}
-                        <div style={{ marginTop: '4px', fontSize: '0.72rem', color: 'var(--accent-blue)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ marginTop: '4px', fontSize: 'var(--text-xs)', color: 'var(--accent-blue)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                           {t('components.notification.viewProfile', '点击查看候选人资料')} <i className="ph-bold ph-arrow-right"></i>
                         </div>
                       </div>

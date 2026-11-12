@@ -370,7 +370,7 @@ select option {
 }
 
 .notification-info { color: var(--accent-blue); }
-.notification-info .notification-icon { background: rgba(59, 130, 246, 0.1); }
+.notification-info .notification-icon { background: var(--fill-selected); }
 .notification-info.unread::before { background: var(--accent-blue); }
 
 .notification-warning { color: var(--accent-amber); }
@@ -441,7 +441,7 @@ select option {
 }
 
 .combo-item:hover, .combo-item.highlighted {
-  background: rgba(59, 130, 246, 0.12);
+  background: var(--fill-selected);
   color: var(--text-primary);
 }
 
@@ -785,7 +785,7 @@ select option {
   width: 64px;
   height: 64px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill);
   border: 1px solid var(--border-hairline);
   display: flex;
   align-items: center;
@@ -808,6 +808,79 @@ select option {
   color: var(--text-muted);
   margin-bottom: var(--space-6);
   line-height: 1.6;
+}
+
+.empty-state-compact {
+  padding: var(--space-6) var(--space-3);
+  max-width: none;
+}
+
+.empty-state-compact .empty-state-icon {
+  width: 40px;
+  height: 40px;
+  font-size: 1.25rem;
+  margin-bottom: var(--space-2);
+  box-shadow: none;
+}
+
+.empty-state-compact .empty-state-desc {
+  margin-bottom: 0;
+}
+
+.empty-state-error .empty-state-icon {
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.state-screen {
+  min-height: 70dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.skeleton-bar {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--fill-hover), transparent);
+  animation: skeleton-shimmer 1.2s var(--ease-standard) infinite;
+}
+
+.skeleton-metric {
+  display: inline-block;
+  width: 72px;
+  height: 28px;
+  vertical-align: middle;
+}
+
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar::after {
+    animation: none;
+  }
 }
 
 /* ==========================================================================
@@ -949,7 +1022,7 @@ body.p0-notice-open .reminder-alert-container {
    Gemini & Cosmos Component Enhancements (Aurora Gradients & Glassmorphism)
    ========================================================================== */
 html[data-theme="gemini"] .btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 48%, #ec4899 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 48%, #ec4899 100%);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.22);
   box-shadow: 0 4px 22px -2px rgba(139, 92, 246, 0.45), 0 0 16px -2px rgba(236, 72, 153, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
@@ -988,14 +1061,14 @@ html[data-theme="gemini"] .app-sidebar {
 }
 
 html[data-theme="gemini"] .nav-item.active {
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.22) 0%, rgba(59, 130, 246, 0.1) 100%);
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.22) 0%, var(--fill-selected) 100%);
   border-left: 3px solid #c084fc;
   color: #ffffff;
   box-shadow: inset 0 0 12px rgba(168, 85, 247, 0.15);
 }
 
 html[data-theme="gemini"] .brand-icon-box {
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%) !important;
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 50%, #ec4899 100%) !important;
   box-shadow: 0 0 24px rgba(168, 85, 247, 0.55) !important;
 }
 

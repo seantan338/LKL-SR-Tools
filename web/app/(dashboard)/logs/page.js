@@ -190,10 +190,10 @@ export default function LogsPage() {
   const getActionLabel = (action) => {
     switch(action) {
       case 'CREATE': return <span className="badge" style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16,185,129,0.3)' }}>{t('logsPage.actionCreate')}</span>;
-      case 'UPDATE': return <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>{t('logsPage.actionUpdate')}</span>;
+      case 'UPDATE': return <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}>{t('logsPage.actionUpdate')}</span>;
       case 'DELETE': return <span className="badge" style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244,63,94,0.3)' }}>{t('logsPage.actionDelete')}</span>;
       case 'AI_PARSE': return <span className="badge" style={{ color: 'var(--accent-purple)', borderColor: 'rgba(168,85,247,0.3)' }}>{t('logsPage.actionAiParse')}</span>;
-      case 'SUBMIT': return <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59,130,246,0.3)' }}>{t('claims.statusSubmitted') || '待主管初审'}</span>;
+      case 'SUBMIT': return <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}>{t('claims.statusSubmitted') || '待主管初审'}</span>;
       case 'CLAIM_MANAGER_APPROVED': return <span className="badge" style={{ color: 'var(--accent-purple)', borderColor: 'rgba(168,85,247,0.3)' }}>{t('claims.statusManagerApproved') || '主管已审'}</span>;
       case 'CLAIM_APPROVED_PENDING_PAYOUT': return <span className="badge" style={{ color: 'var(--accent-emerald)', borderColor: 'rgba(16,185,129,0.3)' }}>{t('claims.statusApprovedPendingPayout') || '待放款'}</span>;
       case 'CLAIM_REJECTED': return <span className="badge" style={{ color: 'var(--accent-rose)', borderColor: 'rgba(244,63,94,0.3)' }}>{t('claims.statusRejected') || '已驳回'}</span>;
@@ -362,7 +362,7 @@ export default function LogsPage() {
                                 <i className={`ph-light ${getTargetIcon(log.targetType)}`}></i> {log.targetName || log.message || log.targetType}
                               </span>
                               {log.isDeleted && (
-                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '3px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
                                   {t('logsPage.softDeletedBadge')}
                                 </span>
                               )}
@@ -384,7 +384,7 @@ export default function LogsPage() {
                               {log.module && <span style={{ color: 'var(--accent-purple)', fontSize: '0.85rem' }}>[{log.module}]</span>}
                               <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.message}</span>
                               {log.isDeleted && (
-                                <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '3px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
                                   {t('logsPage.softDeletedBadge')}
                                 </span>
                               )}
@@ -413,7 +413,7 @@ export default function LogsPage() {
                     {isAuditLog(selectedLog) ? t('logsPage.auditDetailsTitle') : t('logsPage.errorDetailsTitle')}
                   </h3>
                   {selectedLog.isDeleted && (
-                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', borderRadius: '4px', background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)', fontWeight: 'bold' }}>
                       {t('logsPage.softDeletedArchiveTitle')}
                     </span>
                   )}
@@ -483,7 +483,7 @@ export default function LogsPage() {
                         </div>
                         <button 
                           className="btn btn-secondary btn-sm"
-                          style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}
+                          style={{ color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}
                           onClick={() => handleRestoreLog(selectedLog.id)}
                           disabled={isProcessing}
                         >

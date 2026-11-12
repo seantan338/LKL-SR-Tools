@@ -550,8 +550,8 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             <div style={{
               width: '38px', height: '38px', borderRadius: '10px',
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
+              background: 'linear-gradient(135deg, var(--fill-selected), rgba(139, 92, 246, 0.2))',
+              border: '1px solid var(--border-focus)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--accent-blue)', fontSize: '20px'
             }}>
@@ -563,7 +563,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   parsedCandidates.length > 1 && !editingCandidateId ? (
                     <>
                       <span>{t('cvImportModal.batchReviewBadge', '批量核对候选人')}</span>
-                      <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+                      <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}>
                         {t('cvImportModal.parsedCountBadge', { count: parsedCandidates.filter(c => !c.parseFailed).length }, `已解析 ${parsedCandidates.filter(c => !c.parseFailed).length} 份`)}
                       </span>
                     </>
@@ -664,7 +664,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                       borderRadius: 'var(--radius-lg)',
                       padding: 'var(--space-8) var(--space-4)',
                       textAlign: 'center',
-                      background: selectedFiles.length > 0 ? 'rgba(59, 130, 246, 0.05)' : 'rgba(255, 255, 255, 0.01)',
+                      background: selectedFiles.length > 0 ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.01)',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       display: 'flex',
@@ -675,7 +675,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   >
                     <div style={{
                       width: '56px', height: '56px', borderRadius: '50%',
-                      background: selectedFiles.length > 0 ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                      background: selectedFiles.length > 0 ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.04)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: selectedFiles.length > 0 ? 'var(--accent-blue)' : 'var(--text-muted)',
                       fontSize: '28px'
@@ -724,7 +724,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                               <span style={{ color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                 {file.name}
                               </span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', flexShrink: 0 }}>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', flexShrink: 0 }}>
                                 ({(file.size / 1024).toFixed(1)} KB)
                               </span>
                             </div>
@@ -766,8 +766,8 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '8px 12px', background: 'rgba(59, 130, 246, 0.06)',
-                borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)'
+                padding: '8px 12px', background: 'var(--fill-selected)',
+                borderRadius: 'var(--radius-md)', border: '1px solid var(--border-focus)'
               }}>
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                   <i className="ph-bold ph-sparkle" style={{ color: 'var(--accent-blue)', marginRight: '6px' }}></i>
@@ -824,7 +824,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                           <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.95rem' }}>
                             {cand.name}
                           </span>
-                          <span className="badge" style={{ color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
+                          <span className="badge" style={{ color: 'var(--accent-blue)', background: 'var(--fill-selected)', borderColor: 'var(--fill-selected)' }}>
                             {cand.position || t('cvImportModal.unspecifiedPosition', '未定职位')}
                           </span>
                           {cand.company && (
@@ -991,7 +991,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   gap: '8px'
                 }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.nationalityLabel', '国籍 (Nationality)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.nationalityLabel', '国籍 (Nationality)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1001,7 +1001,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.raceLabel', '种族 (Race)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.raceLabel', '种族 (Race)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1011,7 +1011,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.genderLabel', '性别 (Gender)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.genderLabel', '性别 (Gender)')}</label>
                     <select
                       className="form-select"
                       value={activeCandidate?.gender || 'Male'}
@@ -1023,7 +1023,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.ageLabel', '年龄 (Age)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.ageLabel', '年龄 (Age)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1034,7 +1034,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.maritalLabel', '婚姻 (Marital)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.maritalLabel', '婚姻 (Marital)')}</label>
                     <select
                       className="form-select"
                       value={activeCandidate?.maritalStatus || 'Single'}
@@ -1046,7 +1046,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.lastDrawnLabel', '现薪 (Last Drawn)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.lastDrawnLabel', '现薪 (Last Drawn)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1057,7 +1057,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)' }}>{t('cvImportModal.expectedSalaryLabel', '期望薪资 (Expected)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)' }}>{t('cvImportModal.expectedSalaryLabel', '期望薪资 (Expected)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1068,7 +1068,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.availabilityLabel', '到岗时间 (Availability)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.availabilityLabel', '到岗时间 (Availability)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1079,7 +1079,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                   </div>
 
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t('cvImportModal.languagesLabel', '熟练语言 (Languages)')}</label>
+                    <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvImportModal.languagesLabel', '熟练语言 (Languages)')}</label>
                     <input
                       type="text"
                       className="form-input"
@@ -1114,7 +1114,7 @@ export default function CvImportModal({ isOpen, onClose, onSuccess }) {
                         </div>
                         {exp.reason_for_leaving && (
                           <div style={{ marginTop: '3px', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span className="badge" style={{ fontSize: '10px', padding: '1px 4px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+                            <span className="badge" style={{ fontSize: 'var(--text-xs)', padding: '1px 4px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
                               {t('cvImportModal.reasonForLeavingLabel', '离职原因:')}
                             </span>
                             <span>{exp.reason_for_leaving}</span>

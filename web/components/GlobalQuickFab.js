@@ -176,8 +176,8 @@ export default function GlobalQuickFab() {
               padding: '8px 18px 8px 10px',
               borderRadius: '999px',
               background: 'rgba(18, 22, 34, 0.92)',
-              border: '1px solid rgba(59, 130, 246, 0.35)',
-              boxShadow: '0 8px 28px rgba(0,0,0,0.45), 0 0 15px rgba(59, 130, 246, 0.2)',
+              border: '1px solid var(--border-focus)',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.45), 0 0 15px var(--fill-selected)',
               backdropFilter: 'blur(16px)',
               color: 'var(--text-primary)',
               cursor: 'pointer',
@@ -205,7 +205,7 @@ export default function GlobalQuickFab() {
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: 1.2 }}>
                 {t('fab.addCandidate', '增加候选人')}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
                 {t('fab.addCandidateSub', 'AI 解析 / 手动录入')}
               </div>
             </div>
@@ -252,7 +252,7 @@ export default function GlobalQuickFab() {
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: 1.2 }}>
                 {t('fab.addOrder', '增加招聘订单')}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
                 {t('fab.addOrderSub', '岗位 JD / 职位需求')}
               </div>
             </div>
@@ -300,7 +300,7 @@ export default function GlobalQuickFab() {
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: 1.2 }}>
                 {t('fab.attendance', '考勤打卡')}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
                 {t('fab.attendanceSub', '日常签到 / 签退')}
               </div>
             </div>
@@ -349,7 +349,7 @@ export default function GlobalQuickFab() {
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: 1.2 }}>
                 {t('claims.newClaimBtn', '发起报销申请')}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
                 {t('claims.catMileage', '小票 / 里程补贴')}
               </div>
             </div>
@@ -397,7 +397,7 @@ export default function GlobalQuickFab() {
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff', lineHeight: 1.2 }}>
                 {t('fab.feedback', '写意见反馈')}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
                 {t('fab.feedbackSub', '提需求 / 报修 / 优化')}
               </div>
             </div>
@@ -414,22 +414,17 @@ export default function GlobalQuickFab() {
             height: '52px',
             borderRadius: '50%',
             pointerEvents: 'auto',
-            background: isOpen 
-              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' 
-              : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-            color: '#ffffff',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            boxShadow: isOpen 
-              ? '0 6px 24px rgba(239, 68, 68, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4)' 
-              : '0 6px 24px rgba(59, 130, 246, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4)',
+            background: isOpen ? 'var(--color-danger)' : 'var(--accent)',
+            color: 'var(--accent-on)',
+            border: 'none',
+            boxShadow: 'var(--shadow-popup)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '22px',
-            transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            transform: isOpen ? 'rotate(135deg) scale(1.05)' : 'rotate(0deg) scale(1)',
-            outline: 'none'
+            transition: 'transform var(--duration-normal) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard)',
+            transform: isOpen ? 'rotate(135deg) scale(1.05)' : 'rotate(0deg) scale(1)'
           }}
           onMouseEnter={(e) => {
             if (!isOpen) e.currentTarget.style.transform = 'scale(1.08)';

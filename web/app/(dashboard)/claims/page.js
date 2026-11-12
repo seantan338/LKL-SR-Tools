@@ -96,7 +96,7 @@ export default function ClaimsPage() {
 
   const statusMeta = {
     SUBMITTED: { bg: 'rgba(245, 158, 11, 0.15)', text: 'var(--accent-amber)', label: t('claims.statusSubmitted', '待主管初审') },
-    MANAGER_APPROVED: { bg: 'rgba(59, 130, 246, 0.15)', text: 'var(--accent-blue)', label: t('claims.statusManagerApproved', '待财务终审') },
+    MANAGER_APPROVED: { bg: 'var(--fill-selected)', text: 'var(--accent-blue)', label: t('claims.statusManagerApproved', '待财务终审') },
     APPROVED_PENDING_PAYOUT: { bg: 'rgba(16, 185, 129, 0.15)', text: 'var(--accent-emerald)', label: t('claims.statusApprovedPendingPayout', '已批准 · 待放款') },
     PAID: { bg: 'rgba(16, 185, 129, 0.25)', text: '#10b981', label: t('claims.statusPaid', '已放款结清') },
     LOCKED_IN_PAYROLL: { bg: 'rgba(139, 92, 246, 0.2)', text: '#a78bfa', label: t('claims.statusLockedInPayroll', '已并入薪资单锁定') },
@@ -336,7 +336,7 @@ export default function ClaimsPage() {
                 <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                   {t('claims.tabMine', '我的报销单')}
                 </h4>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
                   {myClaims.length}
                 </span>
               </div>
@@ -381,11 +381,11 @@ export default function ClaimsPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', minWidth: 0 }}>
                             <i className={isExpanded ? 'ph-bold ph-caret-down' : 'ph-bold ph-caret-right'} style={{ color: 'var(--text-muted)' }}></i>
                             <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>{claim.title}</span>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{claim.claimMonth}</span>
-                            <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{claim.claimMonth}</span>
+                            <span style={{ fontSize: 'var(--text-xs)', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                               {claim.payoutChannel === 'PAYROLL' ? t('claims.channelPayrollShort', '随薪') : t('claims.channelBatchShort', '批次')}
                             </span>
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                               {t('claims.itemsCount', { count: (claim.items || []).length }, `${(claim.items || []).length} 项明细`)}
                             </span>
                             {hasWarning && (
@@ -397,7 +397,7 @@ export default function ClaimsPage() {
                             <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
                               MYR {Number(claim.totalAmount || 0).toFixed(2)}
                             </span>
-                            <span style={{ fontSize: '11px', fontWeight: '600', padding: '2px 8px', borderRadius: '4px', background: meta.bg, color: meta.text }}>
+                            <span style={{ fontSize: 'var(--text-xs)', fontWeight: '600', padding: '2px 8px', borderRadius: '4px', background: meta.bg, color: meta.text }}>
                               {meta.label}
                             </span>
                             {claim.status === 'SUBMITTED' && (
@@ -406,7 +406,7 @@ export default function ClaimsPage() {
                                 onClick={() => handleCancelClaim(claim)}
                                 disabled={isCancelling}
                                 className="btn btn-xs btn-ghost"
-                                style={{ color: '#f87171', border: 'none', fontSize: '11px', gap: '4px' }}
+                                style={{ color: '#f87171', border: 'none', fontSize: 'var(--text-xs)', gap: '4px' }}
                                 title={t('claims.cancelHint', '初审前可自主撤回')}
                               >
                                 <i className="ph-bold ph-x"></i>
@@ -434,29 +434,29 @@ export default function ClaimsPage() {
                               <div key={it.itemId || i} style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', paddingBottom: '6px', borderBottom: i < (claim.items.length - 1) ? '1px dashed var(--border-hairline)' : 'none' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>#{i + 1}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>#{i + 1}</span>
                                     <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{it.merchantName || '-'}</span>
-                                    <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '3px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                    <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '3px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                                       {it.category}
                                     </span>
                                     {it.invoiceNo && (
-                                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>#{it.invoiceNo}</span>
+                                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>#{it.invoiceNo}</span>
                                     )}
                                     {it.ocrExtracted && (
-                                      <span style={{ fontSize: '10px', color: 'var(--accent-emerald)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                         <i className="ph-bold ph-scan"></i>OCR
                                       </span>
                                     )}
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{it.receiptDate}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{it.receiptDate}</span>
                                     <span style={{ fontWeight: '700', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                                       MYR {Number(it.amount || 0).toFixed(2)}
                                     </span>
                                   </div>
                                 </div>
                                 {it.mileageMeta && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '11px', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', flexWrap: 'wrap' }}>
                                     <i className="ph-bold ph-car-profile"></i>
                                     <span>
                                       {it.mileageMeta.origin} → {it.mileageMeta.destination} · {it.mileageMeta.distanceKm} km
@@ -467,13 +467,13 @@ export default function ClaimsPage() {
                                   </div>
                                 )}
                                 {it.warnings && it.warnings.length > 0 && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-red)', fontSize: '11px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-red)', fontSize: 'var(--text-xs)' }}>
                                     <i className="ph-bold ph-warning"></i>
                                     <span>{it.warnings.join(', ')}</span>
                                   </div>
                                 )}
                                 {it.notes && (
-                                  <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{it.notes}</div>
+                                  <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{it.notes}</div>
                                 )}
                               </div>
                             ))}

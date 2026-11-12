@@ -204,7 +204,7 @@ function AttendanceLeaveModal({
                     ? t('attendanceLeave.titleAdmin', '登记/代录入员工休假')
                     : t('attendanceLeave.titleEmployee', '提交考勤请假申请')}
                 </h3>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
                   {isAdminMode
                     ? t('attendanceLeave.subtitleAdmin', '主管登记之休假直接批准生效，自动豁免班次打卡')
                     : t('attendanceLeave.subtitleEmployee', '获批后自动豁免阶梯班次打卡考核，保护考勤准点率')}
@@ -304,7 +304,7 @@ function AttendanceLeaveModal({
                         fontSize: '12px',
                         fontWeight: durationType === tab.id ? '600' : '400',
                         color: durationType === tab.id ? '#ffffff' : 'var(--text-muted)',
-                        background: durationType === tab.id ? 'var(--accent-blue, #2563EB)' : 'transparent',
+                        background: durationType === tab.id ? 'var(--accent-blue, var(--accent))' : 'transparent',
                         border: 'none',
                         borderRadius: '6px',
                         cursor: 'pointer',
@@ -358,8 +358,8 @@ function AttendanceLeaveModal({
 
             {/* 折算天数与豁免说明卡片 */}
             <div style={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
+              background: 'var(--fill-selected)',
+              border: '1px solid var(--border-focus)',
               borderRadius: '8px',
               padding: '10px 14px',
               display: 'flex',

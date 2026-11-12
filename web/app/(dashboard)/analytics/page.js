@@ -1194,7 +1194,7 @@ export default function AnalyticsPage() {
           {
             label: t('analytics.chartDatasetSourced', '推送候选人'),
             data: sourcedData,
-            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            backgroundColor: 'var(--fill-selected)',
             borderColor: '#3b82f6',
             borderWidth: 1,
             borderRadius: 6
@@ -2295,19 +2295,19 @@ export default function AnalyticsPage() {
                         );
                         if (idx === 0) {
                           rankBadge = (
-                            <span style={{ background: '#f59e0b', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' }}>
+                            <span style={{ background: '#f59e0b', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 'var(--text-xs)' }}>
                               1
                             </span>
                           );
                         } else if (idx === 1) {
                           rankBadge = (
-                            <span style={{ background: '#94a3b8', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' }}>
+                            <span style={{ background: '#94a3b8', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 'var(--text-xs)' }}>
                               2
                             </span>
                           );
                         } else if (idx === 2) {
                           rankBadge = (
-                            <span style={{ background: '#b45309', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px' }}>
+                            <span style={{ background: '#b45309', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 'var(--text-xs)' }}>
                               3
                             </span>
                           );
@@ -2320,19 +2320,19 @@ export default function AnalyticsPage() {
                             </td>
                             <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600' }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), #8b5cf6)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600' }}>
                                   {pic.name.charAt(0).toUpperCase()}
                                 </div>
                                 <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{pic.name}</span>
                                 {userProfile?.role === 'owner' && (
                                   <span style={{
-                                    fontSize: '10px',
+                                    fontSize: 'var(--text-xs)',
                                     padding: '1px 6px',
                                     borderRadius: '4px',
                                     fontWeight: '600',
-                                    background: !pic.isExternal && pic.uid ? 'rgba(59, 130, 246, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                    background: !pic.isExternal && pic.uid ? 'var(--fill-selected)' : 'rgba(245, 158, 11, 0.15)',
                                     color: !pic.isExternal && pic.uid ? 'var(--accent-blue)' : 'var(--accent-amber)',
-                                    border: `1px solid ${!pic.isExternal && pic.uid ? 'rgba(59, 130, 246, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                                    border: `1px solid ${!pic.isExternal && pic.uid ? 'var(--border-focus)' : 'rgba(245, 158, 11, 0.3)'}`
                                   }}>
                                     {!pic.isExternal && pic.uid ? t('analytics.tagInHouse', '本部') : t('analytics.tagFreelance', '外部/协作')}
                                   </span>
@@ -2428,7 +2428,7 @@ export default function AnalyticsPage() {
                     <span style={{
                       background: '#ef4444',
                       color: '#fff',
-                      fontSize: '10px',
+                      fontSize: 'var(--text-xs)',
                       fontWeight: '800',
                       padding: '1px 6px',
                       borderRadius: '10px',
@@ -2499,7 +2499,7 @@ export default function AnalyticsPage() {
                         width: '36px',
                         height: '36px',
                         borderRadius: '10px',
-                        background: 'rgba(59, 130, 246, 0.15)',
+                        background: 'var(--fill-selected)',
                         color: 'var(--accent-blue)',
                         display: 'flex',
                         alignItems: 'center',
@@ -2569,7 +2569,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                       {myStats.daysPresent} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--accent-emerald)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-emerald)', marginTop: '4px' }}>
                       {t('analytics.statFullShiftNote', { count: myStats.fullShiftDays }, `达标工时 ${myStats.fullShiftDays} 天`)}
                     </div>
                   </div>
@@ -2585,7 +2585,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: '#c084fc', fontFamily: 'monospace' }}>
                       {myStats.attendanceRate}%
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                       {t('analytics.statAttendanceRateSub', { expected: myStats.effectiveExpectedDays, leaves: myStats.fullLeaveDaysElapsed }, `计准应出勤 ${myStats.effectiveExpectedDays} 天 (已扣减休假 ${myStats.fullLeaveDaysElapsed} 天)`)}
                     </div>
                   </div>
@@ -2601,7 +2601,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-blue)', fontFamily: 'monospace' }}>
                       {myStats.daysPresent > 0 ? ((myStats.fullShiftDays / myStats.daysPresent) * 100).toFixed(0) : 0}%
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                       {t('analytics.statCompliantSub', { ok: myStats.fullShiftDays, total: myStats.daysPresent }, `${myStats.fullShiftDays} / ${myStats.daysPresent} 天正常`)}
                     </div>
                   </div>
@@ -2617,7 +2617,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-primary)', fontFamily: 'monospace' }}>
                       {myStats.lateDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: myStats.lateDays > 0 ? '#f87171' : 'var(--text-muted)', marginTop: '4px' }}>
                       {myStats.lateDays > 0 ? t('analytics.statLateAlert', '存在班次未达底线') : t('analytics.statNoViolation', '无迟到记录')}
                     </div>
                   </div>
@@ -2633,7 +2633,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
                       {myStats.missingPunchDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: myStats.missingPunchDays > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
                       {myStats.missingPunchDays > 0 ? t('analytics.statMissingPunchAlert', '可在表格中点击申诉补录') : t('analytics.statAllPunched', '所有打卡均完整')}
                     </div>
                   </div>
@@ -2649,7 +2649,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-purple)', fontFamily: 'monospace' }}>
                       {myStats.manualAddedDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitTimes', '次')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                       {t('analytics.statAdminAddedNote', '特批或申诉核准留痕')}
                     </div>
                   </div>
@@ -2665,7 +2665,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: myStats.pendingCount > 0 ? 'var(--accent-amber)' : 'var(--text-primary)', fontFamily: 'monospace' }}>
                       {myStats.pendingCount} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitCases', '件')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                       {myStats.pendingCount > 0 ? t('analytics.statPendingAppealsWait', '等待管理员批复中') : t('analytics.statNoPendingAppeals', '暂无在途申诉')}
                     </div>
                   </div>
@@ -2681,7 +2681,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-emerald)', fontFamily: 'monospace' }}>
                       {myStats.approvedLeaveDays} <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)' }}>{t('analytics.unitDays', '天')}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: myStats.pendingLeaveCount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', marginTop: '4px' }}>
                       {myStats.pendingLeaveCount > 0
                         ? t('analytics.statLeavesPendingCount', { count: myStats.pendingLeaveCount }, `${myStats.pendingLeaveCount} 件休假待审核`)
                         : t('analytics.statLeavesApprovedDesc', '获批自动免打卡')}
@@ -2699,7 +2699,7 @@ export default function AnalyticsPage() {
                       <h4 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                         {t('analytics.myDailyTableTitle', { month: myAttendanceMonth }, `${myAttendanceMonth} 每日打卡与出勤流水`)}
                       </h4>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>
                         {t('analytics.myRecordCount', { count: myMonthlyAttendance.length }, `共 ${myMonthlyAttendance.length} 天记录`)}
                       </span>
                     </div>
@@ -2746,12 +2746,12 @@ export default function AnalyticsPage() {
                                       {item.date}
                                     </span>
                                     {dayWeekday && (
-                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                                      <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
                                         {dayWeekday}
                                       </span>
                                     )}
                                     {item.isToday && (
-                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', fontWeight: '700' }}>
+                                      <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'var(--fill-selected)', color: 'var(--accent-blue)', fontWeight: '700' }}>
                                         {t('analytics.todayTagShort', '今日')}
                                       </span>
                                     )}
@@ -2773,7 +2773,7 @@ export default function AnalyticsPage() {
                                     {isInManual && (
                                       <span
                                         style={{
-                                          fontSize: '10px',
+                                          fontSize: 'var(--text-xs)',
                                           fontWeight: '700',
                                           padding: '1px 6px',
                                           borderRadius: '4px',
@@ -2792,7 +2792,7 @@ export default function AnalyticsPage() {
                                       </span>
                                     )}
                                     {item.verifyMethod === 'WFH' && !isInManual && (
-                                      <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
+                                      <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
                                         WFH
                                       </span>
                                     )}
@@ -2809,7 +2809,7 @@ export default function AnalyticsPage() {
                                       {isOutManual && (
                                         <span
                                           style={{
-                                            fontSize: '10px',
+                                            fontSize: 'var(--text-xs)',
                                             fontWeight: '700',
                                             padding: '1px 6px',
                                             borderRadius: '4px',
@@ -2855,7 +2855,7 @@ export default function AnalyticsPage() {
                                       {item.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
                                     </span>
                                     {item.shiftAnalysis?.shift?.endStr && (
-                                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                                         {t('analytics.shiftCutoffPrefix', '底线')} {item.shiftAnalysis.shift.endStr}
                                       </span>
                                     )}
@@ -2867,7 +2867,7 @@ export default function AnalyticsPage() {
                                   <span style={{
                                     padding: '2px 8px',
                                     borderRadius: '4px',
-                                    fontSize: '11px',
+                                    fontSize: 'var(--text-xs)',
                                     fontWeight: '600',
                                     color: item.statusColor,
                                     background: `${item.statusColor}18`,
@@ -2884,7 +2884,7 @@ export default function AnalyticsPage() {
                                 <td style={{ padding: 'var(--space-3) var(--space-3)', textAlign: 'center' }}>
                                   {item.shiftAnalysis?.isOnFullLeave ? (
                                     <span style={{
-                                      fontSize: '11px',
+                                      fontSize: 'var(--text-xs)',
                                       fontWeight: '600',
                                       color: 'var(--accent-emerald)',
                                       background: 'rgba(16, 185, 129, 0.12)',
@@ -2902,7 +2902,7 @@ export default function AnalyticsPage() {
                                     appeal.status === 'PENDING' ? (
                                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                         <span style={{
-                                          fontSize: '11px',
+                                          fontSize: 'var(--text-xs)',
                                           fontWeight: '600',
                                           color: 'var(--accent-amber)',
                                           background: 'rgba(245, 158, 11, 0.15)',
@@ -2915,7 +2915,7 @@ export default function AnalyticsPage() {
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-sm"
-                                          style={{ padding: '2px 6px', fontSize: '11px', color: 'var(--text-muted)' }}
+                                          style={{ padding: '2px 6px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}
                                           title={t('attendanceAppeal.btnCancelTip', '撤回本次申诉')}
                                           onClick={() => handleCancelAppeal(appeal)}
                                         >
@@ -2924,7 +2924,7 @@ export default function AnalyticsPage() {
                                       </div>
                                     ) : appeal.status === 'APPROVED' ? (
                                       <span style={{
-                                        fontSize: '11px',
+                                        fontSize: 'var(--text-xs)',
                                         fontWeight: '600',
                                         color: 'var(--accent-emerald)',
                                         background: 'rgba(16, 185, 129, 0.15)',
@@ -2938,7 +2938,7 @@ export default function AnalyticsPage() {
                                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                         <span
                                           style={{
-                                            fontSize: '11px',
+                                            fontSize: 'var(--text-xs)',
                                             fontWeight: '600',
                                             color: '#f87171',
                                             background: 'rgba(239, 68, 68, 0.15)',
@@ -2954,7 +2954,7 @@ export default function AnalyticsPage() {
                                         <button
                                           type="button"
                                           className="btn btn-secondary btn-sm"
-                                          style={{ padding: '2px 8px', fontSize: '11px' }}
+                                          style={{ padding: '2px 8px', fontSize: 'var(--text-xs)' }}
                                           onClick={() => handleOpenAppealModal(item)}
                                         >
                                           {t('attendanceAppeal.btnReappeal', '重提')}
@@ -2968,7 +2968,7 @@ export default function AnalyticsPage() {
                                         className="btn btn-sm"
                                         style={{
                                           padding: '3px 10px',
-                                          fontSize: '11px',
+                                          fontSize: 'var(--text-xs)',
                                           fontWeight: '700',
                                           background: 'rgba(245, 158, 11, 0.15)',
                                           color: 'var(--accent-amber)',
@@ -3016,7 +3016,7 @@ export default function AnalyticsPage() {
                           {t('attendanceAppeal.adminPendingTitle', { count: pendingAppeals.length }, `待审批员工考勤申诉 (${pendingAppeals.length} 条待办)`)}
                         </h4>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                         {t('attendanceAppeal.adminReviewTip', '核实员工公出或故障情况后，可直接点击「核准并补录」')}
                       </span>
                     </div>
@@ -3042,22 +3042,22 @@ export default function AnalyticsPage() {
                               <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
                                 {appeal.picName || appeal.userEmail}
                               </span>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                 ({appeal.userEmail})
                               </span>
                               <span style={{
-                                fontSize: '11px',
+                                fontSize: 'var(--text-xs)',
                                 fontFamily: 'monospace',
                                 fontWeight: '700',
                                 color: 'var(--accent-blue)',
-                                background: 'rgba(59, 130, 246, 0.15)',
+                                background: 'var(--fill-selected)',
                                 padding: '1px 6px',
                                 borderRadius: '4px'
                               }}>
                                 {appeal.date}
                               </span>
                               <span style={{
-                                fontSize: '11px',
+                                fontSize: 'var(--text-xs)',
                                 fontWeight: '600',
                                 color: 'var(--accent-amber)',
                                 background: 'rgba(245, 158, 11, 0.15)',
@@ -3128,7 +3128,7 @@ export default function AnalyticsPage() {
                           {t('attendanceLeave.adminPendingTitle', { count: pendingLeaves.length }, `待审批员工请假申请 (${pendingLeaves.length} 条待办)`)}
                         </h4>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                         {t('attendanceLeave.adminReviewTip', '批准后系统自动对该员工当天排班实施打卡豁免')}
                       </span>
                     </div>
@@ -3159,11 +3159,11 @@ export default function AnalyticsPage() {
                                 <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>
                                   {leave.picName || leave.userEmail}
                                 </span>
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                   ({leave.userEmail})
                                 </span>
                                 <span style={{
-                                  fontSize: '11px',
+                                  fontSize: 'var(--text-xs)',
                                   fontFamily: 'monospace',
                                   fontWeight: '700',
                                   color: 'var(--accent-emerald)',
@@ -3174,10 +3174,10 @@ export default function AnalyticsPage() {
                                   {dateText}
                                 </span>
                                 <span style={{
-                                  fontSize: '11px',
+                                  fontSize: 'var(--text-xs)',
                                   fontWeight: '600',
                                   color: 'var(--accent-blue)',
-                                  background: 'rgba(59, 130, 246, 0.15)',
+                                  background: 'var(--fill-selected)',
                                   padding: '1px 6px',
                                   borderRadius: '4px'
                                 }}>
@@ -3416,7 +3416,7 @@ export default function AnalyticsPage() {
                             width: '32px',
                             height: '32px',
                             borderRadius: '8px',
-                            background: group.isToday ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            background: group.isToday ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.05)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -3437,7 +3437,7 @@ export default function AnalyticsPage() {
                               </span>
                               {dayWeekday && (
                                 <span style={{
-                                  fontSize: '11px',
+                                  fontSize: 'var(--text-xs)',
                                   fontWeight: '600',
                                   padding: '1px 7px',
                                   borderRadius: '4px',
@@ -3449,13 +3449,13 @@ export default function AnalyticsPage() {
                               )}
                               {group.isToday && (
                                 <span style={{
-                                  fontSize: '11px',
+                                  fontSize: 'var(--text-xs)',
                                   fontWeight: '700',
                                   padding: '2px 8px',
                                   borderRadius: '4px',
-                                  background: 'rgba(59, 130, 246, 0.18)',
+                                  background: 'var(--fill-selected)',
                                   color: 'var(--accent-blue)',
-                                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                                  border: '1px solid var(--border-focus)',
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '5px'
@@ -3510,12 +3510,12 @@ export default function AnalyticsPage() {
                                 <tr key={`${item.date}_${item.picName}_${idx}`} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
                                   <td style={{ padding: 'var(--space-3) var(--space-3)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>
+                                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--fill-selected)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--text-xs)', fontWeight: 'bold' }}>
                                         {item.picName.charAt(0).toUpperCase()}
                                       </div>
                                       <div>
                                         <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{item.picName}</div>
-                                        {item.userEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.userEmail}</div>}
+                                        {item.userEmail && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{item.userEmail}</div>}
                                       </div>
                                     </div>
                                   </td>
@@ -3533,7 +3533,7 @@ export default function AnalyticsPage() {
                                       {isClockInManual && (
                                         <span
                                           style={{
-                                            fontSize: '10px',
+                                            fontSize: 'var(--text-xs)',
                                             fontWeight: '700',
                                             padding: '1px 6px',
                                             borderRadius: '4px',
@@ -3554,7 +3554,7 @@ export default function AnalyticsPage() {
                                       {item.allClockIns && item.allClockIns.length > 1 && (
                                         <span
                                           style={{
-                                            fontSize: '10px',
+                                            fontSize: 'var(--text-xs)',
                                             padding: '1px 5px',
                                             borderRadius: '4px',
                                             background: 'rgba(16, 185, 129, 0.15)',
@@ -3577,7 +3577,7 @@ export default function AnalyticsPage() {
                                         {isClockOutManual && (
                                           <span
                                             style={{
-                                              fontSize: '10px',
+                                              fontSize: 'var(--text-xs)',
                                               fontWeight: '700',
                                               padding: '1px 6px',
                                               borderRadius: '4px',
@@ -3598,10 +3598,10 @@ export default function AnalyticsPage() {
                                         {item.allClockOuts && item.allClockOuts.length > 1 && (
                                           <span
                                             style={{
-                                              fontSize: '10px',
+                                              fontSize: 'var(--text-xs)',
                                               padding: '1px 5px',
                                               borderRadius: '4px',
-                                              background: 'rgba(59, 130, 246, 0.15)',
+                                              background: 'var(--fill-selected)',
                                               color: 'var(--accent-blue)',
                                               cursor: 'help'
                                             }}
@@ -3635,7 +3635,7 @@ export default function AnalyticsPage() {
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '11px',
+                                        fontSize: 'var(--text-xs)',
                                         fontWeight: '600',
                                         color: 'var(--accent-emerald)',
                                         background: 'rgba(16, 185, 129, 0.15)',
@@ -3651,7 +3651,7 @@ export default function AnalyticsPage() {
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '11px',
+                                        fontSize: 'var(--text-xs)',
                                         fontWeight: '600',
                                         color: '#c084fc',
                                         background: 'rgba(168, 85, 247, 0.15)',
@@ -3667,7 +3667,7 @@ export default function AnalyticsPage() {
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '11px',
+                                        fontSize: 'var(--text-xs)',
                                         fontWeight: '600',
                                         color: 'var(--accent-emerald)',
                                         background: 'rgba(16, 185, 129, 0.15)',
@@ -3684,10 +3684,10 @@ export default function AnalyticsPage() {
                                         <span style={{
                                           padding: '2px 8px',
                                           borderRadius: '4px',
-                                          fontSize: '11px',
+                                          fontSize: 'var(--text-xs)',
                                           fontWeight: '600',
                                           color: 'var(--accent-blue)',
-                                          background: 'rgba(59, 130, 246, 0.15)',
+                                          background: 'var(--fill-selected)',
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           gap: '4px'
@@ -3700,7 +3700,7 @@ export default function AnalyticsPage() {
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '11px',
+                                        fontSize: 'var(--text-xs)',
                                         fontWeight: '600',
                                         color: 'var(--accent-amber)',
                                         background: 'rgba(234, 179, 8, 0.15)',
@@ -3715,7 +3715,7 @@ export default function AnalyticsPage() {
                                       <span style={{
                                         padding: '2px 8px',
                                         borderRadius: '4px',
-                                        fontSize: '11px',
+                                        fontSize: 'var(--text-xs)',
                                         fontWeight: '500',
                                         color: 'var(--text-muted)',
                                         background: 'rgba(255, 255, 255, 0.04)',
@@ -3738,7 +3738,7 @@ export default function AnalyticsPage() {
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           gap: '4px',
-                                          fontSize: '10px',
+                                          fontSize: 'var(--text-xs)',
                                           fontWeight: '700',
                                           color: '#c084fc',
                                           background: 'rgba(168, 85, 247, 0.15)',
@@ -3756,7 +3756,7 @@ export default function AnalyticsPage() {
                                         </span>
                                       ) : (
                                         item.shiftAnalysis?.shift?.endStr ? (
-                                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                                             {t('analytics.shiftCutoffPrefix', '底线')} {item.shiftAnalysis.shift.endStr}
                                           </span>
                                         ) : null
@@ -3767,7 +3767,7 @@ export default function AnalyticsPage() {
                                     <span style={{
                                       padding: '2px 8px',
                                       borderRadius: '4px',
-                                      fontSize: '11px',
+                                      fontSize: 'var(--text-xs)',
                                       fontWeight: '600',
                                       color: item.statusColor,
                                       background: `${item.statusColor}18`,
@@ -3799,7 +3799,7 @@ export default function AnalyticsPage() {
                                         <button
                                           type="button"
                                           className="btn btn-secondary btn-sm"
-                                          style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px' }}
+                                          style={{ padding: '3px 8px', fontSize: 'var(--text-xs)', gap: '4px', height: '26px' }}
                                           title={t('analytics.btnOverrideShift', '调整核定班次')}
                                           onClick={() => handleOpenOverrideModal(item)}
                                         >
@@ -3809,7 +3809,7 @@ export default function AnalyticsPage() {
                                         <button
                                           type="button"
                                           className="btn btn-sm btn-outline"
-                                          style={{ padding: '3px 8px', fontSize: '11px', gap: '4px', height: '26px', borderColor: 'rgba(168, 85, 247, 0.4)', color: '#c084fc', background: 'rgba(168, 85, 247, 0.08)' }}
+                                          style={{ padding: '3px 8px', fontSize: 'var(--text-xs)', gap: '4px', height: '26px', borderColor: 'rgba(168, 85, 247, 0.4)', color: '#c084fc', background: 'rgba(168, 85, 247, 0.08)' }}
                                           title={t('analytics.btnManualPunch', '管理员手动补录打卡时间')}
                                           onClick={() => handleOpenPrefillManualPunch(item)}
                                         >
@@ -3853,7 +3853,7 @@ export default function AnalyticsPage() {
                   <h3 style={{ fontSize: 'var(--text-md)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <i className="ph-bold ph-shield-check" style={{ color: 'var(--accent-emerald, #10B981)' }}></i>
                     <span>{t('commission.ledgerTitle', '保证期双态风控与成单佣金台账')}</span>
-                    <span className="badge" style={{ fontSize: '11px', background: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+                    <span className="badge" style={{ fontSize: 'var(--text-xs)', background: 'var(--fill-selected)', color: 'var(--accent-blue)', borderColor: 'var(--fill-selected)' }}>
                       {commissionRecords.length} {t('commission.dealsCount', '单记录')}
                     </span>
                   </h3>
@@ -3881,7 +3881,7 @@ export default function AnalyticsPage() {
                         fontWeight: '600',
                         cursor: 'pointer',
                         border: `1px solid ${dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--border-hairline)'}`,
-                        background: dealStatusFilter === f.key ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-subtle, transparent)',
+                        background: dealStatusFilter === f.key ? 'var(--fill-selected)' : 'var(--bg-subtle, transparent)',
                         color: dealStatusFilter === f.key ? 'var(--accent-blue)' : 'var(--text-muted)',
                         transition: 'all 0.2s ease',
                         position: 'relative',
@@ -3940,7 +3940,7 @@ export default function AnalyticsPage() {
                           <tr key={rec.id} style={{ borderBottom: '1px solid var(--border-hairline)' }}>
                             <td style={{ padding: '12px' }}>
                               <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{rec.candidateName}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rec.position}</div>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{rec.position}</div>
                               {rec.status === 'PENDING' && (
                                 <div style={{ display: 'inline-flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                                   <button
@@ -3952,7 +3952,7 @@ export default function AnalyticsPage() {
                                       e.stopPropagation();
                                       handleRepairDealAttribution(rec);
                                     }}
-                                    style={{ fontSize: '10px', padding: '2px 8px', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.45)', background: 'rgba(59, 130, 246, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', color: 'var(--accent-blue)', borderColor: 'var(--fill-selected)', background: 'var(--fill-selected)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
                                     title={t('commission.repairAttributionTitle', '按顾问姓名自动校准该单的真实归属账号')}
                                   >
                                     <span>{t('commission.repairAttributionAction', '修正归属')}</span>
@@ -3966,7 +3966,7 @@ export default function AnalyticsPage() {
                                       e.stopPropagation();
                                       handleUnlockDeal(rec);
                                     }}
-                                    style={{ fontSize: '10px', padding: '2px 8px', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.45)', background: 'rgba(16, 185, 129, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.45)', background: 'rgba(16, 185, 129, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
                                     title={t('commission.confirmUnlockTitle', '确认客户已回款并解锁佣金')}
                                   >
                                     <span>{t('commission.unlockAction', '解锁')}</span>
@@ -3980,7 +3980,7 @@ export default function AnalyticsPage() {
                                       e.stopPropagation();
                                       handleOpenClawbackModal(rec);
                                     }}
-                                    style={{ fontSize: '10px', padding: '2px 8px', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.45)', background: 'rgba(239, 68, 68, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
+                                    style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.45)', background: 'rgba(239, 68, 68, 0.12)', cursor: isProcessingCommission ? 'wait' : 'pointer' }}
                                     title={t('commission.clawbackActionTitle', '候选人试用期离职，标记退工冲销')}
                                   >
                                     <span>{t('commission.clawbackAction', '退工')}</span>
@@ -4001,19 +4001,19 @@ export default function AnalyticsPage() {
                               {rec.status === 'CANCELLED' ? (
                                 <span style={{ fontSize: '0.74rem', color: '#EF4444' }}>{t('commission.clawedBackLabel', '已退工冲销')}</span>
                               ) : rec.status === 'UNLOCKED' || rec.status === 'SETTLED' ? (
-                                <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: '10px' }}>
+                                <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10B981', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: 'var(--text-xs)' }}>
                                   {t('commission.unlockedReady', '保证期已达标')}
                                 </span>
                               ) : isReadyToUnlock ? (
-                                <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)', fontSize: '10px' }}>
+                                <span className="badge" style={{ background: 'var(--fill-selected)', color: 'var(--accent-blue)', borderColor: 'var(--fill-selected)', fontSize: 'var(--text-xs)' }}>
                                   {t('commission.readyToUnlockBadge', '已到期待解锁')}
                                 </span>
                               ) : (
                                 <div>
-                                  <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.3)', fontSize: '10px' }}>
+                                  <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.3)', fontSize: 'var(--text-xs)' }}>
                                     {remainingDays} {t('commission.daysToUnlock', '天到期')}
                                   </span>
-                                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
                                     {rec.unlockDate}
                                   </div>
                                 </div>
@@ -4024,7 +4024,7 @@ export default function AnalyticsPage() {
                               <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '0.88rem' }}>
                                 {formatCommissionCurrency(rec.billingSnapshot?.totalCommissionPool || rec.totalCommissionPool || 0, 'MYR')}
                               </div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                 {rec.billingSnapshot?.billingMode || 'DIRECT_FLAT'}
                               </div>
                             </td>
@@ -4032,7 +4032,7 @@ export default function AnalyticsPage() {
                             <td style={{ padding: '12px' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                                 {(rec.splits || []).map((s, idx) => (
-                                  <div key={idx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                  <div key={idx} style={{ fontSize: 'var(--text-xs)', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
                                     <span style={{ color: 'var(--text-secondary)' }}>
                                       {s.displayName} ({s.role}):
                                     </span>
@@ -4043,7 +4043,7 @@ export default function AnalyticsPage() {
                                 ))}
                               </div>
                               {rec.isOverridden && (
-                                <div style={{ fontSize: '10px', color: 'var(--accent-amber)', marginTop: '3px', fontStyle: 'italic' }}>
+                                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-amber)', marginTop: '3px', fontStyle: 'italic' }}>
                                   {rec.overrideReason || t('commission.overriddenNote', '特批改派')}
                                 </div>
                               )}
@@ -4053,7 +4053,7 @@ export default function AnalyticsPage() {
                               <span
                                 className="badge"
                                 style={{
-                                  fontSize: '10px',
+                                  fontSize: 'var(--text-xs)',
                                   background: rec.status === 'CANCELLED' ? 'rgba(239, 68, 68, 0.12)' : (rec.status === 'UNLOCKED' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)'),
                                   color: rec.status === 'CANCELLED' ? '#EF4444' : (rec.status === 'UNLOCKED' ? '#10B981' : 'var(--accent-amber)'),
                                   borderColor: rec.status === 'CANCELLED' ? 'rgba(239, 68, 68, 0.3)' : (rec.status === 'UNLOCKED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)')
@@ -4088,11 +4088,11 @@ export default function AnalyticsPage() {
                                       handleRepairDealAttribution(rec);
                                     }}
                                     style={{
-                                      fontSize: '11px',
+                                      fontSize: 'var(--text-xs)',
                                       padding: '4px 10px',
                                       color: 'var(--accent-blue)',
-                                      borderColor: 'rgba(59, 130, 246, 0.45)',
-                                      background: 'rgba(59, 130, 246, 0.12)',
+                                      borderColor: 'var(--border-focus)',
+                                      background: 'var(--fill-selected)',
                                       cursor: isProcessingCommission ? 'wait' : 'pointer',
                                       position: 'relative',
                                       zIndex: 102
@@ -4112,7 +4112,7 @@ export default function AnalyticsPage() {
                                       handleUnlockDeal(rec);
                                     }}
                                     style={{
-                                      fontSize: '11px',
+                                      fontSize: 'var(--text-xs)',
                                       padding: '4px 10px',
                                       color: '#10B981',
                                       borderColor: 'rgba(16, 185, 129, 0.45)',
@@ -4136,7 +4136,7 @@ export default function AnalyticsPage() {
                                       handleOpenClawbackModal(rec);
                                     }}
                                     style={{
-                                      fontSize: '11px',
+                                      fontSize: 'var(--text-xs)',
                                       padding: '4px 10px',
                                       color: '#EF4444',
                                       borderColor: 'rgba(239, 68, 68, 0.45)',
@@ -4152,12 +4152,12 @@ export default function AnalyticsPage() {
                                 </div>
                               )}
                               {rec.status === 'UNLOCKED' && (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                   {t('commission.readyForExport', '待月报导出')}
                                 </span>
                               )}
                               {rec.status === 'CANCELLED' && (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                                   {rec.cancellation?.reason ? `${rec.cancellation.reason.slice(0, 16)}...` : '-'}
                                 </span>
                               )}
@@ -4342,7 +4342,7 @@ export default function AnalyticsPage() {
                   </h4>
                   <button
                     className="btn btn-sm btn-outline"
-                    style={{ fontSize: '11px', padding: '3px 8px', gap: '4px', borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}
+                    style={{ fontSize: 'var(--text-xs)', padding: '3px 8px', gap: '4px', borderColor: 'var(--accent-blue)', color: 'var(--accent-blue)' }}
                     disabled={isDetectingGps}
                     onClick={handleAdoptCurrentGps}
                   >
@@ -4351,12 +4351,12 @@ export default function AnalyticsPage() {
                   </button>
                 </div>
 
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', lineHeight: 1.4 }}>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', lineHeight: 1.4 }}>
                   💡 {t('analytics.gpsNotice', '电脑端无 GPS 硬件芯片，常因运营商出口 IP 位于雪兰莪导致定位偏移。建议使用下方快捷框直接粘贴 Google 地图真实坐标！')}
                 </div>
 
                 {/* Quick Paste Google Maps Coordinates Box */}
-                <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px dashed rgba(59, 130, 246, 0.3)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 'var(--space-4)' }}>
+                <div style={{ background: 'var(--fill-selected)', border: '1px dashed var(--fill-selected)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 'var(--space-4)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
                     <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <i className="ph-bold ph-clipboard-text"></i>
@@ -4365,7 +4365,7 @@ export default function AnalyticsPage() {
                     <button
                       type="button"
                       className="btn btn-sm btn-outline"
-                      style={{ fontSize: '11px', padding: '2px 8px', borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)', background: 'rgba(16, 185, 129, 0.08)' }}
+                      style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)', background: 'rgba(16, 185, 129, 0.08)' }}
                       onClick={() => handleApplyPastedCoords('1°26\'25.7"N 103°37\'04.5"E')}
                     >
                       <i className="ph-bold ph-check"></i>
@@ -4398,7 +4398,7 @@ export default function AnalyticsPage() {
                     </button>
                   </div>
                   {coordsParseMsg && (
-                    <div style={{ fontSize: '11px', color: coordsParseSuccess ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: coordsParseSuccess ? 'var(--accent-emerald)' : 'var(--accent-rose)', marginTop: '4px' }}>
                       {coordsParseMsg}
                     </div>
                   )}
@@ -4496,7 +4496,7 @@ export default function AnalyticsPage() {
                     }}
                     style={{ width: '100%', accentColor: 'var(--accent-blue)' }}
                   />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     <span>{t('analytics.radiusMark50', '50米 (极高严密)')}</span>
                     <span>{t('analytics.radiusMark100', '100米 (企业推荐)')}</span>
                     <span>{t('analytics.radiusMark500', '500米 (园区)')}</span>
@@ -4519,7 +4519,7 @@ export default function AnalyticsPage() {
                     onChange={(e) => setEditingRules({ ...editingRules, maxDriftCompensation: parseInt(e.target.value) })}
                     style={{ width: '100%', accentColor: 'var(--accent-purple)' }}
                   />
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
                     {t('analytics.driftDesc', '写字楼玻璃幕墙与水泥墙体会导致 30~50 米 GPS 多径折射抖动。后端测距时会自动抵扣该漂移误差，确保室内不误拒。')}
                   </div>
                 </div>
@@ -4534,7 +4534,7 @@ export default function AnalyticsPage() {
                   </h4>
                   <button
                     className="btn btn-sm btn-outline"
-                    style={{ fontSize: '11px', padding: '3px 8px', gap: '4px', borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)' }}
+                    style={{ fontSize: 'var(--text-xs)', padding: '3px 8px', gap: '4px', borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)' }}
                     disabled={isDetectingIp}
                     onClick={handleDetectCurrentIp}
                   >
@@ -4542,7 +4542,7 @@ export default function AnalyticsPage() {
                     {isDetectingIp ? t('analytics.detectingIp', '探测中...') : t('analytics.detectIpBtn', '一键将当前网络添加为公司 Wi-Fi')}
                   </button>
                 </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
                   {t('analytics.wifiDesc', '由于现代浏览器沙箱安全机制限制，纯网页端无法读取路由器的物理 SSID/BSSID。系统采用大厂通用的公网出口 IP 方案：员工只要连上公司 Wi-Fi，即可秒级免等待打卡！')}
                 </p>
 
@@ -4564,13 +4564,13 @@ export default function AnalyticsPage() {
                         alignItems: 'center',
                         gap: '6px'
                       }}>
-                        <i className="ph-bold ph-wifi-high" style={{ fontSize: '11px' }}></i>
+                        <i className="ph-bold ph-wifi-high" style={{ fontSize: 'var(--text-xs)' }}></i>
                         {ip}
                         <button
                           onClick={() => handleRemoveIp(ip)}
                           style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
                         >
-                          <i className="ph-bold ph-x" style={{ fontSize: '10px' }}></i>
+                          <i className="ph-bold ph-x" style={{ fontSize: 'var(--text-xs)' }}></i>
                         </button>
                       </span>
                     ))
@@ -4617,11 +4617,11 @@ export default function AnalyticsPage() {
                     <i className="ph-bold ph-hourglass-high" style={{ color: 'var(--accent-purple)' }}></i>
                     {t('analytics.secShiftTitle', '阶梯弹性班次与打卡容差配置')}
                   </h4>
-                  <span style={{ fontSize: '11px', color: 'var(--accent-purple)', background: 'rgba(168, 85, 247, 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-purple)', background: 'rgba(168, 85, 247, 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
                     {t('analytics.tagZeroGrace', '当前设定：零打卡冗余 (过一分钟即顺延)')}
                   </span>
                 </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-4) 0', lineHeight: 1.4 }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 var(--space-4) 0', lineHeight: 1.4 }}>
                   {t('analytics.shiftConfigDesc', '系统以员工早晨首次签到时间动态核定所属班次。若超出所选档位，下班时间强制顺延至下一档（例如 8:31 打卡需工作至 18:00）。若提前签退（例如 17:59）则直接判定为迟到/早退违规。')}
                 </p>
 
@@ -4653,7 +4653,7 @@ export default function AnalyticsPage() {
                       <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{t('analytics.unitMinutes', '分钟')}</span>
                     </div>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                     {(editingRules.shiftConfig?.graceMinutes ?? 0) === 0
                       ? t('analytics.graceHintZero', '💡 当前为 0 分钟 (严格执行)：8:30:00 前打卡计为 8:30，只要到 8:31:00 立刻强制顺延至 9:00 - 18:00 档。')
                       : t('analytics.graceHintCustom', `💡 当前容差已调整为 ${editingRules.shiftConfig?.graceMinutes} 分钟，打卡在基准时间 + ${editingRules.shiftConfig?.graceMinutes} 分钟内仍可计入该班次。`)}
@@ -4662,7 +4662,7 @@ export default function AnalyticsPage() {
 
                 {/* Shifts Table */}
                 <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', overflow: 'hidden', marginBottom: 'var(--space-3)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 40px', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 40px', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', fontSize: 'var(--text-xs)', fontWeight: '600', color: 'var(--text-secondary)' }}>
                     <span>{t('analytics.colShiftName', '阶梯班次档位')}</span>
                     <span style={{ textAlign: 'center' }}>{t('analytics.colShiftIn', '签到基准线')}</span>
                     <span style={{ textAlign: 'center' }}>{t('analytics.colShiftOut', '强制下班底线')}</span>
@@ -4722,7 +4722,7 @@ export default function AnalyticsPage() {
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
-                    style={{ fontSize: '11px', color: 'var(--text-muted)', gap: '4px' }}
+                    style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', gap: '4px' }}
                     onClick={handleResetDefaultShifts}
                     title={t('analytics.resetShiftsHint', '重置回系统标准的 4 档弹性班次 (7:30 / 8:00 / 8:30 / 9:00)')}
                   >
@@ -4730,7 +4730,7 @@ export default function AnalyticsPage() {
                     {t('analytics.btnResetDefaultShifts', '恢复默认4档')}
                   </button>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-4)', lineHeight: 1.4 }}>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--space-4)', lineHeight: 1.4 }}>
                   {t('analytics.shiftAutoSortHint', '提示：保存时系统将根据「签到基准线」自动由早至晚排序，下班时间必须晚于上班签到时间。')}
                 </div>
 
@@ -4738,7 +4738,7 @@ export default function AnalyticsPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
                   <div>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>{t('analytics.strictClockOutTitle', '严格签退绝杀 (Strict Clock-Out)')}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.strictClockOutDesc', '未达到核定班次下班底线提前签退（例如 17:59 签退）将直接被系统计为迟到/早退违规。')}</div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('analytics.strictClockOutDesc', '未达到核定班次下班底线提前签退（例如 17:59 签退）将直接被系统计为迟到/早退违规。')}</div>
                   </div>
                   <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px', cursor: 'pointer' }}>
                     <input
@@ -4777,11 +4777,11 @@ export default function AnalyticsPage() {
                     <i className="ph-bold ph-user-minus" style={{ color: 'var(--accent-amber)' }}></i>
                     {t('analytics.secExemptTitle', '免考勤与报表排除账户 (Exempt Accounts)')}
                   </h4>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     {t('analytics.exemptCountTag', { count: (editingRules.excludedAccounts || []).length }, `已排除 ${(editingRules.excludedAccounts || []).length} 人`)}
                   </span>
                 </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 var(--space-3) 0', lineHeight: 1.4 }}>
                   {t('analytics.exemptDesc', '点击下方成员标签可将其设为「免考勤/测试账户」。被排除的账户将不再出现在考勤监控列表、准点排行榜及导出的 Excel 月报中。')}
                 </p>
 
@@ -4842,7 +4842,7 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>
                       {t('analytics.hideZeroAttTitle', '导出月报时自动隐藏当月 0 打卡账户')}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                       {t('analytics.hideZeroAttDesc', '开启后，当月没有任何打卡记录的账号将自动不在 Excel 总账与日历矩阵中显示。')}
                     </div>
                   </div>
@@ -4929,25 +4929,25 @@ export default function AnalyticsPage() {
               {/* Employee & Date Snapshot Info */}
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideEmployeeLabel', '打卡人员')}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('analytics.overrideEmployeeLabel', '打卡人员')}</div>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginTop: '2px' }}>
                     {overrideTargetRecord.picName}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideDateLabel', '考勤日期')}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('analytics.overrideDateLabel', '考勤日期')}</div>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent-blue)', marginTop: '2px' }}>
                     {overrideTargetRecord.date}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('analytics.colFirstCheckin', '首次签到时间')}</div>
                   <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--accent-emerald)', marginTop: '2px' }}>
                     {overrideTargetRecord.firstActionTime ? overrideTargetRecord.firstActionTime.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('analytics.overrideOriginalShift', '系统原判定')}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('analytics.overrideOriginalShift', '系统原判定')}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                     {overrideTargetRecord.shiftAnalysis?.shift?.baseName || overrideTargetRecord.shiftAnalysis?.shift?.name || t('analytics.unassignedShift', '未定班次')}
                   </div>
@@ -4996,7 +4996,7 @@ export default function AnalyticsPage() {
               )}
 
               {/* Warning Notice */}
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(168, 85, 247, 0.06)', border: '1px solid rgba(168, 85, 247, 0.2)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', lineHeight: 1.4 }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', background: 'rgba(168, 85, 247, 0.06)', border: '1px solid rgba(168, 85, 247, 0.2)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', lineHeight: 1.4 }}>
                 <i className="ph-bold ph-info" style={{ color: 'var(--accent-purple)', marginRight: '4px' }}></i>
                 {t('analytics.overrideWarningNotice', '调整后，员工当日早退与达标底线将依据新班次强制下班时间实时刷新，且写入不可篡改的系统审计日志。')}
               </div>
@@ -5249,7 +5249,7 @@ export default function AnalyticsPage() {
                   <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                     {t('attendanceLeave.rejectTitle', '驳回员工请假申请')}
                   </h3>
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
                     {leaveTargetToReject.picName} ({leaveTargetToReject.startDate})
                   </p>
                 </div>

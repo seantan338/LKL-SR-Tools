@@ -7,14 +7,13 @@ import { useAuth } from '../lib/auth-context';
 import { useI18n } from '../lib/i18n-context';
 import { APP_VERSION } from '../lib/version';
 import { FirestoreStore } from '../lib/firestore-store';
-import { activeTheme, cycleTheme } from '../lib/theme-preference';
+import { LanguageToggle, ThemeToggle } from './ChromeToggles';
 
 export default function Sidebar({ isOpen, closeSidebar }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, userProfile, teamId: authTeamId, signOut, isOwner, isManager, isHqTeam } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
-  const [theme, setTheme] = useState('dark');
+  const { t } = useI18n();
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
 
   useEffect(() => {
@@ -53,19 +52,6 @@ export default function Sidebar({ isOpen, closeSidebar }) {
       unsubReads();
     };
   }, [user?.uid, userProfile?.uid, userProfile?.id, authTeamId, userProfile?.teamId]);
-
-  useEffect(() => {
-    setTheme(activeTheme());
-    const onThemeChange = (event) => {
-      setTheme(event?.detail?.theme || activeTheme());
-    };
-    window.addEventListener('themechange', onThemeChange);
-    return () => window.removeEventListener('themechange', onThemeChange);
-  }, []);
-
-  const toggleTheme = () => {
-    setTheme(cycleTheme(theme));
-  };
 
   const handleLogoClick = () => {
     router.push('/overview');
@@ -131,7 +117,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                       <span>{t(item.labelKey, item.fallback)}</span>
                       {item.path === '/announcements' && unreadAnnouncementsCount > 0 && (
                         <span style={{
-                          fontSize: '10px',
+                          fontSize: 'var(--text-xs)',
                           background: 'var(--color-danger)',
                           color: 'var(--accent-on)',
                           padding: '1px 6px',
@@ -143,7 +129,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                         </span>
                       )}
                       {item.ownerOnly && (
-                        <span style={{ fontSize: '10px', background: 'rgba(234, 179, 8, 0.15)', color: 'var(--accent-amber)', padding: '1px 5px', borderRadius: '4px', marginLeft: 'auto', fontWeight: '600' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', background: 'rgba(234, 179, 8, 0.15)', color: 'var(--accent-amber)', padding: '1px 5px', borderRadius: '4px', marginLeft: 'auto', fontWeight: '600' }}>
                           Owner
                         </span>
                       )}
@@ -179,7 +165,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 <span>{t('brand.statusConnected', 'Firebase Connected')}</span>
               </div>
               <span style={{
-                fontSize: '10px',
+                fontSize: 'var(--text-xs)',
                 fontWeight: '700',
                 color: 'var(--accent)',
                 background: 'var(--fill-selected)',
@@ -208,37 +194,16 @@ export default function Sidebar({ isOpen, closeSidebar }) {
             </Link>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', margin: '4px 0' }}>
-              <button 
-                type="button" 
-                className="sidebar-action-btn" 
-                onClick={toggleLang}
+              <LanguageToggle
+                variant="labeled"
+                className="sidebar-action-btn"
                 style={{ justifyContent: 'center', background: 'var(--fill)', borderRadius: 'var(--radius-md)' }}
-                title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
-                aria-label={lang === 'zh' ? t('header.switchLang', '切换为英文') : t('header.switchLang', 'Switch to Chinese')}
-              >
-                <i className="ph-light ph-translate"></i>
-                <span>{lang === 'zh' ? 'EN / 英文' : '中 / 中文'}</span>
-              </button>
-
-              <button 
-                type="button" 
-                className="sidebar-action-btn" 
-                onClick={toggleTheme}
+              />
+              <ThemeToggle
+                variant="labeled"
+                className="sidebar-action-btn"
                 style={{ justifyContent: 'center', background: 'var(--fill)', borderRadius: 'var(--radius-md)' }}
-                title={t(
-                  theme === 'gemini' ? 'extraUi.themeTitleGemini'
-                    : theme === 'tactical' ? 'extraUi.themeTitleTactical'
-                    : theme === 'light' ? 'extraUi.themeTitleLight'
-                    : 'extraUi.themeTitleDark',
-                  t('extraUi.switchTheme', '切换主题')
-                )}
-                aria-label={t('extraUi.switchTheme', '切换主题')}
-              >
-                {theme === 'dark' && <><i className="ph-light ph-moon"></i><span>{t('extraUi.themeDark', '深色')}</span></>}
-                {theme === 'gemini' && <><i className="ph-fill ph-sparkle" style={{ color: '#c084fc' }}></i><span>{t('extraUi.themeGemini', '宇宙')}</span></>}
-                {theme === 'tactical' && <><i className="ph-bold ph-crosshair" style={{ color: '#10b981' }}></i><span>{t('extraUi.themeTactical', '战术')}</span></>}
-                {theme === 'light' && <><i className="ph-light ph-sun" style={{ color: '#d97706' }}></i><span>{t('extraUi.themeLight', '浅色')}</span></>}
-              </button>
+              />
             </div>
 
             <button type="button" className="sidebar-action-btn" onClick={() => signOut()}>
@@ -251,7 +216,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 <img src={userProfile.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback'} alt="Avatar" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 'var(--text-xs)', fontWeight: '600', color: 'var(--text-primary)' }}>{userProfile.displayName || 'User'}</span>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Role: {userProfile.role || 'pending'}</span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Role: {userProfile.role || 'pending'}</span>
                 </div>
               </div>
             )}

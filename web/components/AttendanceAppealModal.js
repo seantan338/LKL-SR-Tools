@@ -164,7 +164,7 @@ export default function AttendanceAppealModal({
                 <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
                   {t('attendanceAppeal.title', '考勤异常申诉与补录申请')}
                 </h3>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
                   {t('attendanceAppeal.subtitle', '若因出差、外勤或系统故障导致打卡异常，可申请管理员核实补录')}
                 </p>
               </div>
@@ -242,7 +242,7 @@ export default function AttendanceAppealModal({
                   required
                 />
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
                 {t('attendanceAppeal.timeHint', '例如 10月29日因公外勤于 18:05 离岗，请如实申报 18:05')}
               </div>
             </div>
@@ -306,11 +306,11 @@ export default function AttendanceAppealModal({
 
             {/* Notice */}
             <div style={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
+              background: 'var(--fill-selected)',
+              border: '1px solid var(--border-focus)',
               borderRadius: 'var(--radius-sm)',
               padding: '8px 12px',
-              fontSize: '11px',
+              fontSize: 'var(--text-xs)',
               color: 'var(--text-secondary)',
               lineHeight: '1.4'
             }}>

@@ -19,7 +19,7 @@ export default function OrderStatusSelect({ order, onChange, style }) {
   return (
     <select
       className="form-select btn-sm"
-      style={{ width: 'auto', fontSize: '11px', padding: '2px 8px', height: '28px', background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', cursor: 'pointer', ...style }}
+      style={{ width: 'auto', fontSize: 'var(--text-xs)', padding: '2px 8px', height: '28px', background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', cursor: 'pointer', ...style }}
       value={order.status || 'open'}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}

@@ -8,6 +8,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
 import { isCandidateOwnedByUser, resolveCanonicalPic } from '../../../lib/identity.mjs';
 import CandidateDrawer from '../../../components/CandidateDrawer';
+import { EmptyState, Skeleton } from '../../../components/UiStates';
 import { doc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 
@@ -405,13 +406,13 @@ export default function CalendarPage() {
                         display: 'flex', 
                         alignItems: 'center', 
                         gap: '6px', 
-                        background: 'rgba(59, 130, 246, 0.12)', 
+                        background: 'var(--fill-selected)', 
                         padding: '3px 10px', 
                         borderRadius: 'var(--radius-full)', 
-                        border: '1px solid rgba(59, 130, 246, 0.3)' 
+                        border: '1px solid var(--border-focus)' 
                       }}
                     >
-                      <span style={{ fontSize: '11px', color: 'var(--accent-blue)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-blue)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <i className="ph ph-user"></i>
                         {t('calendar.advisor', '顾问:')}
                       </span>
@@ -422,7 +423,7 @@ export default function CalendarPage() {
                           background: 'transparent',
                           border: 'none',
                           color: 'var(--text-primary)',
-                          fontSize: '11px',
+                          fontSize: 'var(--text-xs)',
                           fontWeight: '600',
                           cursor: 'pointer',
                           outline: 'none'
@@ -443,11 +444,11 @@ export default function CalendarPage() {
                         display: 'flex', 
                         alignItems: 'center', 
                         gap: '6px', 
-                        background: 'rgba(59, 130, 246, 0.12)', 
+                        background: 'var(--fill-selected)', 
                         padding: '3px 10px', 
                         borderRadius: 'var(--radius-full)', 
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        fontSize: '11px',
+                        border: '1px solid var(--border-focus)',
+                        fontSize: 'var(--text-xs)',
                         color: 'var(--accent-blue)',
                         fontWeight: '600'
                       }}
@@ -490,10 +491,10 @@ export default function CalendarPage() {
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
-                    background: isAgendaOpen ? 'var(--accent-blue)' : 'rgba(59, 130, 246, 0.12)',
+                    background: isAgendaOpen ? 'var(--accent-blue)' : 'var(--fill-selected)',
                     color: isAgendaOpen ? '#ffffff' : 'var(--accent-blue)',
-                    border: isAgendaOpen ? '1px solid var(--accent-blue)' : '1px solid rgba(59, 130, 246, 0.35)',
-                    boxShadow: isAgendaOpen ? '0 2px 8px rgba(59, 130, 246, 0.3)' : 'none'
+                    border: isAgendaOpen ? '1px solid var(--accent-blue)' : '1px solid var(--border-focus)',
+                    boxShadow: isAgendaOpen ? '0 2px 8px var(--fill-selected)' : 'none'
                   }}
                   title={isAgendaOpen ? t('calendar.closeAgenda', '收起排期') : t('calendar.openAgenda', '面试日程')}
                 >
@@ -505,7 +506,7 @@ export default function CalendarPage() {
                       color: '#ffffff',
                       padding: '1px 6px',
                       borderRadius: 'var(--radius-pill)',
-                      fontSize: '10px',
+                      fontSize: 'var(--text-xs)',
                       fontWeight: '700',
                       lineHeight: '1.2'
                     }}>
@@ -520,8 +521,8 @@ export default function CalendarPage() {
             {currentMonthCount === 0 && otherScheduledMonths.length > 0 && (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 12px', background: 'rgba(59, 130, 246, 0.08)',
-                border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: 'var(--radius-md)',
+                padding: '8px 12px', background: 'var(--fill-selected)',
+                border: '1px solid var(--border-focus)', borderRadius: 'var(--radius-md)',
                 marginBottom: 'var(--space-3)', fontSize: '0.8rem', color: 'var(--text-secondary)',
                 flexShrink: 0
               }}>
@@ -539,7 +540,7 @@ export default function CalendarPage() {
                         key={ym}
                         onClick={() => jumpToMonth(ym)}
                         className="btn btn-secondary btn-sm"
-                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+                        style={{ padding: '2px 8px', fontSize: 'var(--text-xs)', height: 'auto', background: 'var(--fill-selected)', color: 'var(--accent-blue)', border: '1px solid var(--fill-selected)' }}
                       >
                         {t('calendar.goTo', '前往')} {t('calendar.yearMonth', { year: y, month: btnMonthDisplay }, formatYearMonth(parseInt(y, 10), mIndex))} ({scheduledMonthMap[ym]}) ➔
                       </button>
@@ -632,7 +633,7 @@ export default function CalendarPage() {
                       borderRight: colIndex === 6 ? 'none' : '1px solid var(--border-interactive)',
                       borderBottom: rowIndex === 5 ? 'none' : '1px solid var(--border-interactive)',
                       background: isSelected 
-                        ? 'rgba(59, 130, 246, 0.12)' 
+                        ? 'var(--fill-selected)' 
                         : (cell.isCurrentMonth ? 'transparent' : 'rgba(0,0,0,0.25)'),
                       boxShadow: isSelected ? 'inset 0 0 0 1.5px var(--accent-blue)' : 'none',
                       cursor: 'pointer',
@@ -682,14 +683,14 @@ export default function CalendarPage() {
 
                       {dayInterviews.length > 0 && (
                         <span style={{ 
-                          background: isSelected ? 'var(--accent-blue)' : 'rgba(59, 130, 246, 0.18)', 
+                          background: isSelected ? 'var(--accent-blue)' : 'var(--fill-selected)', 
                           color: isSelected ? '#ffffff' : 'var(--accent-blue)',
                           padding: '1px 6px', 
                           borderRadius: '10px', 
-                          fontSize: '10px', 
+                          fontSize: 'var(--text-xs)', 
                           fontWeight: '600',
                           fontFamily: 'var(--font-mono)',
-                          border: isSelected ? 'none' : '1px solid rgba(59, 130, 246, 0.3)'
+                          border: isSelected ? 'none' : '1px solid var(--border-focus)'
                         }}>
                           {dayInterviews.length}
                         </span>
@@ -721,7 +722,7 @@ export default function CalendarPage() {
                                 overflow: 'hidden'
                               }}
                             >
-                              <i className="ph-fill ph-lock-key" style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}></i>
+                              <i className="ph-fill ph-lock-key" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', flexShrink: 0 }}></i>
                               <span style={{
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
@@ -755,7 +756,7 @@ export default function CalendarPage() {
                               border: `1px solid ${tagBorder}`,
                               padding: '2px 5px', 
                               borderRadius: '4px', 
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               lineHeight: 1.3,
                               display: 'flex', 
                               alignItems: 'center', 
@@ -766,7 +767,7 @@ export default function CalendarPage() {
                           >
                             <span style={{ 
                               fontWeight: '700', 
-                              fontSize: '10px', 
+                              fontSize: 'var(--text-xs)', 
                               fontFamily: 'var(--font-mono)', 
                               flexShrink: 0 
                             }}>
@@ -795,11 +796,11 @@ export default function CalendarPage() {
                             setIsAgendaOpen(true);
                           }}
                           style={{ 
-                            fontSize: '10px', 
+                            fontSize: 'var(--text-xs)', 
                             color: 'var(--accent-blue)', 
                             fontWeight: '600',
                             padding: '1px 5px',
-                            background: 'rgba(59, 130, 246, 0.08)',
+                            background: 'var(--fill-selected)',
                             borderRadius: '3px',
                             width: 'fit-content',
                             cursor: 'pointer'
@@ -873,7 +874,7 @@ export default function CalendarPage() {
               <button
                 onClick={() => setAgendaTab('selected')}
                 style={{
-                  flex: 1, padding: '6px 8px', fontSize: '11px', fontWeight: agendaTab === 'selected' ? '600' : 'normal',
+                  flex: 1, padding: '6px 8px', fontSize: 'var(--text-xs)', fontWeight: agendaTab === 'selected' ? '600' : 'normal',
                   background: agendaTab === 'selected' ? 'var(--bg-card)' : 'transparent',
                   color: agendaTab === 'selected' ? 'var(--text-primary)' : 'var(--text-muted)',
                   border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s'
@@ -884,7 +885,7 @@ export default function CalendarPage() {
               <button
                 onClick={() => setAgendaTab('all')}
                 style={{
-                  flex: 1, padding: '6px 8px', fontSize: '11px', fontWeight: agendaTab === 'all' ? '600' : 'normal',
+                  flex: 1, padding: '6px 8px', fontSize: 'var(--text-xs)', fontWeight: agendaTab === 'all' ? '600' : 'normal',
                   background: agendaTab === 'all' ? 'var(--bg-card)' : 'transparent',
                   color: agendaTab === 'all' ? 'var(--text-primary)' : 'var(--text-muted)',
                   border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s'
@@ -915,25 +916,27 @@ export default function CalendarPage() {
               overflowY: 'auto', 
               paddingRight: '4px' 
             }}>
-              {activeAgendaDisplayItems.length === 0 ? (
-                <div className="empty-state" style={{ marginTop: 'var(--space-8)' }}>
-                  <div className="empty-state-icon"><i className="ph-light ph-calendar-blank"></i></div>
-                  <div className="empty-state-desc">
-                    {agendaTab === 'selected' 
-                      ? (viewMode === 'personal' ? `${selectedDate} ${t('calendar.noInterviewsScheduled', '暂无面试安排')}` : `${selectedDate} ${t('calendar.noInterviews', '暂无面试')}`) 
-                      : (viewMode === 'personal' ? t('calendar.noSchedules', '暂无任何已排期的面试') : t('calendar.noSchedules', '暂无任何已排期的面试'))
-                    }
-                  </div>
-                  {agendaTab === 'selected' && allScheduledCandidates.length > 0 && (
-                    <button 
-                      onClick={() => setAgendaTab('all')} 
+              {loading && candidates.length === 0 ? (
+                <Skeleton rows={5} />
+              ) : activeAgendaDisplayItems.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon="ph-calendar-blank"
+                  title={
+                    agendaTab === 'selected'
+                      ? (viewMode === 'personal' ? `${selectedDate} ${t('calendar.noInterviewsScheduled', '暂无面试安排')}` : `${selectedDate} ${t('calendar.noInterviews', '暂无面试')}`)
+                      : t('calendar.noSchedules', '暂无任何已排期的面试')
+                  }
+                  action={agendaTab === 'selected' && allScheduledCandidates.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setAgendaTab('all')}
                       className="btn btn-secondary btn-sm"
-                      style={{ marginTop: 'var(--space-3)', fontSize: '11px' }}
                     >
                       {t('calendar.viewOtherSchedules', '查看所有其他日期的面试')} ({allScheduledCandidates.length})
                     </button>
-                  )}
-                </div>
+                  ) : null}
+                />
               ) : (
                 activeAgendaDisplayItems.map(item => {
                   if (item.isMaskedGroup) {
@@ -970,14 +973,14 @@ export default function CalendarPage() {
                             color: 'var(--text-muted)',
                             padding: '1px 6px',
                             borderRadius: '4px',
-                            fontSize: '10px',
+                            fontSize: 'var(--text-xs)',
                             fontWeight: '600',
                             flexShrink: 0
                           }}>
                             {t('calendar.pdpaTag', isEn ? 'PDPA Protected' : 'PDPA 隐私保护')}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                           <span>
                             {t('calendar.pdpaMaskedNotice', isEn
                               ? 'Candidate names & contact details are hidden for other recruiters'
@@ -1036,13 +1039,13 @@ export default function CalendarPage() {
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <span style={{
                             background: 'rgba(255, 255, 255, 0.05)', color: statusColor,
-                            padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '500'
+                            padding: '1px 6px', borderRadius: '4px', fontSize: 'var(--text-xs)', fontWeight: '500'
                           }}>
                             {statusLabel}
                           </span>
                           <span style={{ 
-                            background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)',
-                            padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '600'
+                            background: 'var(--fill-selected)', color: 'var(--accent-blue)',
+                            padding: '1px 6px', borderRadius: '4px', fontSize: 'var(--text-xs)', fontWeight: '600'
                           }}>
                             {displayTime}
                           </span>
@@ -1083,14 +1086,14 @@ export default function CalendarPage() {
                           type="button"
                           className="btn btn-secondary btn-xs"
                           style={{
-                            fontSize: '10px',
+                            fontSize: 'var(--text-xs)',
                             padding: '2px 8px',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
                             borderRadius: '4px',
                             color: 'var(--accent-blue)',
-                            borderColor: 'rgba(59, 130, 246, 0.3)',
+                            borderColor: 'var(--border-focus)',
                             flexShrink: 0
                           }}
                           onClick={(e) => {

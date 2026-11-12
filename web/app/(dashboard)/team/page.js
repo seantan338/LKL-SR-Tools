@@ -503,9 +503,9 @@ export default function TeamPage() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: 'var(--space-4)',
-                      background: 'rgba(59, 130, 246, 0.05)',
+                      background: 'var(--fill-selected)',
                       borderRadius: 'var(--radius-lg)',
-                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      border: '1px solid var(--border-focus)',
                       boxShadow: 'var(--shadow-card)',
                       flexWrap: 'wrap',
                       gap: '12px'
@@ -514,13 +514,13 @@ export default function TeamPage() {
                         <div style={{
                           width: '40px', height: '40px',
                           borderRadius: '50%',
-                          background: 'rgba(59, 130, 246, 0.15)',
+                          background: 'var(--fill-selected)',
                           color: 'var(--accent-blue)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontWeight: '700',
-                          border: '1px solid rgba(59, 130, 246, 0.3)'
+                          border: '1px solid var(--border-focus)'
                         }}>
                           {(invite.displayName || invite.email || '?').charAt(0).toUpperCase()}
                         </div>
@@ -533,7 +533,7 @@ export default function TeamPage() {
                               background: 'rgba(245, 158, 11, 0.15)',
                               color: 'var(--accent-amber)',
                               borderColor: 'rgba(245, 158, 11, 0.3)',
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px'
@@ -551,13 +551,13 @@ export default function TeamPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                         {/* Team Badge */}
                         <span style={{
-                          fontSize: '11px',
+                          fontSize: 'var(--text-xs)',
                           fontWeight: '600',
                           padding: '3px 8px',
                           borderRadius: 'var(--radius-sm)',
-                          background: isHq ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          background: isHq ? 'var(--fill-selected)' : 'rgba(245, 158, 11, 0.1)',
                           color: isHq ? 'var(--accent-blue)' : 'var(--accent-amber)',
-                          border: `1px solid ${isHq ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                          border: `1px solid ${isHq ? 'var(--border-focus)' : 'rgba(245, 158, 11, 0.2)'}`,
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px'
@@ -569,7 +569,7 @@ export default function TeamPage() {
                         {/* Role Badge */}
                         <span className="badge" style={{
                           color: invite.role === 'owner' ? 'var(--accent-rose)' : invite.role === 'manager' ? 'var(--accent-amber)' : 'var(--accent-blue)',
-                          background: invite.role === 'owner' ? 'rgba(244,63,94,0.1)' : invite.role === 'manager' ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)',
+                          background: invite.role === 'owner' ? 'rgba(244,63,94,0.1)' : invite.role === 'manager' ? 'rgba(245,158,11,0.1)' : 'var(--fill-selected)',
                           borderColor: 'transparent',
                           fontWeight: '600'
                         }}>
@@ -583,7 +583,7 @@ export default function TeamPage() {
                             background: 'rgba(139, 92, 246, 0.12)',
                             borderColor: 'rgba(139, 92, 246, 0.25)',
                             fontWeight: '600',
-                            fontSize: '11px'
+                            fontSize: 'var(--text-xs)'
                           }}>
                             WFH
                           </span>
@@ -773,7 +773,7 @@ export default function TeamPage() {
                               background: 'rgba(245, 158, 11, 0.15)',
                               color: 'var(--accent-amber)',
                               borderColor: 'transparent',
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600'
                             }}>
                               <i className="ph-bold ph-eye" style={{ marginRight: '3px' }}></i>
@@ -796,7 +796,7 @@ export default function TeamPage() {
                               background: isCurrentlyViewing ? 'var(--accent-amber)' : 'var(--input-bg)',
                               color: isCurrentlyViewing ? '#000' : 'var(--text-primary)',
                               border: '1px solid var(--border-interactive)',
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               padding: '4px 10px'
                             }}
@@ -839,7 +839,7 @@ export default function TeamPage() {
                       color: teamFilter === 'all' ? '#fff' : 'var(--text-muted)',
                       padding: '3px 10px',
                       borderRadius: 'var(--radius-full)',
-                      fontSize: '11px',
+                      fontSize: 'var(--text-xs)',
                       fontWeight: '600',
                       cursor: 'pointer'
                     }}
@@ -854,7 +854,7 @@ export default function TeamPage() {
                       color: teamFilter === 'default_team' ? '#fff' : 'var(--text-muted)',
                       padding: '3px 10px',
                       borderRadius: 'var(--radius-full)',
-                      fontSize: '11px',
+                      fontSize: 'var(--text-xs)',
                       fontWeight: '600',
                       cursor: 'pointer'
                     }}
@@ -871,7 +871,7 @@ export default function TeamPage() {
                         color: teamFilter === l.childTeamId ? '#000' : 'var(--text-muted)',
                         padding: '3px 10px',
                         borderRadius: 'var(--radius-full)',
-                        fontSize: '11px',
+                        fontSize: 'var(--text-xs)',
                         fontWeight: '600',
                         cursor: 'pointer'
                       }}
@@ -930,14 +930,14 @@ export default function TeamPage() {
                             borderRadius: '50%', 
                             background: (isOwner && !isHqMember) 
                               ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.18) 100%)'
-                              : 'linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(139, 92, 246, 0.18) 100%)',
+                              : 'linear-gradient(135deg, var(--fill-selected) 0%, rgba(139, 92, 246, 0.18) 100%)',
                             color: (isOwner && !isHqMember) ? 'var(--accent-amber)' : 'var(--accent-blue)',
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: 'center', 
                             fontWeight: '700',
                             fontSize: '1rem',
-                            border: `1px solid ${(isOwner && !isHqMember) ? 'rgba(245, 158, 11, 0.25)' : 'rgba(59, 130, 246, 0.25)'}`,
+                            border: `1px solid ${(isOwner && !isHqMember) ? 'rgba(245, 158, 11, 0.25)' : 'var(--border-focus)'}`,
                             zIndex: 0
                           }}
                         >
@@ -954,18 +954,18 @@ export default function TeamPage() {
                           {/* Team Badge: Strictly visible ONLY to Owner */}
                           {isOwner && (
                             <span style={{
-                              fontSize: '10px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: '600',
                               padding: '2px 7px',
                               borderRadius: 'var(--radius-sm)',
-                              background: isHqMember ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                              background: isHqMember ? 'var(--fill-selected)' : 'rgba(245, 158, 11, 0.1)',
                               color: isHqMember ? 'var(--accent-blue)' : 'var(--accent-amber)',
-                              border: `1px solid ${isHqMember ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                              border: `1px solid ${isHqMember ? 'var(--border-focus)' : 'rgba(245, 158, 11, 0.2)'}`,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px'
                             }}>
-                              <i className={isHqMember ? "ph-bold ph-buildings" : "ph-bold ph-handshake"} style={{ fontSize: '11px' }}></i>
+                              <i className={isHqMember ? "ph-bold ph-buildings" : "ph-bold ph-handshake"} style={{ fontSize: 'var(--text-xs)' }}></i>
                               <span>{isHqMember ? (isEn ? 'HQ' : '本部') : (partnerInfo?.childTeamName || member.teamId)}</span>
                             </span>
                           )}
@@ -976,7 +976,7 @@ export default function TeamPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                         <span className="badge" style={{ 
                           color: member.role === 'owner' ? 'var(--accent-rose)' : member.role === 'manager' ? 'var(--accent-amber)' : 'var(--accent-blue)', 
-                          background: member.role === 'owner' ? 'rgba(244,63,94,0.1)' : member.role === 'manager' ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)',
+                          background: member.role === 'owner' ? 'rgba(244,63,94,0.1)' : member.role === 'manager' ? 'rgba(245,158,11,0.1)' : 'var(--fill-selected)',
                           borderColor: 'transparent',
                           fontWeight: '600'
                         }}>
@@ -990,7 +990,7 @@ export default function TeamPage() {
                             background: 'rgba(139, 92, 246, 0.12)',
                             borderColor: 'rgba(139, 92, 246, 0.25)',
                             fontWeight: '600',
-                            fontSize: '11px',
+                            fontSize: 'var(--text-xs)',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '3px'
@@ -1151,7 +1151,7 @@ export default function TeamPage() {
                       outline: 'none'
                     }}
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                     {isEn ? 'Letters, numbers, and underscores, used as Firestore Team Collection ID.' : '字母数字及下划线，作为 Firestore 团队集合定位 ID。'}
                   </span>
                 </div>
@@ -1159,8 +1159,8 @@ export default function TeamPage() {
                 {/* Security and Visibility Notice */}
                 <div style={{
                   padding: 'var(--space-4)',
-                  background: 'rgba(59, 130, 246, 0.08)',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  background: 'var(--fill-selected)',
+                  border: '1px solid var(--border-focus)',
                   borderRadius: 'var(--radius-md)',
                   fontSize: 'var(--text-xs)',
                   color: 'var(--text-secondary)',
@@ -1240,7 +1240,7 @@ export default function TeamPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '36px', height: '36px', borderRadius: '50%',
-                    background: 'rgba(59, 130, 246, 0.15)',
+                    background: 'var(--fill-selected)',
                     color: 'var(--accent-blue)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '1.2rem'
@@ -1341,7 +1341,7 @@ export default function TeamPage() {
                       </option>
                     ))}
                   </select>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                     {!isOwner
                       ? (isEn ? 'Only Owner can reassign member teams.' : '仅 Owner 可调配成员归属团队。')
                       : (isEn ? 'After reassignment, this member can only access the selected team data. Isolation rules take effect immediately.' : '调配团队后，该成员将仅能查看所选团队的数据，隔离规则立即生效。')}
@@ -1374,12 +1374,12 @@ export default function TeamPage() {
                     <option value="recruiter">{t('team.recruiterOpt', 'Recruiter (招聘员)')}</option>
                   </select>
                   {editingMember.id === userProfile?.uid && (
-                    <span style={{ fontSize: '11px', color: 'var(--accent-amber)', marginTop: '4px', display: 'block' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-amber)', marginTop: '4px', display: 'block' }}>
                       {isEn ? 'Cannot modify your own Owner role to prevent accidental lockout.' : '为防止误操作失去系统管理权限，不可修改自身账号的 Owner 角色。'}
                     </span>
                   )}
                   {!isOwner && (
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                       {isEn ? 'Only Owner can change member roles.' : '仅 Owner 可变更成员系统角色。'}
                     </span>
                   )}
@@ -1402,7 +1402,7 @@ export default function TeamPage() {
                         <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
                           {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                           {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
                         </div>
                       </div>
@@ -1435,8 +1435,8 @@ export default function TeamPage() {
                 {/* Information Notice (Strictly no emojis) */}
                 <div style={{
                   padding: 'var(--space-3) var(--space-4)',
-                  background: 'rgba(59, 130, 246, 0.08)',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  background: 'var(--fill-selected)',
+                  border: '1px solid var(--border-focus)',
                   borderRadius: 'var(--radius-md)',
                   fontSize: 'var(--text-xs)',
                   color: 'var(--text-secondary)',
@@ -1516,7 +1516,7 @@ export default function TeamPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '36px', height: '36px', borderRadius: '50%',
-                    background: 'rgba(59, 130, 246, 0.15)',
+                    background: 'var(--fill-selected)',
                     color: 'var(--accent-blue)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '1.2rem'
@@ -1567,7 +1567,7 @@ export default function TeamPage() {
                       cursor: editingInviteId ? 'not-allowed' : 'text'
                     }}
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                     {isEn ? 'The Google email address the employee will use to sign in.' : '员工后续用于登录系统的 Google 账号邮箱。'}
                   </span>
                 </div>
@@ -1594,7 +1594,7 @@ export default function TeamPage() {
                       outline: 'none'
                     }}
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                     {isEn ? 'Used for candidate ownership alignment (PIC) and sheets auto-matching.' : '用于候选人经办人归属 (PIC) 自动对齐及表格同构映射。'}
                   </span>
                 </div>
@@ -1664,7 +1664,7 @@ export default function TeamPage() {
                     background: 'var(--input-bg)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '11px',
+                    fontSize: 'var(--text-xs)',
                     color: 'var(--text-secondary)',
                     lineHeight: '1.6'
                   }}>
@@ -1696,7 +1696,7 @@ export default function TeamPage() {
                       <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
                         {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                         {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
                       </div>
                     </div>
@@ -1791,7 +1791,7 @@ export default function TeamPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{
                     width: '36px', height: '36px', borderRadius: '50%',
-                    background: 'rgba(59, 130, 246, 0.15)',
+                    background: 'var(--fill-selected)',
                     color: 'var(--accent-blue)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '1.2rem'
@@ -1821,8 +1821,8 @@ export default function TeamPage() {
                 {/* Applicant Summary */}
                 <div style={{
                   padding: '12px 14px',
-                  background: 'rgba(59, 130, 246, 0.05)',
-                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                  background: 'var(--fill-selected)',
+                  border: '1px solid var(--border-focus)',
                   borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1830,7 +1830,7 @@ export default function TeamPage() {
                 }}>
                   <div style={{
                     width: '36px', height: '36px', borderRadius: '50%',
-                    background: 'rgba(59, 130, 246, 0.2)',
+                    background: 'var(--fill-selected)',
                     color: 'var(--accent-blue)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontWeight: '700'
@@ -1841,7 +1841,7 @@ export default function TeamPage() {
                     <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: 'var(--text-sm)' }}>
                       {approvingUser.displayName || t('team.unnamedUser', '未命名用户')}
                     </div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
                       {approvingUser.email}
                     </div>
                   </div>
@@ -1936,7 +1936,7 @@ export default function TeamPage() {
                     background: 'var(--input-bg)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '11px',
+                    fontSize: 'var(--text-xs)',
                     color: 'var(--text-secondary)',
                     lineHeight: '1.6'
                   }}>
@@ -1968,7 +1968,7 @@ export default function TeamPage() {
                       <div style={{ fontSize: 'var(--text-sm)', fontWeight: '600', color: 'var(--text-primary)' }}>
                         {t('team.wfhPermissionLabel', '允许居家办公 (WFH) 打卡')}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                         {t('team.wfhPermissionDesc', '开启后该员工在打卡时将呈现「WFH」通道，无需连接办公室网络即可签到；关闭后仅能使用办公室打卡。')}
                       </div>
                     </div>

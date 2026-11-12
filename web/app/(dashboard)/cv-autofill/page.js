@@ -1078,7 +1078,7 @@ function CvAutofillContent() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '5px',
-                    fontSize: '11px',
+                    fontSize: 'var(--text-xs)',
                     padding: '4px 10px',
                     color: 'var(--accent-purple)',
                     borderColor: 'rgba(168, 85, 247, 0.4)',
@@ -1214,7 +1214,7 @@ function CvAutofillContent() {
                               {(aiFile.size / 1024).toFixed(1)} KB
                             </span>
                             <span style={{
-                              fontSize: '11px',
+                              fontSize: 'var(--text-xs)',
                               padding: '1px 7px',
                               borderRadius: '4px',
                               background: aiFilePreview ? 'rgba(16, 185, 129, 0.15)' : 'rgba(168, 85, 247, 0.15)',
@@ -1236,7 +1236,7 @@ function CvAutofillContent() {
                             color: 'var(--text-muted)',
                             borderRadius: 'var(--radius-pill)',
                             padding: '4px 12px',
-                            fontSize: '11px',
+                            fontSize: 'var(--text-xs)',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -1247,7 +1247,7 @@ function CvAutofillContent() {
                           onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-rose)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'; e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                         >
-                          <i className="ph-bold ph-x" style={{ fontSize: '11px' }}></i>
+                          <i className="ph-bold ph-x" style={{ fontSize: 'var(--text-xs)' }}></i>
                           <span>{t('cvAutofill.removeFile', '移除文件')}</span>
                         </button>
                       </div>
@@ -1342,7 +1342,7 @@ function CvAutofillContent() {
                   marginBottom: '16px',
                   padding: '12px 16px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.12) 100%)',
+                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, var(--fill-selected) 100%)',
                   border: '1px solid rgba(168, 85, 247, 0.35)',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -1362,7 +1362,7 @@ function CvAutofillContent() {
                     <div>
                       <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>{t('cvAutofill.loadedBannerTitle', '已载入人才库档案:')} {loadedCandidate.name}</span>
-                        <span className="badge badge-purple" style={{ fontSize: '11px', padding: '1px 6px' }}>{loadedCandidate.phone || t('candidates.noPhone', '未留电话')}</span>
+                        <span className="badge badge-purple" style={{ fontSize: 'var(--text-xs)', padding: '1px 6px' }}>{loadedCandidate.phone || t('candidates.noPhone', '未留电话')}</span>
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                         {t('cvAutofill.loadedBannerDesc', '已为您自动填入右侧 Sunrise 模板结构；您可直接核对微调并导出 Word，或完善后保存更新该档案。')}
@@ -1421,7 +1421,7 @@ function CvAutofillContent() {
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>{t('cvAutofill.labelAddress', '居住地址 (Address)')}</span>
                       {isUnspecified(formData.location) && (
-                        <span className="badge" style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
+                        <span className="badge" style={{ fontSize: 'var(--text-xs)', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
                       )}
                     </label>
                     <input 
@@ -1443,7 +1443,7 @@ function CvAutofillContent() {
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>{t('cvAutofill.labelAvailability', '到岗时间 (Availability)')}</span>
                       {isUnspecified(formData.availability) && (
-                        <span className="badge" style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
+                        <span className="badge" style={{ fontSize: 'var(--text-xs)', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
                       )}
                     </label>
                     <input 
@@ -1501,7 +1501,7 @@ function CvAutofillContent() {
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>{t('cvAutofill.labelLastDrawn', '上一份薪水 (Last Drawn)')}</span>
                       {isUnspecified(formData.lastDrawnSalary) && (
-                        <span className="badge" style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
+                        <span className="badge" style={{ fontSize: 'var(--text-xs)', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
                       )}
                     </label>
                     <input 
@@ -1519,7 +1519,7 @@ function CvAutofillContent() {
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span>{t('cvAutofill.labelExpected', '期望薪资 (Expected)')}</span>
                       {isUnspecified(formData.expectedSalary) && (
-                        <span className="badge" style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
+                        <span className="badge" style={{ fontSize: 'var(--text-xs)', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '1px 5px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
                       )}
                     </label>
                     <input 
@@ -1550,7 +1550,7 @@ function CvAutofillContent() {
                     type="button" 
                     className="btn btn-sm btn-secondary" 
                     onClick={handleAddWorkExp}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 10px' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', padding: '3px 10px' }}
                   >
                     <i className="ph-bold ph-plus"></i> {t('cvAutofill.btnAddExperience', '添加工作经历')}
                   </button>
@@ -1569,7 +1569,7 @@ function CvAutofillContent() {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span className="badge" style={{ color: 'var(--accent-purple)', background: 'rgba(168, 85, 247, 0.1)', borderColor: 'rgba(168, 85, 247, 0.3)', fontSize: '11px' }}>
+                        <span className="badge" style={{ color: 'var(--accent-purple)', background: 'rgba(168, 85, 247, 0.1)', borderColor: 'rgba(168, 85, 247, 0.3)', fontSize: 'var(--text-xs)' }}>
                           {t('cvAutofill.badgeExpItem', { num: jIdx + 1 }, `经历 #${jIdx + 1}`)} {jIdx === 0 ? t('cvAutofill.badgePrimaryExp', '(最近一份工作 / Primary)') : ''}
                         </span>
                         {formData.professionalHistory.length > 1 && (
@@ -1587,7 +1587,7 @@ function CvAutofillContent() {
 
                       <div className="cv-form-grid cv-grid-job-header">
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelCompany', '任职单位 (Company)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></label>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelCompany', '任职单位 (Company)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></label>
                           <input 
                             type="text" 
                             className="form-input" 
@@ -1597,7 +1597,7 @@ function CvAutofillContent() {
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelPosition', '担任职位 (Position)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></label>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelPosition', '担任职位 (Position)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></label>
                           <input 
                             type="text" 
                             className="form-input" 
@@ -1607,7 +1607,7 @@ function CvAutofillContent() {
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelPeriod', '在职时期 (Period)')}</label>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelPeriod', '在职时期 (Period)')}</label>
                           <input 
                             type="text" 
                             className="form-input" 
@@ -1620,7 +1620,7 @@ function CvAutofillContent() {
 
                       <div className="cv-form-grid cv-grid-job-salary-reason">
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span>{t('cvAutofill.labelExpSalary', '薪资 (Last Drawn Salary)')}</span>
                             {isUnspecified(job.lastDrawnSalary) && (
                               <span className="badge" style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '0 4px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
@@ -1637,7 +1637,7 @@ function CvAutofillContent() {
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span><i className="ph ph-door-open"></i> {t('cvAutofill.labelReasonForLeaving', '离职原因 (Reason for Leaving)')}</span>
                             {isUnspecified(job.reasonForLeaving) && (
                               <span className="badge" style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '0 4px' }}>{t('cvAutofill.badgeVerifyNeeded', '⚠️ 待向候选人核实')}</span>
@@ -1656,7 +1656,7 @@ function CvAutofillContent() {
                       </div>
 
                       <div className="form-group" style={{ marginTop: '10px', marginBottom: 0 }}>
-                        <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelResponsibilities', '工作职责与业绩 (Job Responsibilities - 每行一项)')}</label>
+                        <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelResponsibilities', '工作职责与业绩 (Job Responsibilities - 每行一项)')}</label>
                         <textarea 
                           className="form-input" 
                           value={job.responsibilities} 
@@ -1702,7 +1702,7 @@ function CvAutofillContent() {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span className="badge" style={{ color: 'var(--accent-emerald)', background: 'rgba(168, 85, 247, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: '11px' }}>
+                        <span className="badge" style={{ color: 'var(--accent-emerald)', background: 'rgba(168, 85, 247, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)', fontSize: 'var(--text-xs)' }}>
                           {t('cvAutofill.badgeEduItem', { num: eIdx + 1 }, `学历 #${eIdx + 1}`)} {eIdx === 0 ? t('cvAutofill.badgePrimaryEdu', '(最高 / 最近学历)') : ''}
                         </span>
                         {(formData.educationList?.length > 1) && (
@@ -1720,7 +1720,7 @@ function CvAutofillContent() {
 
                       <div className="cv-form-grid cv-grid-edu-header">
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span>{t('cvAutofill.labelSchool', '毕业院校 (School)')} <span style={{ color: 'var(--accent-rose)' }}>*</span></span>
                             {isUnspecified(edu.school) && (
                               <span className="badge" style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--accent-amber)', borderColor: 'rgba(245, 158, 11, 0.4)', padding: '0 4px' }}>{t('cvAutofill.badgeUnspecified', '⚠️ 未注明')}</span>
@@ -1737,7 +1737,7 @@ function CvAutofillContent() {
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelDegree', '学历等级 (Degree)')}</label>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelDegree', '学历等级 (Degree)')}</label>
                           <input 
                             type="text" 
                             className="form-input" 
@@ -1749,7 +1749,7 @@ function CvAutofillContent() {
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelMajor', '主修专业 (Major)')}</label>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelMajor', '主修专业 (Major)')}</label>
                           <input 
                             type="text" 
                             className="form-input" 
@@ -1761,7 +1761,7 @@ function CvAutofillContent() {
                           />
                         </div>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px' }}>{t('cvAutofill.labelGradYear', '毕业年份 (Year)')}</label>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)' }}>{t('cvAutofill.labelGradYear', '毕业年份 (Year)')}</label>
                           <input 
                             type="text" 
                             className="form-input" 
@@ -1776,9 +1776,9 @@ function CvAutofillContent() {
 
                       <div style={{ marginTop: '10px' }}>
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label className="form-label" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <label className="form-label" style={{ fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span>{t('cvAutofill.labelQualification', '资质 / 文凭全称 (Qualification - Sunrise Word 报告展示)')}</span>
-                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t('cvAutofill.qualificationHint', '优先保留原汁原味 (如包含 Honours 荣誉学士或 of/in 等学术格式)')}</span>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('cvAutofill.qualificationHint', '优先保留原汁原味 (如包含 Honours 荣誉学士或 of/in 等学术格式)')}</span>
                           </label>
                           <input 
                             type="text" 
@@ -1883,7 +1883,7 @@ function CvAutofillContent() {
                   className="btn btn-secondary" 
                   onClick={handleExportDocx} 
                   disabled={isExporting}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--fill-selected)', color: 'var(--accent-blue)', border: '1px solid var(--fill-selected)' }}
                 >
                   {isExporting ? (
                     <><i className="ph-light ph-spinner ph-spin"></i> {t('cvAutofill.btnExporting', '正在生成...')}</>
@@ -1987,9 +1987,9 @@ function CvAutofillContent() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{c.name}</span>
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{c.phone || t('candidates.noPhone', '未留电话')}</span>
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{c.phone || t('candidates.noPhone', '未留电话')}</span>
                           {c.gender && (
-                            <span className="badge" style={{ fontSize: '10px', padding: '1px 5px' }}>{c.gender}</span>
+                            <span className="badge" style={{ fontSize: 'var(--text-xs)', padding: '1px 5px' }}>{c.gender}</span>
                           )}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', gap: '10px' }}>

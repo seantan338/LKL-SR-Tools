@@ -339,7 +339,7 @@ const [templates, setTemplates] = useState([]);
                                   fontSize: '0.75rem', 
                                   border: '1px solid',
                                   borderColor: isSelected ? 'var(--accent-blue)' : 'var(--border-subtle)',
-                                  background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                                  background: isSelected ? 'var(--fill-selected)' : 'transparent',
                                   color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
                                   cursor: 'pointer',
                                   whiteSpace: 'nowrap'

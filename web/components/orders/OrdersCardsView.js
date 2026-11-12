@@ -32,7 +32,7 @@ export default function OrdersCardsView({ orders, onOpen, onQuickStatusChange })
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <i className="ph-light ph-buildings"></i> {order.company || t('components.orderDrawer.unnamedCompany')}
                 </div>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }} title={order.createdAt ? Utils.formatDate(order.createdAt) : ''}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }} title={order.createdAt ? Utils.formatDate(order.createdAt) : ''}>
                   <i className="ph-light ph-clock"></i>
                   {Utils.formatRelativeTime(order.createdAt, t, order)}
                 </span>
@@ -48,7 +48,7 @@ export default function OrdersCardsView({ orders, onOpen, onQuickStatusChange })
                   <i className="ph-light ph-map-pin" style={{ marginRight: '4px' }}></i>
                   {order.location || t('orders.locationAny')}
                 </span>
-                <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+                <span className="badge" style={{ color: 'var(--accent-blue)', borderColor: 'var(--border-focus)' }}>
                   <i className="ph-light ph-users" style={{ marginRight: '4px' }}></i>
                   {t('orders.headcountReq')} {order.headcount || 1} {t('orders.pax')}
                 </span>

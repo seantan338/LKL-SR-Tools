@@ -9,7 +9,7 @@ import { SystemLogger } from '../../../lib/logger';
 import { Utils } from '../../../lib/utils';
 
 const CATEGORIES_META = {
-  feature: { icon: 'ph-lightbulb', color: 'var(--accent-blue)', bg: 'rgba(59, 130, 246, 0.1)' },
+  feature: { icon: 'ph-lightbulb', color: 'var(--accent-blue)', bg: 'var(--fill-selected)' },
   bug: { icon: 'ph-bug', color: 'var(--accent-rose)', bg: 'rgba(244, 63, 94, 0.1)' },
   ux: { icon: 'ph-paint-brush', color: 'var(--accent-purple)', bg: 'rgba(168, 85, 247, 0.1)' },
   other: { icon: 'ph-chat-circle-text', color: 'var(--accent-amber)', bg: 'rgba(245, 158, 11, 0.1)' },
@@ -431,8 +431,8 @@ export default function FeedbackPage() {
                 {item.adminNote && (
                   <div style={{ 
                     padding: 'var(--space-3)', 
-                    background: 'rgba(59, 130, 246, 0.05)', 
-                    border: '1px solid rgba(59, 130, 246, 0.2)', 
+                    background: 'var(--fill-selected)', 
+                    border: '1px solid var(--border-focus)', 
                     borderRadius: 'var(--radius-sm)',
                     fontSize: 'var(--text-xs)',
                     color: 'var(--text-primary)',

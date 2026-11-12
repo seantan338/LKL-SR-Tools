@@ -18,6 +18,7 @@ import CommissionDealModal from '../../../components/CommissionDealModal';
 import WhatsAppButton from '../../../components/WhatsAppButton';
 import { DragDropContext, Draggable } from '@hello-pangea/dnd';
 import { StrictModeDroppable } from '../../../components/StrictModeDroppable';
+import { EmptyState, Skeleton } from '../../../components/UiStates';
 import ScrollContainer from 'react-indiana-drag-scroll';
 import { useCandidatesViewPrefs } from '../../../lib/candidates-view-prefs';
 import {
@@ -421,6 +422,22 @@ function CandidatesContent() {
     setReasonFilter('all');
   };
 
+  const renderCandidatePlaceholder = () => {
+    if (loading && candidates.length === 0) return <Skeleton rows={6} />;
+    return (
+      <EmptyState
+        compact
+        icon={poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}
+        title={poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
+        action={hasActiveFilters ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+            <i className="ph-light ph-x"></i> {t('candidates.clearFilters', '清除筛选')}
+          </button>
+        ) : null}
+      />
+    );
+  };
+
   const handleColumnSort = (key) => {
     updateViewPrefs(
       viewPrefs.sortKey === key
@@ -723,7 +740,7 @@ function CandidatesContent() {
                   background: poolTab === 'active' ? 'var(--accent-blue)' : 'transparent',
                   color: poolTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
                   border: 'none',
-                  boxShadow: poolTab === 'active' ? '0 2px 8px rgba(59, 130, 246, 0.35)' : 'none',
+                  boxShadow: poolTab === 'active' ? '0 2px 8px var(--fill-selected)' : 'none',
                 }}
               >
                 <i className="ph-fill ph-sparkle" style={{ fontSize: '13px' }}></i>
@@ -1124,7 +1141,7 @@ function CandidatesContent() {
                                                 width: '26px', 
                                                 height: '26px', 
                                                 borderRadius: '50%', 
-                                                background: 'rgba(59, 130, 246, 0.15)', 
+                                                background: 'var(--fill-selected)', 
                                                 color: 'var(--accent-blue)', 
                                                 display: 'flex', 
                                                 alignItems: 'center', 
@@ -1187,8 +1204,8 @@ function CandidatesContent() {
                                                   fontSize: 'var(--text-xs)',
                                                   fontWeight: 600,
                                                   borderRadius: 'var(--radius-pill)',
-                                                  border: `1px solid ${scheduled ? 'rgba(59, 130, 246, 0.35)' : 'rgba(245, 158, 11, 0.4)'}`,
-                                                  background: scheduled ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                                  border: `1px solid ${scheduled ? 'var(--border-focus)' : 'rgba(245, 158, 11, 0.4)'}`,
+                                                  background: scheduled ? 'var(--fill-selected)' : 'rgba(245, 158, 11, 0.1)',
                                                   color: scheduled ? 'var(--accent-blue)' : 'var(--accent-amber)',
                                                   cursor: 'pointer'
                                                 }}
@@ -1203,12 +1220,12 @@ function CandidatesContent() {
                                           {(c.school || c.department) && (
                                             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginTop: '6px' }}>
                                               {c.department && (
-                                                <span className="tag-pill" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', background: 'rgba(59, 130, 246, 0.08)', color: 'var(--accent-blue)' }}>
+                                                <span className="tag-pill" style={{ fontSize: 'var(--text-xs)', padding: '0.1rem 0.4rem', background: 'var(--fill-selected)', color: 'var(--accent-blue)' }}>
                                                   {c.department}
                                                 </span>
                                               )}
                                               {c.school && (
-                                                <span className="tag-pill" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                                                <span className="tag-pill" style={{ fontSize: 'var(--text-xs)', padding: '0.1rem 0.4rem' }}>
                                                   {c.school}
                                                 </span>
                                               )}
@@ -1277,7 +1294,7 @@ function CandidatesContent() {
                         }}
                         title={t('candidates.columnChooserTooltip', '设定表格要显示的列')}
                         style={{
-                          background: isColumnChooserOpen ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                          background: isColumnChooserOpen ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.06)',
                           border: '1px solid var(--border-subtle)',
                           borderRadius: '4px',
                           padding: '2px 5px',
@@ -1316,7 +1333,7 @@ function CandidatesContent() {
                             }}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div style={{ padding: '4px 8px 6px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-hairline)', marginBottom: '4px' }}>
+                            <div style={{ padding: '4px 8px 6px', fontSize: 'var(--text-xs)', fontWeight: '600', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-hairline)', marginBottom: '4px' }}>
                               {t('candidates.columnChooserTitle', '自定义显示列')}
                             </div>
                             {CANDIDATE_COLUMN_DEFS.map(col => (
@@ -1413,9 +1430,8 @@ function CandidatesContent() {
                       (visibleColumns.remarks ? 1 : 0) +
                       (visibleColumns.updatedAt ? 1 : 0) +
                       1
-                    } style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`} style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block', color: poolTab === 'reserved' ? 'var(--accent-amber)' : undefined }}></i>
-                      {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
+                    } style={{ padding: 'var(--space-6)', textAlign: 'center' }}>
+                      {renderCandidatePlaceholder()}
                     </td>
                   </tr>
                 ) : (
@@ -1432,7 +1448,7 @@ function CandidatesContent() {
                           borderBottom: '1px solid var(--border-hairline)', 
                           transition: 'background 0.2s, opacity 0.2s',
                           background: isSelected 
-                            ? 'rgba(59, 130, 246, 0.08)' 
+                            ? 'var(--fill-selected)' 
                             : (c.status === 'rejected' ? 'rgba(244, 63, 94, 0.03)' : 'transparent'),
                           opacity: c.status === 'rejected' && !isSelected ? 0.8 : 1,
                           cursor: 'pointer'
@@ -1452,14 +1468,14 @@ function CandidatesContent() {
                         )}
                         <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(59, 130, 246, 0.1)', color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.875rem', flexShrink: 0 }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'var(--fill-selected)', color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.875rem', flexShrink: 0 }}>
                               {c.name ? c.name.charAt(0) : '?'}
                             </div>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <div style={{ color: 'var(--text-primary)', fontWeight: '500', fontSize: 'var(--text-sm)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
                                 {c.status === 'rejected' && (
-                                  <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600', flexShrink: 0 }}>
                                     {t('candidates.rejectedTag', '淘汰')}
                                   </span>
                                 )}
@@ -1500,7 +1516,7 @@ function CandidatesContent() {
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company || t('candidates.noCompanyAssigned', '未指定企业')}</span>
                                 </span>
                                 {c.department && (
-                                  <span className="tag-pill" style={{ fontSize: '10px', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid var(--border-hairline)', flexShrink: 0 }}>
+                                  <span className="tag-pill" style={{ fontSize: 'var(--text-xs)', padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', border: '1px solid var(--border-hairline)', flexShrink: 0 }}>
                                     {c.department}
                                   </span>
                                 )}
@@ -1518,10 +1534,10 @@ function CandidatesContent() {
                                     maxWidth: '220px',
                                     padding: '1px 6px',
                                     borderRadius: '4px',
-                                    background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
-                                    border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid var(--border-hairline)',
+                                    background: remarkInfo.isPrimary ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.04)',
+                                    border: remarkInfo.isPrimary ? '1px solid var(--border-focus)' : '1px solid var(--border-hairline)',
                                     color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                                    fontSize: '0.72rem',
+                                    fontSize: 'var(--text-xs)',
                                     lineHeight: '1.4',
                                     marginTop: '2px'
                                   }}
@@ -1580,8 +1596,8 @@ function CandidatesContent() {
                                   maxWidth: '100%',
                                   padding: '3px 8px',
                                   borderRadius: '4px',
-                                  background: remarkInfo.isPrimary ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.04)',
-                                  border: remarkInfo.isPrimary ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid var(--border-hairline)',
+                                  background: remarkInfo.isPrimary ? 'var(--fill-selected)' : 'rgba(255, 255, 255, 0.04)',
+                                  border: remarkInfo.isPrimary ? '1px solid var(--border-focus)' : '1px solid var(--border-hairline)',
                                   color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-secondary)',
                                   fontSize: '0.78rem',
                                   lineHeight: '1.4'
@@ -1664,23 +1680,7 @@ function CandidatesContent() {
         {viewPrefs.view === 'grouped' && (
           <div className="candidates-desktop-table" style={{ display: 'flex', flexDirection: 'column' }}>
             {filteredCandidates.length === 0 ? (
-              <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
-                <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: poolTab === 'reserved' ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
-                    <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`}></i>
-                  </div>
-                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
-                    {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
-                  </div>
-                  {hasActiveFilters && (
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-                      <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
-                        <i className="ph-light ph-x"></i> {t('candidates.clearFilters', '清除筛选')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              renderCandidatePlaceholder()
             ) : (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
@@ -1758,7 +1758,7 @@ function CandidatesContent() {
                             onClick={() => openCandidate(c)}
                             onKeyDown={(e) => { if (e.key === 'Enter') openCandidate(c); }}
                             style={{
-                              background: isSelected ? 'rgba(59, 130, 246, 0.08)' : undefined
+                              background: isSelected ? 'var(--fill-selected)' : undefined
                             }}
                           >
                             {!isReadOnlyView && (
@@ -1770,14 +1770,14 @@ function CandidatesContent() {
                                 style={{ cursor: 'pointer', flexShrink: 0, marginRight: '4px' }}
                               />
                             )}
-                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(59, 130, 246, 0.1)', color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.75rem', flexShrink: 0 }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'var(--fill-selected)', color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.75rem', flexShrink: 0 }}>
                               {c.name ? c.name.charAt(0) : '?'}
                             </div>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <div className="orders-row-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span>{c.name}</span>
                                 {c.status === 'rejected' && (
-                                  <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600' }}>
+                                  <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600' }}>
                                     {t('candidates.rejectedTag', '淘汰')}
                                   </span>
                                 )}
@@ -1827,23 +1827,7 @@ function CandidatesContent() {
         {viewPrefs.view === 'compact' && (
           <div className="candidates-desktop-table" style={{ display: 'flex', flexDirection: 'column' }}>
             {filteredCandidates.length === 0 ? (
-              <div className="bezel-shell" style={{ borderStyle: 'dashed', background: 'var(--empty-icon-bg, rgba(255,255,255,0.01))', padding: 'var(--space-8)' }}>
-                <div className="bezel-core" style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 'var(--space-3)' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--empty-icon-bg, rgba(255,255,255,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', color: poolTab === 'reserved' ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
-                    <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`}></i>
-                  </div>
-                  <div style={{ fontSize: 'var(--text-md)', fontWeight: '600', color: 'var(--text-primary)' }}>
-                    {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
-                  </div>
-                  {hasActiveFilters && (
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-                      <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
-                        <i className="ph-light ph-x"></i> {t('candidates.clearFilters', '清除筛选')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              renderCandidatePlaceholder()
             ) : (
               <div className="orders-compact">
                 {filteredCandidates.map(c => {
@@ -1860,7 +1844,7 @@ function CandidatesContent() {
                       onClick={() => openCandidate(c)}
                       onKeyDown={(e) => { if (e.key === 'Enter') openCandidate(c); }}
                       style={{
-                        background: isSelected ? 'rgba(59, 130, 246, 0.08)' : undefined
+                        background: isSelected ? 'var(--fill-selected)' : undefined
                       }}
                     >
                       {!isReadOnlyView && (
@@ -1876,7 +1860,7 @@ function CandidatesContent() {
                       <span className="orders-compact-text">
                         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{c.name}</span>
                         {c.status === 'rejected' && (
-                          <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600', marginLeft: '6px' }}>
+                          <span style={{ fontSize: 'var(--text-xs)', padding: '1px 5px', borderRadius: '4px', background: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', fontWeight: '600', marginLeft: '6px' }}>
                             {t('candidates.rejectedTag', '淘汰')}
                           </span>
                         )}
@@ -1893,14 +1877,14 @@ function CandidatesContent() {
                           <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{' · '}{[c.location, c.degree].filter(Boolean).join(' ')}</span>
                         )}
                         {c.picName && (
-                          <span style={{ color: 'var(--accent-blue)', opacity: 0.8, marginLeft: '6px', fontSize: '0.72rem' }}>[PIC: {c.picName}]</span>
+                          <span style={{ color: 'var(--accent-blue)', opacity: 0.8, marginLeft: '6px', fontSize: 'var(--text-xs)' }}>[PIC: {c.picName}]</span>
                         )}
                       </span>
                       {remarkInfo.shortText && (
                         <span
                           title={remarkInfo.fullText}
                           style={{
-                            fontSize: '0.72rem',
+                            fontSize: 'var(--text-xs)',
                             color: remarkInfo.isPrimary ? 'var(--accent-blue)' : 'var(--text-muted)',
                             maxWidth: '180px',
                             overflow: 'hidden',
@@ -1931,10 +1915,7 @@ function CandidatesContent() {
         {/* Mobile Cards View (Touch-Optimized for Small Screens) */}
         <div className="candidates-mobile-cards">
           {filteredCandidates.length === 0 ? (
-            <div className="bezel-shell" style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <i className={`ph-light ${poolTab === 'reserved' ? 'ph-archive-tray' : 'ph-users'}`} style={{ fontSize: '2rem', marginBottom: 'var(--space-2)', display: 'block', color: poolTab === 'reserved' ? 'var(--accent-amber)' : undefined }}></i>
-              {poolTab === 'reserved' ? t('talentPoolPage.empty', '人才库暂无匹配数据') : t('candidates.emptyList', '暂无匹配的候选人数据')}
-            </div>
+            renderCandidatePlaceholder()
           ) : (
             filteredCandidates.map(c => {
               const isSelected = selectedIds.has(c.id);
@@ -1948,7 +1929,7 @@ function CandidatesContent() {
                   style={{ 
                     padding: '2px', 
                     cursor: 'pointer',
-                    background: isSelected ? 'rgba(59, 130, 246, 0.08)' : undefined,
+                    background: isSelected ? 'var(--fill-selected)' : undefined,
                     borderColor: isSelected ? 'var(--accent-blue)' : undefined
                   }}
                 >
@@ -1969,7 +1950,7 @@ function CandidatesContent() {
                           width: '32px', 
                           height: '32px', 
                           borderRadius: '50%', 
-                          background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(59, 130, 246, 0.12)', 
+                          background: c.status === 'rejected' ? 'rgba(244, 63, 94, 0.12)' : 'var(--fill-selected)', 
                           color: c.status === 'rejected' ? 'var(--accent-rose)' : 'var(--accent-blue)', 
                           display: 'flex', 
                           alignItems: 'center', 
@@ -1989,11 +1970,11 @@ function CandidatesContent() {
 
                       <div style={{ flexShrink: 0 }}>
                         {c.status === 'rejected' ? (
-                          <span className="badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: '#fb7185', border: '1px solid rgba(244, 63, 94, 0.3)', fontSize: '0.68rem', padding: '2px 6px' }}>
+                          <span className="badge" style={{ background: 'rgba(244, 63, 94, 0.12)', color: '#fb7185', border: '1px solid rgba(244, 63, 94, 0.3)', fontSize: 'var(--text-xs)', padding: '2px 6px' }}>
                             {t('candidates.rejected', '已淘汰')}
                           </span>
                         ) : (
-                          <span className={`badge ${stageMeta.badgeClass}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
+                          <span className={`badge ${stageMeta.badgeClass}`} style={{ fontSize: 'var(--text-xs)', padding: '2px 6px' }}>
                             <span className="badge-dot" style={{ width: '5px', height: '5px' }}></span>
                             {stageMeta.label}
                           </span>
@@ -2035,7 +2016,7 @@ function CandidatesContent() {
                     )}
 
                     {/* Card Bottom Row: Phone + School/Location + WhatsApp Button + Delete Button */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid var(--border-hairline)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid var(--border-hairline)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                         {c.phone ? (
                           <WhatsAppButton phone={c.phone} candidateName={c.name} variant="text" />
@@ -2216,7 +2197,7 @@ function CandidatesContent() {
                         color: batchCompanyName === comp ? '#ffffff' : 'var(--text-secondary)',
                         border: '1px solid var(--border-interactive)',
                         padding: '3px 10px', borderRadius: 'var(--radius-pill)',
-                        fontSize: '11px', cursor: 'pointer', transition: 'all 0.15s'
+                        fontSize: 'var(--text-xs)', cursor: 'pointer', transition: 'all 0.15s'
                       }}
                     >
                       {comp}
@@ -2311,7 +2292,7 @@ function CandidatesContent() {
                           <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {cand.name}
                             {isMaster && (
-                              <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: '#f59e0b', color: '#000', fontWeight: 'bold' }}>
+                              <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: '#f59e0b', color: '#000', fontWeight: 'bold' }}>
                                 {t('candidates.recommendedMasterBadge', '⭐️ 主档案')}
                               </span>
                             )}
@@ -2325,7 +2306,7 @@ function CandidatesContent() {
                       </div>
 
                       <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        <span className={`badge ${Utils.getStageMeta(cand.stage || 'screening').badgeClass}`} style={{ fontSize: '10px' }}>
+                        <span className={`badge ${Utils.getStageMeta(cand.stage || 'screening').badgeClass}`} style={{ fontSize: 'var(--text-xs)' }}>
                           {Utils.getStageMeta(cand.stage || 'screening').label}
                         </span>
                         <div style={{ marginTop: '4px' }}>{cand.updatedAt ? Utils.formatDate(cand.updatedAt) : ''}</div>
@@ -2449,11 +2430,8 @@ export default function CandidatesPage() {
   const { t } = useI18n();
   return (
     <Suspense fallback={
-      <div className="page-view active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-          <i className="ph-light ph-spinner-gap" style={{ fontSize: '2rem', animation: 'spin 1s linear infinite', marginBottom: '8px', display: 'block' }}></i>
-          <span>{t('candidates.loadingCandidates', '加载候选人管理...')}</span>
-        </div>
+      <div className="page-view active" style={{ padding: 'var(--space-6)' }}>
+        <Skeleton rows={8} label={t('candidates.loadingCandidates', '加载候选人管理...')} />
       </div>
     }>
       <CandidatesContent />

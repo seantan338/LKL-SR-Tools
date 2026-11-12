@@ -573,7 +573,7 @@ export default function AttendanceModal() {
   if (todayClockOut) {
     const isManualOut = todayClockOut.verifyMethod === 'ADMIN_MANUAL' || todayClockOut.isManualEntry;
     statusBadge = {
-      bg: isManualOut ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+      bg: isManualOut ? 'rgba(168, 85, 247, 0.15)' : 'var(--fill-selected)',
       color: isManualOut ? '#c084fc' : 'var(--accent-blue)',
       dot: isManualOut ? '#c084fc' : 'var(--accent-blue)',
       text: isManualOut
@@ -667,8 +667,8 @@ export default function AttendanceModal() {
         return {
           label: t('attendanceModal.clockOutNow', '下班签退打卡'),
           icon: 'ph-sign-out',
-          bg: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-          shadow: '0 8px 20px -4px rgba(59, 130, 246, 0.4)'
+          bg: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
+          shadow: '0 8px 20px -4px var(--fill-selected)'
         };
     }
   };
@@ -716,7 +716,7 @@ export default function AttendanceModal() {
           {/* Header Row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'var(--fill-selected)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px' }}>
                 <i className="ph-bold ph-clock-user"></i>
               </div>
               <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>{t('attendanceModal.title', '日常考勤签到')}</span>
@@ -796,7 +796,7 @@ export default function AttendanceModal() {
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div style={{ fontWeight: '700', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span>{t('attendanceModal.leaveActiveTitle', isEn ? 'Approved Leave Active Today' : '今日处于获批休假状态')}</span>
-                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', fontWeight: '600' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', fontWeight: '600' }}>
                     {(() => {
                       const leaveTypeLabel = {
                         ANNUAL: t('attendanceLeave.typeAnnual', isEn ? 'Annual Leave (AL)' : '年假 (Annual Leave - AL)'),
@@ -812,7 +812,7 @@ export default function AttendanceModal() {
                     })()}
                   </span>
                 </div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: '2px', fontSize: '11px', lineHeight: 1.3 }}>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '2px', fontSize: 'var(--text-xs)', lineHeight: 1.3 }}>
                   {todayLeave.durationType === 'FULL_DAY'
                     ? t('attendanceModal.leaveFullDayDesc', isEn ? 'Full day on leave: daily clock-in requirements and shift hours are automatically waived.' : '全天休假，系统自动豁免全天打卡与工时考核')
                     : todayLeave.durationType === 'HALF_AM'
@@ -852,7 +852,7 @@ export default function AttendanceModal() {
                     <>{t('attendanceModal.matchedShiftPrefix', '当前匹配：')}<span style={{ color: liveShift?.isLateArrival ? '#f87171' : '#a78bfa' }}>{liveShift?.name || 'Shift D (9:00am - 6:00pm)'}</span></>
                   )}
                 </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
                   {todayClockIn
                     ? (assignedShift?.isLateArrival
                         ? t('attendanceModal.lateArrivalWarning', '⚠️ 今日上班已迟到，下班仍须达标')
@@ -864,7 +864,7 @@ export default function AttendanceModal() {
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t('attendanceModal.cutoffTargetLine', '下班达标底线')}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{t('attendanceModal.cutoffTargetLine', '下班达标底线')}</div>
               <div style={{ fontFamily: 'monospace', fontWeight: '700', color: (todayClockIn ? assignedShift?.isLateArrival : liveShift?.isLateArrival) ? '#f87171' : 'var(--accent-blue)', fontSize: '13px' }}>
                 {todayClockIn ? (assignedShift?.endStr || '18:00:00') : (liveShift?.endStr || '18:00:00')}
               </div>
@@ -878,7 +878,7 @@ export default function AttendanceModal() {
             gap: enableLunchPunch ? '6px' : 'var(--space-3)',
             marginBottom: 'var(--space-4)',
             textAlign: 'center',
-            fontSize: '11px'
+            fontSize: 'var(--text-xs)'
           }}>
             {/* Stage 1: Clock In */}
             <div
@@ -919,7 +919,7 @@ export default function AttendanceModal() {
                     <i className="ph-bold ph-coffee" style={{ marginRight: '3px' }}></i>
                     {t('attendanceModal.lunchOutLabel', '午休离开')}
                   </div>
-                  <div style={{ fontWeight: '700', color: lunchOutTimeStr ? 'var(--accent-amber)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: '11px' }}>
+                  <div style={{ fontWeight: '700', color: lunchOutTimeStr ? 'var(--accent-amber)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: 'var(--text-xs)' }}>
                     {lunchOutTimeStr ? lunchOutTimeStr.slice(0, 5) : t('attendanceModal.notClockedLunchOut', '未记录')}
                   </div>
                 </div>
@@ -939,7 +939,7 @@ export default function AttendanceModal() {
                     <i className="ph-bold ph-briefcase" style={{ marginRight: '3px' }}></i>
                     {t('attendanceModal.lunchInLabel', '午休返回')}
                   </div>
-                  <div style={{ fontWeight: '700', color: lunchInTimeStr ? 'var(--accent-cyan, #06b6d4)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: '11px' }}>
+                  <div style={{ fontWeight: '700', color: lunchInTimeStr ? 'var(--accent-cyan, #06b6d4)' : 'var(--text-muted)', fontFamily: 'monospace', fontSize: 'var(--text-xs)' }}>
                     {lunchInTimeStr ? lunchInTimeStr.slice(0, 5) : t('attendanceModal.notClockedLunchIn', '未记录')}
                   </div>
                 </div>
@@ -950,7 +950,7 @@ export default function AttendanceModal() {
             <div
               onClick={() => setSelectedPunchType('CLOCK_OUT')}
               style={{
-                background: activePunch === 'CLOCK_OUT' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255,255,255,0.02)',
+                background: activePunch === 'CLOCK_OUT' ? 'var(--fill-selected)' : 'rgba(255,255,255,0.02)',
                 padding: enableLunchPunch ? '8px 4px' : '12px 8px',
                 borderRadius: 'var(--radius-md)',
                 border: activePunch === 'CLOCK_OUT' ? '1px solid var(--accent-blue)' : '1px solid var(--border-hairline)',
@@ -992,7 +992,7 @@ export default function AttendanceModal() {
                   style={{
                     flex: 1,
                     padding: '5px 2px',
-                    fontSize: '11px',
+                    fontSize: 'var(--text-xs)',
                     fontWeight: activePunch === item.id ? '700' : '500',
                     borderRadius: 'var(--radius-sm)',
                     background: activePunch === item.id ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
@@ -1087,8 +1087,8 @@ export default function AttendanceModal() {
           {/* Status / Verification Progress Banner */}
           {statusMessage && (
             <div style={{
-              background: isVerifying ? 'rgba(59, 130, 246, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-              border: `1px solid ${isVerifying ? 'rgba(59, 130, 246, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              background: isVerifying ? 'var(--fill-selected)' : 'rgba(239, 68, 68, 0.12)',
+              border: `1px solid ${isVerifying ? 'var(--border-focus)' : 'rgba(239, 68, 68, 0.3)'}`,
               borderRadius: 'var(--radius-md)',
               padding: '10px 14px',
               marginBottom: 'var(--space-4)',
@@ -1110,7 +1110,7 @@ export default function AttendanceModal() {
                   border: '1px solid rgba(234, 179, 8, 0.35)',
                   borderRadius: 'var(--radius-sm)',
                   padding: '8px 10px',
-                  fontSize: '11px',
+                  fontSize: 'var(--text-xs)',
                   color: 'var(--accent-amber)',
                   lineHeight: 1.45,
                   display: 'flex',
@@ -1169,14 +1169,14 @@ export default function AttendanceModal() {
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                   <button
                     className="btn btn-sm btn-secondary"
-                    style={{ fontSize: '11px', padding: '3px 10px' }}
+                    style={{ fontSize: 'var(--text-xs)', padding: '3px 10px' }}
                     onClick={() => setEarlyClockOutWarning(null)}
                   >
                     {t('attendanceModal.earlyWait', '再等一下 (保住全勤)')}
                   </button>
                   <button
                     className="btn btn-sm btn-outline"
-                    style={{ fontSize: '11px', padding: '3px 10px', borderColor: '#ef4444', color: '#f87171' }}
+                    style={{ fontSize: 'var(--text-xs)', padding: '3px 10px', borderColor: '#ef4444', color: '#f87171' }}
                     onClick={() => handlePunchWithGuard('CLOCK_OUT', true)}
                   >
                     {t('attendanceModal.earlyForce', '坚持提前签退')}
@@ -1214,10 +1214,10 @@ export default function AttendanceModal() {
                     height: '46px',
                     fontSize: '15px',
                     fontWeight: '700',
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                    background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
                     border: 'none',
                     borderRadius: 'var(--radius-md)',
-                    boxShadow: '0 8px 20px -4px rgba(59, 130, 246, 0.4)',
+                    boxShadow: '0 8px 20px -4px var(--fill-selected)',
                     gap: '8px'
                   }}
                   disabled={isVerifying}
@@ -1307,7 +1307,7 @@ export default function AttendanceModal() {
           </div>
 
           {/* Security Subtitle */}
-          <div style={{ marginTop: 'var(--space-4)', fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+          <div style={{ marginTop: 'var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
             <i className="ph-bold ph-shield-check" style={{ color: 'var(--accent-emerald)' }}></i>
             <span>{t('attendanceModal.securityNote', '企业级安全风控：支持公司 Wi-Fi 自动秒验 或 100 米地理围栏')}</span>
           </div>

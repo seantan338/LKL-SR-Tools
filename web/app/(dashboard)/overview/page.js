@@ -9,6 +9,7 @@ import { FirestoreStore } from '../../../lib/firestore-store';
 import { Utils } from '../../../lib/utils';
 import CandidateDrawer from '../../../components/CandidateDrawer';
 import ExpenseClaimModal from '../../../components/ExpenseClaimModal';
+import { EmptyState, Skeleton } from '../../../components/UiStates';
 
 export default function OverviewPage() {
   const { teamId, role, user, isHqTeam, isOwner, isManager } = useAuth();
@@ -92,11 +93,11 @@ export default function OverviewPage() {
         <div className="bezel-shell" style={{ padding: '4px' }}>
           <div className="bezel-core" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
                 {t('overview.totalActive', '总活跃候选人')}
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>
-                {total}
+              <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+                {loading ? <span className="skeleton-bar skeleton-metric" /> : total}
               </div>
             </div>
             <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--accent-blue-glow)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
@@ -109,11 +110,11 @@ export default function OverviewPage() {
         <div className="bezel-shell" style={{ padding: '4px' }}>
           <div className="bezel-core" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
                 {t('overview.inProgress', '进行中流转')}
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>
-                {active}
+              <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+                {loading ? <span className="skeleton-bar skeleton-metric" /> : active}
               </div>
             </div>
             <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--accent-emerald-glow)', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
@@ -126,11 +127,11 @@ export default function OverviewPage() {
         <div className="bezel-shell" style={{ padding: '4px' }}>
           <div className="bezel-core" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
                 {t('overview.upcomingInterviews', '即将排期面试')}
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>
-                {upcomingInterviews.length}
+              <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+                {loading ? <span className="skeleton-bar skeleton-metric" /> : upcomingInterviews.length}
               </div>
             </div>
             <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--accent-amber-glow)', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
@@ -143,11 +144,11 @@ export default function OverviewPage() {
         <div className="bezel-shell" style={{ padding: '4px' }}>
           <div className="bezel-core" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
                 {t('overview.offerRate', 'Offer 转化率')}
               </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>
-                {rate}%
+              <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+                {loading ? <span className="skeleton-bar skeleton-metric" /> : `${rate}%`}
               </div>
             </div>
             <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', background: 'var(--accent-violet-glow)', color: 'var(--accent-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
@@ -279,7 +280,7 @@ export default function OverviewPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <i className="ph-fill ph-calendar-check" style={{ color: 'var(--accent-amber)', fontSize: '1.15rem' }}></i>
                 <h3 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('overview.upcomingTitle', '近期排期')}</h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({upcomingInterviews.length})</span>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({upcomingInterviews.length})</span>
               </div>
               <button 
                 className="btn-icon" 
@@ -293,59 +294,29 @@ export default function OverviewPage() {
 
             {/* 列表区域 (独立顺畅滚动) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
-              {upcomingInterviews.length === 0 ? (
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  margin: 'auto',
-                  gap: '8px', 
-                  color: 'var(--text-muted)', 
-                  fontSize: '0.8125rem', 
-                  padding: 'var(--space-4) 0' 
-                }}>
-                  <i className="ph-light ph-calendar-check" style={{ fontSize: '1.75rem', color: 'var(--accent-amber)', opacity: 0.75, marginBottom: '2px' }}></i>
-                  <span>{t('overview.noUpcoming', '暂无近期排期的面试')}</span>
-                </div>
+              {loading ? (
+                <Skeleton rows={3} />
+              ) : upcomingInterviews.length === 0 ? (
+                <EmptyState compact icon="ph-calendar-check" title={t('overview.noUpcoming', '暂无近期排期的面试')} />
               ) : (
                 upcomingInterviews.map(c => (
-                  <div 
-                    key={c.id} 
+                  <div
+                    key={c.id}
+                    className="overview-row"
                     onClick={() => handleOpenCandidate(c)}
-                    style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      gap: '6px',
-                      padding: '10px 14px', 
-                      background: 'var(--fill)', 
-                      borderRadius: 'var(--radius-md)', 
-                      border: '1px solid var(--border-hairline)',
-                      transition: 'all 0.15s ease',
-                      cursor: 'pointer',
-                      width: '100%',
-                      minWidth: 0,
-                      boxSizing: 'border-box',
-                      flexShrink: 0
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = 'var(--fill-hover)';
-                      e.currentTarget.style.borderColor = 'var(--border-interactive)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'var(--fill)';
-                      e.currentTarget.style.borderColor = 'var(--border-hairline)';
-                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleOpenCandidate(c); }}
                   >
                     {/* 上层: 姓名 + 日期时间胶囊 */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {c.name}
                         </span>
                       </div>
                       <span style={{
-                        fontSize: '0.72rem',
+                        fontSize: 'var(--text-xs)',
                         fontFamily: 'var(--font-mono)',
                         padding: '1px 7px',
                         background: 'var(--fill-selected)',
@@ -360,10 +331,10 @@ export default function OverviewPage() {
                     </div>
 
                     {/* 下层: 企业微标 + 岗位与电话详情 */}
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%', minWidth: 0 }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%', minWidth: 0 }}>
                       {c.company && (
                         <span style={{
-                          fontSize: '0.68rem',
+                          fontSize: 'var(--text-xs)',
                           padding: '1px 6px',
                           borderRadius: '4px',
                           background: 'var(--fill)',
@@ -388,7 +359,7 @@ export default function OverviewPage() {
                       )}
                       {c.phone && (
                         <span style={{ fontFamily: 'var(--font-mono)', marginLeft: 'auto', flexShrink: 0 }}>
-                          <i className="ph-light ph-phone" style={{ marginRight: '3px', fontSize: '11px' }}></i>
+                          <i className="ph-light ph-phone" style={{ marginRight: '3px', fontSize: 'var(--text-xs)' }}></i>
                           {c.phone}
                         </span>
                       )}
@@ -421,7 +392,7 @@ export default function OverviewPage() {
                     border: '1px solid var(--border-hairline)', 
                     color: 'var(--text-secondary)', 
                     borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.75rem', 
+                    fontSize: 'var(--text-xs)', 
                     cursor: 'pointer', 
                     outline: 'none', 
                     padding: '2px 22px 2px 8px'
@@ -447,49 +418,28 @@ export default function OverviewPage() {
                 // 严格依据候选人实际录入/变动时间倒序排序 (精确到毫秒)
                 filtered = [...filtered].sort((a, b) => Utils.getCandidateTimestamp(b) - Utils.getCandidateTimestamp(a));
                 
+                if (loading) return <Skeleton rows={4} />;
                 if (filtered.length === 0) {
                   return (
-                    <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', padding: 'var(--space-4) 0' }}>
-                      <i className="ph-light ph-tray" style={{ fontSize: '1.5rem', display: 'block', marginBottom: 'var(--space-1)', opacity: 0.4 }}></i>
-                      {t('overview.noRecords', '暂无符合条件的记录')}
-                    </div>
+                    <EmptyState compact icon="ph-tray" title={t('overview.noRecords', '暂无符合条件的记录')} />
                   );
                 }
 
                 return filtered.map(c => {
                   const stageMeta = Utils.getStageMeta(c.stage, t);
                   return (
-                    <div 
-                      key={c.id} 
+                    <div
+                      key={c.id}
+                      className="overview-row"
                       onClick={() => handleOpenCandidate(c)}
-                      style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column',
-                        gap: '6px',
-                        padding: '10px 14px', 
-                        background: 'var(--fill)', 
-                        borderRadius: 'var(--radius-md)', 
-                        border: '1px solid var(--border-hairline)',
-                        transition: 'all 0.15s ease',
-                        cursor: 'pointer',
-                        width: '100%',
-                        minWidth: 0,
-                        boxSizing: 'border-box',
-                        flexShrink: 0
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = 'var(--fill-hover)';
-                        e.currentTarget.style.borderColor = 'var(--border-interactive)';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'var(--fill)';
-                        e.currentTarget.style.borderColor = 'var(--border-hairline)';
-                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleOpenCandidate(c); }}
                     >
                       {/* 上层: 姓名 + 阶段状态 + 相对时间 (无论名字多长，右侧徽章与时间始终稳定对齐) */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                          <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {c.name}
                           </span>
                         </div>
@@ -497,22 +447,22 @@ export default function OverviewPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                           <span
                             className={`badge ${c.status === 'rejected' ? 'badge-stage-rejected' : stageMeta.badgeClass}`}
-                            style={{ fontSize: '0.68rem', padding: '1px 6px', whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 'var(--text-xs)', padding: '1px 6px', whiteSpace: 'nowrap' }}
                           >
                             <span className="badge-dot" style={{ width: '5px', height: '5px' }}></span>
                             {c.status === 'rejected' ? t('candidates.rejected', '已淘汰') : t(`common.stages.${c.stage}`, stageMeta.label)}
                           </span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', minWidth: '40px', textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', minWidth: '40px', textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
                             {Utils.formatRelativeTime(c.createdAt, t, c)}
                           </span>
                         </div>
                       </div>
 
                       {/* 下层: 企业微标 + 岗位 + 电话 (单行截断，企业微标限制最大宽度避免撑裂) */}
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%', minWidth: 0 }}>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%', minWidth: 0 }}>
                         {c.company && (
                           <span style={{
-                            fontSize: '0.68rem',
+                            fontSize: 'var(--text-xs)',
                             padding: '1px 6px',
                             borderRadius: '4px',
                             background: 'var(--fill)',
@@ -537,7 +487,7 @@ export default function OverviewPage() {
                         )}
                         {c.phone && (
                           <span style={{ fontFamily: 'var(--font-mono)', marginLeft: 'auto', flexShrink: 0, opacity: 0.85 }}>
-                            <i className="ph-light ph-phone" style={{ marginRight: '2px', fontSize: '10px' }}></i>
+                            <i className="ph-light ph-phone" style={{ marginRight: '2px', fontSize: 'var(--text-xs)' }}></i>
                             {c.phone}
                           </span>
                         )}
