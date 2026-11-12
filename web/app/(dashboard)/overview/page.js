@@ -168,14 +168,7 @@ export default function OverviewPage() {
           >
             <div className="bezel-core">
               <div className="overview-hub-info">
-                <div 
-                  className="overview-hub-icon"
-                  style={{ 
-                    background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.22) 0%, rgba(2, 132, 199, 0.35) 100%)', 
-                    color: '#38bdf8', 
-                    boxShadow: '0 2px 10px rgba(14, 165, 233, 0.25)'
-                  }}
-                >
+                <div className="overview-hub-icon">
                   <i className="ph-fill ph-clock-user"></i>
                 </div>
                 <div className="overview-hub-text">
@@ -197,27 +190,16 @@ export default function OverviewPage() {
                 <button
                   type="button"
                   className="btn btn-sm btn-ghost overview-hub-btn"
-                  style={{
-                    borderColor: 'rgba(14, 165, 233, 0.3)',
-                    color: 'var(--text-primary)'
-                  }}
                   onClick={handleQuickPunch}
                   title={t('overview.quickPunchBtn', '快捷打卡')}
                 >
-                  <i className="ph-bold ph-fingerprint" style={{ color: '#38bdf8' }}></i>
+                  <i className="ph-bold ph-fingerprint"></i>
                   <span>{t('overview.quickPunchBtn', '快捷打卡')}</span>
                 </button>
 
                 <button
                   type="button"
                   className="btn btn-sm btn-primary overview-hub-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    border: 'none',
-                    color: '#fff',
-                    fontWeight: '600',
-                    boxShadow: '0 3px 10px rgba(2, 132, 199, 0.3)'
-                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleGoAttendance();
@@ -239,14 +221,7 @@ export default function OverviewPage() {
           >
             <div className="bezel-core">
               <div className="overview-hub-info">
-                <div 
-                  className="overview-hub-icon"
-                  style={{ 
-                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.35) 100%)', 
-                    color: '#34d399', 
-                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)'
-                  }}
-                >
+                <div className="overview-hub-icon">
                   <i className="ph-fill ph-receipt"></i>
                 </div>
                 <div className="overview-hub-text">
@@ -268,27 +243,16 @@ export default function OverviewPage() {
                 <button
                   type="button"
                   className="btn btn-sm btn-ghost overview-hub-btn"
-                  style={{
-                    borderColor: 'rgba(16, 185, 129, 0.3)',
-                    color: 'var(--text-primary)'
-                  }}
                   onClick={handleOpenNewClaim}
                   title={t('overview.quickSubmitClaimBtn', '发起报销')}
                 >
-                  <i className="ph-bold ph-plus" style={{ color: '#34d399' }}></i>
+                  <i className="ph-bold ph-plus"></i>
                   <span>{t('overview.quickSubmitClaimBtn', '发起报销')}</span>
                 </button>
 
                 <button
                   type="button"
                   className="btn btn-sm btn-primary overview-hub-btn"
-                  style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    border: 'none',
-                    color: '#fff',
-                    fontWeight: '600',
-                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)'
-                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleGoClaims();
@@ -354,9 +318,9 @@ export default function OverviewPage() {
                       flexDirection: 'column',
                       gap: '6px',
                       padding: '10px 14px', 
-                      background: 'rgba(255, 255, 255, 0.025)', 
+                      background: 'var(--fill)', 
                       borderRadius: 'var(--radius-md)', 
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      border: '1px solid var(--border-hairline)',
                       transition: 'all 0.15s ease',
                       cursor: 'pointer',
                       width: '100%',
@@ -365,12 +329,12 @@ export default function OverviewPage() {
                       flexShrink: 0
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.045)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                      e.currentTarget.style.background = 'var(--fill-hover)';
+                      e.currentTarget.style.borderColor = 'var(--border-interactive)';
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.background = 'var(--fill)';
+                      e.currentTarget.style.borderColor = 'var(--border-hairline)';
                     }}
                   >
                     {/* 上层: 姓名 + 日期时间胶囊 */}
@@ -384,10 +348,10 @@ export default function OverviewPage() {
                         fontSize: '0.72rem',
                         fontFamily: 'var(--font-mono)',
                         padding: '1px 7px',
-                        background: 'rgba(59, 130, 246, 0.12)',
-                        color: 'var(--accent-blue)',
-                        borderRadius: 'var(--radius-pill)',
-                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        background: 'var(--fill-selected)',
+                        color: 'var(--accent)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid transparent',
                         flexShrink: 0,
                         whiteSpace: 'nowrap'
                       }}>
@@ -402,9 +366,9 @@ export default function OverviewPage() {
                           fontSize: '0.68rem',
                           padding: '1px 6px',
                           borderRadius: '4px',
-                          background: 'rgba(16, 185, 129, 0.08)',
-                          color: 'var(--accent-emerald)',
-                          border: '1px solid rgba(16, 185, 129, 0.2)',
+                          background: 'var(--fill)',
+                          color: 'var(--text-secondary)',
+                          border: '1px solid var(--border-hairline)',
                           whiteSpace: 'nowrap',
                           maxWidth: '120px',
                           overflow: 'hidden',
@@ -453,7 +417,7 @@ export default function OverviewPage() {
                 <select 
                   style={{ 
                     appearance: 'none', 
-                    background: 'rgba(255, 255, 255, 0.04)', 
+                    background: 'var(--fill)', 
                     border: '1px solid var(--border-hairline)', 
                     color: 'var(--text-secondary)', 
                     borderRadius: 'var(--radius-sm)',
@@ -503,9 +467,9 @@ export default function OverviewPage() {
                         flexDirection: 'column',
                         gap: '6px',
                         padding: '10px 14px', 
-                        background: 'rgba(255, 255, 255, 0.025)', 
+                        background: 'var(--fill)', 
                         borderRadius: 'var(--radius-md)', 
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--border-hairline)',
                         transition: 'all 0.15s ease',
                         cursor: 'pointer',
                         width: '100%',
@@ -514,12 +478,12 @@ export default function OverviewPage() {
                         flexShrink: 0
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.045)';
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                        e.currentTarget.style.background = 'var(--fill-hover)';
+                        e.currentTarget.style.borderColor = 'var(--border-interactive)';
                       }}
                       onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.background = 'var(--fill)';
+                        e.currentTarget.style.borderColor = 'var(--border-hairline)';
                       }}
                     >
                       {/* 上层: 姓名 + 阶段状态 + 相对时间 (无论名字多长，右侧徽章与时间始终稳定对齐) */}
@@ -551,9 +515,9 @@ export default function OverviewPage() {
                             fontSize: '0.68rem',
                             padding: '1px 6px',
                             borderRadius: '4px',
-                            background: 'rgba(16, 185, 129, 0.08)',
-                            color: 'var(--accent-emerald)',
-                            border: '1px solid rgba(16, 185, 129, 0.2)',
+                            background: 'var(--fill)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-hairline)',
                             whiteSpace: 'nowrap',
                             maxWidth: '120px',
                             overflow: 'hidden',

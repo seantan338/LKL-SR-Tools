@@ -137,8 +137,7 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                           padding: '1px 6px',
                           borderRadius: '10px',
                           marginLeft: 'auto',
-                          fontWeight: '700',
-                          boxShadow: '0 0 6px rgba(239, 68, 68, 0.5)'
+                          fontWeight: '700'
                         }}>
                           {unreadAnnouncementsCount > 99 ? '99+' : unreadAnnouncementsCount}
                         </span>
@@ -182,9 +181,9 @@ export default function Sidebar({ isOpen, closeSidebar }) {
               <span style={{
                 fontSize: '10px',
                 fontWeight: '700',
-                color: 'var(--accent-blue)',
-                background: 'rgba(59, 130, 246, 0.12)',
-                border: '1px solid rgba(59, 130, 246, 0.25)',
+                color: 'var(--accent)',
+                background: 'var(--fill-selected)',
+                border: '1px solid transparent',
                 padding: '1px 6px',
                 borderRadius: '4px',
                 letterSpacing: '0.03em'

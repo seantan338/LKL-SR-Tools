@@ -910,11 +910,29 @@ html[data-theme="tactical"] .lang-toggle-btn:hover {
 }
 
 .login-title {
-  font-size: 22px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.03em;
   color: var(--text-primary);
   margin: 0;
+  line-height: 1.25;
+}
+
+.login-product-company {
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+}
+
+.login-product-dot {
+  color: var(--text-faint);
+  font-weight: 500;
 }
 
 .login-subtitle {
